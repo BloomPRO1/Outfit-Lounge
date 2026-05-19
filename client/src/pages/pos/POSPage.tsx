@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Barcode, ShoppingCart, Plus, Minus, Trash2,
@@ -20,6 +20,7 @@ import { cn } from '@/utils/cn';
 import type { ProductCategory } from '@/types';
 
 export default function POSPage() {
+  const qc = useQueryClient();
   const [productSearch, setProductSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -73,6 +74,7 @@ export default function POSPage() {
       clearCart();
       setCustomer(null, null);
       setMobileTab('products');
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
       toast.success(`Sale ${data.sale.sale_number} completed!`);
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Checkout failed'),
