@@ -84,6 +84,8 @@ export async function getRentalById(req: Request, res: Response): Promise<void> 
   const itemsRes = await db.query(`
     SELECT ri.*,
            p.name as product_name, p.sku as product_sku,
+           p.selling_price as product_selling_price,
+           p.type as product_type,
            pv.size, pv.color, pv.material, pv.sku as variant_sku,
            pi.url as product_image
     FROM rental_items ri
@@ -189,10 +191,12 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
         VALUES ($1, $2, $3, $4)
       `, [rental.id, item.variantId, item.quantity || 1, pricePerDay]);
 
-      // Update available_for_rent
+      // Update stock (both total and available_for_rent)
       await client.query(`
         UPDATE product_variants
-        SET available_for_rent = available_for_rent - $1
+        SET available_for_rent = available_for_rent - $1,
+            stock_quantity = stock_quantity - $1,
+            updated_at = NOW()
         WHERE id = $2 AND available_for_rent >= $1
       `, [item.quantity || 1, item.variantId]);
 
@@ -254,17 +258,46 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
     return;
   }
 
-  const result = await db.query(`
-    UPDATE rentals SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
-    WHERE id = $3 RETURNING *
-  `, [status, notes, id]);
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
 
-  if (!result.rows[0]) {
-    res.status(404).json({ error: 'Rental not found' });
-    return;
+    const result = await client.query(`
+      UPDATE rentals SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
+      WHERE id = $3 RETURNING *
+    `, [status, notes, id]);
+
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Rental not found' });
+      return;
+    }
+
+    // Restore inventory when rental is cancelled
+    if (status === 'cancelled') {
+      const items = await client.query(
+        `SELECT product_variant_id, quantity FROM rental_items WHERE rental_id = $1 AND is_returned = false`,
+        [id]
+      );
+      for (const item of items.rows) {
+        await client.query(`
+          UPDATE product_variants
+          SET available_for_rent = available_for_rent + $1,
+              stock_quantity = stock_quantity + $1,
+              updated_at = NOW()
+          WHERE id = $2
+        `, [item.quantity, item.product_variant_id]);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
   }
-
-  res.json(result.rows[0]);
 }
 
 export async function addPayment(req: AuthRequest, res: Response): Promise<void> {

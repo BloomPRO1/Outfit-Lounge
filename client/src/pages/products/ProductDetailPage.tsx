@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Edit, Package, Tag, ArrowLeft, Barcode, QrCode, Printer } from 'lucide-react';
+import { Edit, Package, Printer, ArrowLeft } from 'lucide-react';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
-import { formatCurrency, formatDate } from '@/utils/formatters';
+import BarcodePrintModal, { type BarcodeItem } from '@/components/common/BarcodePrintModal';
+import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeImage, setActiveImage] = useState(0);
+  const [barcodeItem, setBarcodeItem] = useState<BarcodeItem | null>(null);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -153,6 +155,12 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
+      <BarcodePrintModal
+        open={!!barcodeItem}
+        onClose={() => setBarcodeItem(null)}
+        item={barcodeItem}
+      />
+
       {/* Variants */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -185,7 +193,20 @@ export default function ProductDetailPage() {
                     <td className="py-2.5 px-3 text-charcoal-100">{v.available_for_rent}</td>
                     <td className="py-2.5 px-3 text-red-400">{v.damaged_count || 0}</td>
                     <td className="py-2.5 px-3">
-                      <button className="text-xs text-gold-500 hover:text-gold-400 transition-colors">Edit</button>
+                      <button
+                        className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-gold-400 transition-colors"
+                        onClick={() => setBarcodeItem({
+                          sku: v.sku,
+                          productName: product.name,
+                          size: v.size,
+                          color: v.color,
+                          price: product.selling_price,
+                          stockQty: v.stock_quantity,
+                        })}
+                      >
+                        <Printer size={12} />
+                        Barcode
+                      </button>
                     </td>
                   </tr>
                 ))}

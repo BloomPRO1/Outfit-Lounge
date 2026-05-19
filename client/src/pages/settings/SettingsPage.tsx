@@ -259,6 +259,54 @@ function FineSettings({ settings, onSave, saving }: { settings: any; onSave: (u:
           </p>
         </div>
 
+        <div className="pt-2 border-t border-charcoal-500">
+          <p className="text-sm font-semibold text-charcoal-100 mb-4">Damage Charges</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Damage Charge Type"
+              options={[
+                { value: 'none',                label: 'No charge' },
+                { value: 'flat',                label: 'Flat amount per item' },
+                { value: 'percentage_of_rental', label: '% of item rental cost' },
+              ]}
+              value={get('damage_charge_type', 'none')}
+              onChange={(e) => set('damage_charge_type', e.target.value)}
+            />
+            {get('damage_charge_type', 'none') === 'flat' && (
+              <Input
+                label="Flat Charge per Damaged Item (LKR)"
+                type="number"
+                min="0"
+                step="0.50"
+                value={get('damage_flat_charge', '0')}
+                onChange={(e) => set('damage_flat_charge', e.target.value)}
+                hint="Fixed amount charged for each damaged item"
+              />
+            )}
+            {get('damage_charge_type', 'none') === 'percentage_of_rental' && (
+              <Input
+                label="Damage Charge (%)"
+                type="number"
+                min="0"
+                max="500"
+                step="1"
+                value={get('damage_charge_percent', '50')}
+                onChange={(e) => set('damage_charge_percent', e.target.value)}
+                hint="% of the item's total rental cost (price/day × qty × days)"
+              />
+            )}
+          </div>
+          {get('damage_charge_type', 'none') !== 'none' && (
+            <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+              <p className="text-xs text-amber-300">
+                {get('damage_charge_type') === 'flat'
+                  ? `Each damaged item adds a flat charge of LKR ${get('damage_flat_charge', '0')} during return.`
+                  : `Each damaged item adds ${get('damage_charge_percent', '50')}% of its rental cost as a damage charge during return.`}
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="flex justify-end pt-2">
           <Button variant="primary" onClick={() => onSave({ ...form })} loading={saving}>Save Changes</Button>
         </div>

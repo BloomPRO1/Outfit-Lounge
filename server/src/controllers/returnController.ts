@@ -43,16 +43,34 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
   const rental = rentalRes.rows[0];
   const actualReturn = returnDate ? new Date(returnDate) : new Date();
 
+  // Load damage charge settings
+  const dmgRows = await db.query(
+    `SELECT key, value FROM settings WHERE key IN ('damage_charge_type','damage_flat_charge','damage_charge_percent')`
+  );
+  const dmgCfg: Record<string, string> = {};
+  for (const r of dmgRows.rows) dmgCfg[r.key] = r.value;
+  const dmgType    = dmgCfg['damage_charge_type']    || 'none';
+  const dmgFlat    = parseFloat(dmgCfg['damage_flat_charge']    || '0');
+  const dmgPercent = parseFloat(dmgCfg['damage_charge_percent'] || '0');
+
+  // Booked rental days (used for percentage calculation)
+  const rentalDays = Math.max(1, Math.ceil(
+    (new Date(rental.rental_end_date).getTime() - new Date(rental.rental_start_date).getTime())
+    / (1000 * 60 * 60 * 24)
+  ));
+
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
 
     let totalFine = 0;
+    let totalDamageCharge = 0;
     let damageNotes: string[] = [];
 
     // Process each returned item
     for (const item of items) {
-      const { rentalItemId, condition, quantity } = item;
+      // clientCharge is only used for 'lost' items that have no selling price
+      const { rentalItemId, condition, charge: clientCharge = 0 } = item;
 
       await client.query(`
         UPDATE rental_items
@@ -60,32 +78,30 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
         WHERE id = $3 AND rental_id = $4
       `, [condition || 'good', actualReturn.toISOString(), rentalItemId, rentalId]);
 
-      // Get variant info
+      // Get variant + product info
       const riRes = await client.query(`
-        SELECT ri.product_variant_id, ri.rental_price_per_day, ri.quantity
+        SELECT ri.product_variant_id, ri.quantity, ri.rental_price_per_day,
+               p.selling_price, p.type AS product_type
         FROM rental_items ri
+        JOIN product_variants pv ON pv.id = ri.product_variant_id
+        JOIN products p ON p.id = pv.product_id
         WHERE ri.id = $1
       `, [rentalItemId]);
 
       if (riRes.rows[0]) {
-        const { product_variant_id, quantity: itemQty } = riRes.rows[0];
+        const { product_variant_id, quantity: itemQty, rental_price_per_day,
+                selling_price, product_type } = riRes.rows[0];
 
-        // Calculate fine for this item
-        const fineCalc = await calculateFine(
-          new Date(rental.rental_end_date),
-          actualReturn,
-          parseFloat(rental.total_fine) > 0 ? 20 : 20 // use default fine per day
-        );
-        totalFine += fineCalc.totalFine;
-
-        // Return to inventory
+        // Restore inventory
+        const restoreQty = condition === 'lost' ? 0 : (itemQty || 1);
         await client.query(`
           UPDATE product_variants
           SET available_for_rent = available_for_rent + $1,
+              stock_quantity = stock_quantity + $1,
               damaged_count = CASE WHEN $2 = 'damaged' THEN damaged_count + 1 ELSE damaged_count END,
               updated_at = NOW()
           WHERE id = $3
-        `, [itemQty || 1, condition, product_variant_id]);
+        `, [restoreQty, condition, product_variant_id]);
 
         await client.query(`
           INSERT INTO inventory_movements (product_variant_id, type, quantity, reason, reference_id, reference_type, created_by)
@@ -93,13 +109,44 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
         `, [
           product_variant_id,
           itemQty || 1,
-          condition === 'damaged' ? 'Returned damaged' : 'Rental return',
+          condition === 'lost' ? 'Item lost' : condition === 'damaged' ? 'Returned damaged' : 'Rental return',
           rentalId,
           req.user?.id,
         ]);
 
+        // --- Charge calculation (server-authoritative) ---
+        let charge = 0;
+        let chargeNote = '';
+
         if (condition === 'damaged') {
-          damageNotes.push(`Item damaged`);
+          // Always compute from settings
+          if (dmgType === 'flat') {
+            charge = dmgFlat;
+          } else if (dmgType === 'percentage_of_rental') {
+            const itemCost = parseFloat(rental_price_per_day) * (itemQty || 1) * rentalDays;
+            charge = itemCost * (dmgPercent / 100);
+          }
+          chargeNote = 'Damage charge';
+          if (condition === 'damaged') damageNotes.push('Item damaged');
+        } else if (condition === 'lost') {
+          const isSaleItem = product_type === 'sale' || product_type === 'both';
+          if (isSaleItem && selling_price && parseFloat(selling_price) > 0) {
+            // Use selling price from DB
+            charge = parseFloat(selling_price);
+          } else {
+            // Fall back to client-provided value (rental-only item with no selling price)
+            charge = parseFloat(clientCharge) || 0;
+          }
+          chargeNote = 'Lost item charge';
+          damageNotes.push('Item lost');
+        }
+
+        if (charge > 0) {
+          await client.query(`
+            INSERT INTO payments (rental_id, amount, payment_method, payment_type, notes, created_by)
+            VALUES ($1, $2, $3, 'damage_charge', $4, $5)
+          `, [rentalId, charge, paymentMethod, chargeNote, req.user?.id]);
+          totalDamageCharge += charge;
         }
       }
     }
@@ -164,6 +211,7 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
       message: 'Return processed successfully',
       allReturned,
       fine: fineCalc,
+      totalDamageCharge,
       damages: damageNotes,
     });
   } catch (err: any) {

@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { RotateCcw, AlertTriangle, CheckCircle, Package, Clock } from 'lucide-react';
+import { RotateCcw, AlertTriangle, CheckCircle, Package, Clock, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { returnService } from '@/services/returnService';
 import { rentalService } from '@/services/rentalService';
+import { settingsService } from '@/services/settingsService';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
@@ -16,31 +17,71 @@ import Table from '@/components/common/Table';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
 
+// ── pure helper (no hooks) ────────────────────────────────────────────────────
+function calcDamageCharge(
+  item: any,
+  rental: any,
+  dmgType: string,
+  dmgFlat: number,
+  dmgPercent: number,
+): number {
+  if (dmgType === 'none') return 0;
+  if (dmgType === 'flat') return dmgFlat;
+  if (dmgType === 'percentage_of_rental' && rental) {
+    const days = Math.max(1, Math.ceil(
+      (new Date(rental.rental_end_date).getTime() - new Date(rental.rental_start_date).getTime())
+      / (1000 * 60 * 60 * 24),
+    ));
+    const cost = parseFloat(item.rental_price_per_day || 0) * (item.quantity || 1) * days;
+    return cost * (dmgPercent / 100);
+  }
+  return 0;
+}
+
+function isSaleItem(item: any) {
+  return item.product_type === 'sale' || item.product_type === 'both';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function ReturnsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [searchParams] = useSearchParams();
   const [selectedRental, setSelectedRental] = useState<any>(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  // condition per item: 'good' | 'damaged' | 'lost'
   const [itemConditions, setItemConditions] = useState<Record<string, string>>({});
+  // custom charge only for lost items that have no selling price
+  const [itemCustomCharges, setItemCustomCharges] = useState<Record<string, string>>({});
   const [fineCalc, setFineCalc] = useState<any>(null);
 
+  // ── data ──────────────────────────────────────────────────────────────────
   const { data: pendingReturns, isLoading } = useQuery({
     queryKey: ['pending-returns'],
     queryFn: returnService.getPending,
     refetchInterval: 60_000,
   });
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsService.getAll(),
+  });
+
+  const dmgType    = settings?.['damage_charge_type']?.value    || 'none';
+  const dmgFlat    = parseFloat(settings?.['damage_flat_charge']?.value    || '0');
+  const dmgPercent = parseFloat(settings?.['damage_charge_percent']?.value || '0');
+
+  // ── mutations ─────────────────────────────────────────────────────────────
   const processReturnMutation = useMutation({
     mutationFn: ({ rentalId, payload }: { rentalId: string; payload: any }) =>
       returnService.processReturn(rentalId, payload),
     onSuccess: (data) => {
       toast.success('Return processed successfully!');
-      if (data.fine?.totalFine > 0) {
-        toast.error(`Fine collected: ${formatCurrency(data.fine.totalFine)}`);
-      }
+      if (data.fine?.totalFine > 0)
+        toast.warning(`Late fine collected: ${formatCurrency(data.fine.totalFine)}`);
+      if (data.totalDamageCharge > 0)
+        toast.warning(`Damage / loss charge collected: ${formatCurrency(data.totalDamageCharge)}`);
       setShowReturnModal(false);
       setSelectedRental(null);
       qc.invalidateQueries({ queryKey: ['pending-returns'] });
@@ -49,10 +90,10 @@ export default function ReturnsPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to process return'),
   });
 
+  // ── open modal ────────────────────────────────────────────────────────────
   const openReturnModal = async (rental: any) => {
     setSelectedRental(rental);
     const conditions: Record<string, string> = {};
-    // We need to fetch full rental details for items
     try {
       const full = await rentalService.getById(rental.id);
       setSelectedRental(full);
@@ -65,8 +106,7 @@ export default function ReturnsPage() {
       });
     }
     setItemConditions(conditions);
-
-    // Pre-calculate fine
+    setItemCustomCharges({});
     try {
       const fine = await returnService.getFineCalc(rental.id, returnDate);
       setFineCalc(fine);
@@ -76,21 +116,45 @@ export default function ReturnsPage() {
     setShowReturnModal(true);
   };
 
+  // ── submit ────────────────────────────────────────────────────────────────
   const handleProcessReturn = () => {
     if (!selectedRental) return;
-    const items = Object.entries(itemConditions).map(([id, condition]) => ({
-      rentalItemId: id,
-      condition,
-      quantity: 1,
-    }));
+    const items = Object.entries(itemConditions).map(([id, condition]) => {
+      // For lost items with no selling price, forward the custom charge
+      const item = (selectedRental.items || []).find((i: any) => i.id === id);
+      const needsCustomCharge = condition === 'lost' && item && !isSaleItem(item);
+      const charge = needsCustomCharge ? parseFloat(itemCustomCharges[id] || '0') || 0 : 0;
+      return { rentalItemId: id, condition, charge };
+    });
     processReturnMutation.mutate({
       rentalId: selectedRental.id,
       payload: { items, returnDate, paymentMethod, collectFine: true },
     });
   };
 
+  // ── total charge preview ──────────────────────────────────────────────────
+  const totalDamageCharge = useMemo(() => {
+    if (!selectedRental) return 0;
+    return (selectedRental.items || [])
+      .filter((i: any) => !i.is_returned)
+      .reduce((sum: number, item: any) => {
+        const cond = itemConditions[item.id] || 'good';
+        if (cond === 'damaged') {
+          return sum + calcDamageCharge(item, selectedRental, dmgType, dmgFlat, dmgPercent);
+        }
+        if (cond === 'lost') {
+          if (isSaleItem(item) && item.product_selling_price) {
+            return sum + parseFloat(item.product_selling_price);
+          }
+          return sum + (parseFloat(itemCustomCharges[item.id] || '0') || 0);
+        }
+        return sum;
+      }, 0);
+  }, [itemConditions, itemCustomCharges, selectedRental, dmgType, dmgFlat, dmgPercent]);
+
+  // ── table data ────────────────────────────────────────────────────────────
   const overdueReturns = (pendingReturns || []).filter((r: any) => parseInt(r.days_overdue) > 0);
-  const todayReturns = (pendingReturns || []).filter((r: any) => parseInt(r.days_overdue) === 0);
+  const todayReturns   = (pendingReturns || []).filter((r: any) => parseInt(r.days_overdue) === 0);
 
   const columns = [
     {
@@ -139,28 +203,35 @@ export default function ReturnsPage() {
       key: 'actions',
       header: '',
       render: (r: any) => (
-        <Button variant="primary" icon={<RotateCcw size={13} />} onClick={(e: any) => { e.stopPropagation(); openReturnModal(r); }}>
+        <Button
+          variant="primary"
+          icon={<RotateCcw size={13} />}
+          onClick={(e: any) => { e.stopPropagation(); openReturnModal(r); }}
+        >
           Process
         </Button>
       ),
     },
   ];
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
       <div className="page-header">
         <h2 className="page-title">Returns & Fines</h2>
-        <Button variant="secondary" icon={<RotateCcw size={16} />} onClick={() => qc.invalidateQueries({ queryKey: ['pending-returns'] })}>
+        <Button
+          variant="secondary"
+          icon={<RotateCcw size={16} />}
+          onClick={() => qc.invalidateQueries({ queryKey: ['pending-returns'] })}
+        >
           Refresh
         </Button>
       </div>
 
-      {/* Summary */}
+      {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="flex items-center gap-4">
-          <div className="p-3 bg-amber-500/15 rounded-xl text-amber-400">
-            <Clock size={20} />
-          </div>
+          <div className="p-3 bg-amber-500/15 rounded-xl text-amber-400"><Clock size={20} /></div>
           <div>
             <p className="text-2xl font-semibold text-charcoal-50">{todayReturns.length}</p>
             <p className="text-xs text-charcoal-200">Due Today</p>
@@ -176,9 +247,7 @@ export default function ReturnsPage() {
           </div>
         </Card>
         <Card className="flex items-center gap-4">
-          <div className="p-3 bg-green-500/15 rounded-xl text-green-400">
-            <CheckCircle size={20} />
-          </div>
+          <div className="p-3 bg-green-500/15 rounded-xl text-green-400"><CheckCircle size={20} /></div>
           <div>
             <p className="text-2xl font-semibold text-charcoal-50">{pendingReturns?.length || 0}</p>
             <p className="text-xs text-charcoal-200">Total Pending</p>
@@ -186,7 +255,6 @@ export default function ReturnsPage() {
         </Card>
       </div>
 
-      {/* Overdue alert */}
       {overdueReturns.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -212,12 +280,11 @@ export default function ReturnsPage() {
         />
       </Card>
 
-      {/* Return Modal */}
+      {/* ── Return Drawer ─────────────────────────────────────────────────── */}
       <Drawer
         open={showReturnModal}
         onClose={() => { setShowReturnModal(false); setSelectedRental(null); }}
         title={`Process Return — ${selectedRental?.booking_number}`}
-       
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowReturnModal(false)}>Cancel</Button>
@@ -233,36 +300,148 @@ export default function ReturnsPage() {
         }
       >
         <div className="space-y-5">
-          {/* Item conditions */}
+
+          {/* Item condition tiles */}
           <div>
             <h4 className="text-sm font-semibold text-charcoal-100 mb-3">Item Conditions</h4>
-            <div className="space-y-2">
-              {(selectedRental?.items || []).filter((i: any) => !i.is_returned).map((item: any) => (
-                <div key={item.id} className="flex items-center gap-3 p-3 bg-charcoal-600/40 rounded-xl">
-                  <Package size={16} className="text-charcoal-300 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-charcoal-50">{item.product_name}</p>
-                    <p className="text-xs text-charcoal-200">{[item.size, item.color].filter(Boolean).join(' / ')}</p>
+            <div className="space-y-3">
+              {(selectedRental?.items || []).filter((i: any) => !i.is_returned).map((item: any) => {
+                const cond = itemConditions[item.id] || 'good';
+                const dmgCharge    = calcDamageCharge(item, selectedRental, dmgType, dmgFlat, dmgPercent);
+                const hasSellingPx = isSaleItem(item) && item.product_selling_price && parseFloat(item.product_selling_price) > 0;
+
+                return (
+                  <div key={item.id} className="p-3 bg-charcoal-600/40 rounded-xl space-y-3">
+                    {/* Item info */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-charcoal-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {item.product_image
+                          ? <img src={item.product_image} alt="" className="w-full h-full object-cover" />
+                          : <Package size={14} className="text-charcoal-300" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-charcoal-50 truncate">{item.product_name}</p>
+                        <p className="text-xs text-charcoal-200">
+                          {[item.size, item.color].filter(Boolean).join(' / ')}
+                          {item.quantity > 1 && ` · ×${item.quantity}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Condition tiles */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Good */}
+                      <button
+                        onClick={() => {
+                          setItemConditions({ ...itemConditions, [item.id]: 'good' });
+                          const { [item.id]: _, ...rest } = itemCustomCharges;
+                          setItemCustomCharges(rest);
+                        }}
+                        className={cn(
+                          'flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-xs font-medium transition-all',
+                          cond === 'good'
+                            ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400'
+                            : 'bg-charcoal-700/50 border-charcoal-500 text-charcoal-300 hover:border-charcoal-300 hover:text-charcoal-100',
+                        )}
+                      >
+                        <CheckCircle size={15} />
+                        Good
+                      </button>
+
+                      {/* Damaged */}
+                      <button
+                        onClick={() => {
+                          setItemConditions({ ...itemConditions, [item.id]: 'damaged' });
+                          const { [item.id]: _, ...rest } = itemCustomCharges;
+                          setItemCustomCharges(rest);
+                        }}
+                        className={cn(
+                          'flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-xs font-medium transition-all',
+                          cond === 'damaged'
+                            ? 'bg-amber-500/15 border-amber-500/50 text-amber-400'
+                            : 'bg-charcoal-700/50 border-charcoal-500 text-charcoal-300 hover:border-charcoal-300 hover:text-charcoal-100',
+                        )}
+                      >
+                        <AlertTriangle size={15} />
+                        Damaged
+                      </button>
+
+                      {/* Lost */}
+                      <button
+                        onClick={() => setItemConditions({ ...itemConditions, [item.id]: 'lost' })}
+                        className={cn(
+                          'flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-xs font-medium transition-all',
+                          cond === 'lost'
+                            ? 'bg-red-500/15 border-red-500/50 text-red-400'
+                            : 'bg-charcoal-700/50 border-charcoal-500 text-charcoal-300 hover:border-charcoal-300 hover:text-charcoal-100',
+                        )}
+                      >
+                        <XCircle size={15} />
+                        Lost
+                      </button>
+                    </div>
+
+                    {/* Damage charge preview (read-only, from settings) */}
+                    {cond === 'damaged' && (
+                      <div className="flex items-center justify-between px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                        <div>
+                          <p className="text-xs font-medium text-amber-300">Damage charge</p>
+                          <p className="text-[11px] text-amber-400/70 mt-0.5">
+                            {dmgType === 'flat'
+                              ? 'Flat charge per item'
+                              : dmgType === 'percentage_of_rental'
+                              ? `${dmgPercent}% of item rental cost`
+                              : 'No damage charge configured'}
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-amber-400">
+                          {dmgType === 'none' ? '—' : formatCurrency(dmgCharge)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Lost — selling price (auto) */}
+                    {cond === 'lost' && hasSellingPx && (
+                      <div className="flex items-center justify-between px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        <div>
+                          <p className="text-xs font-medium text-red-300">Lost item charge</p>
+                          <p className="text-[11px] text-red-400/70 mt-0.5">Selling price</p>
+                        </div>
+                        <span className="text-sm font-semibold text-red-400">
+                          {formatCurrency(item.product_selling_price)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Lost — no selling price, user enters custom value */}
+                    {cond === 'lost' && !hasSellingPx && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-charcoal-200">
+                          Lost item charge <span className="text-charcoal-300">(rental-only item — enter amount)</span>
+                        </p>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={itemCustomCharges[item.id] || ''}
+                          onChange={(e) => setItemCustomCharges({ ...itemCustomCharges, [item.id]: e.target.value })}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="w-full bg-charcoal-600 border border-red-500/30 rounded-xl px-3 py-2 text-sm text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-red-500/60"
+                        />
+                      </div>
+                    )}
                   </div>
-                  <Select
-                    options={[
-                      { value: 'good', label: 'Good' },
-                      { value: 'damaged', label: 'Damaged' },
-                      { value: 'lost', label: 'Lost' },
-                    ]}
-                    value={itemConditions[item.id] || 'good'}
-                    onChange={(e) => setItemConditions({ ...itemConditions, [item.id]: e.target.value })}
-                    className="w-full sm:w-32"
-                  />
-                </div>
-              ))}
+                );
+              })}
+
               {(selectedRental?.items || []).filter((i: any) => !i.is_returned).length === 0 && (
                 <p className="text-sm text-charcoal-200 text-center py-3">All items already returned</p>
               )}
             </div>
           </div>
 
-          {/* Return date and fine */}
+          {/* Return date + payment method */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Return Date"
@@ -271,10 +450,10 @@ export default function ReturnsPage() {
               onChange={(e) => setReturnDate(e.target.value)}
             />
             <Select
-              label="Payment Method (Fine)"
+              label="Payment Method"
               options={[
-                { value: 'cash', label: 'Cash' },
-                { value: 'card', label: 'Card' },
+                { value: 'cash',           label: 'Cash' },
+                { value: 'card',           label: 'Card' },
                 { value: 'mobile_payment', label: 'Mobile Payment' },
               ]}
               value={paymentMethod}
@@ -282,7 +461,7 @@ export default function ReturnsPage() {
             />
           </div>
 
-          {/* Fine calculation */}
+          {/* Late fine */}
           {fineCalc && (
             <div className={cn('p-4 rounded-xl', fineCalc.totalFine > 0 ? 'bg-red-500/10 border border-red-500/20' : 'bg-emerald-500/10 border border-emerald-500/20')}>
               {fineCalc.totalFine > 0 ? (
@@ -290,15 +469,43 @@ export default function ReturnsPage() {
                   <p className="font-semibold text-red-300 mb-2">Late Return Fine</p>
                   <div className="space-y-1 text-sm text-charcoal-200">
                     <p>Days late: <span className="text-red-400 font-medium">{fineCalc.daysLate}</span></p>
-                    <p>Fine/day: <span className="text-red-400 font-medium">{formatCurrency(fineCalc.finePerDay)}</span></p>
-                    <p className="text-base font-semibold text-red-300 mt-2">Total fine: {formatCurrency(fineCalc.totalFine)}</p>
+                    <p>Fine / day: <span className="text-red-400 font-medium">{formatCurrency(fineCalc.finePerDay)}</span></p>
+                    <p className="text-base font-semibold text-red-300 mt-1">Total fine: {formatCurrency(fineCalc.totalFine)}</p>
                   </div>
                 </>
               ) : (
-                <p className="text-emerald-400 font-medium">✓ Returned on time — no fine</p>
+                <p className="text-emerald-400 font-medium flex items-center gap-2">
+                  <CheckCircle size={15} /> Returned on time — no fine
+                </p>
               )}
             </div>
           )}
+
+          {/* Charges summary */}
+          {(totalDamageCharge > 0 || (fineCalc?.totalFine ?? 0) > 0) && (
+            <div className="p-4 bg-charcoal-600/40 rounded-xl space-y-2">
+              <p className="text-sm font-semibold text-charcoal-100 mb-1">Charges Summary</p>
+              {(fineCalc?.totalFine ?? 0) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-charcoal-200">Late fine</span>
+                  <span className="text-red-400">{formatCurrency(fineCalc.totalFine)}</span>
+                </div>
+              )}
+              {totalDamageCharge > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-charcoal-200">Damage / lost charges</span>
+                  <span className="text-red-400">{formatCurrency(totalDamageCharge)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-semibold border-t border-charcoal-500 pt-2 mt-1">
+                <span className="text-charcoal-100">Total to collect</span>
+                <span className="text-amber-400">
+                  {formatCurrency((fineCalc?.totalFine ?? 0) + totalDamageCharge)}
+                </span>
+              </div>
+            </div>
+          )}
+
         </div>
       </Drawer>
     </div>
