@@ -53,10 +53,10 @@ export default function LoginPage() {
           <div className="flex flex-col items-center mb-8">
             <img
               src="/logo.jpg"
-              alt="The Royale Lounge"
+              alt="The Outfit Lounge"
               className="w-20 h-20 rounded-2xl object-cover shadow-gold mb-4"
             />
-            <h1 className="font-display text-2xl font-semibold text-charcoal-50">The Royale Lounge</h1>
+            <h1 className="font-display text-2xl font-semibold text-charcoal-50">The Outfit Lounge</h1>
             <p className="text-charcoal-200 text-sm mt-1">POS & Rental Management</p>
           </div>
 
@@ -125,7 +125,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-charcoal-300 mt-6">
-          © {new Date().getFullYear()} The Royale Lounge. All rights reserved.
+          © {new Date().getFullYear()} The Outfit Lounge. All rights reserved.
         </p>
       </motion.div>
     </div>

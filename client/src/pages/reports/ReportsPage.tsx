@@ -1,23 +1,28 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle } from 'lucide-react';
+import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { reportService } from '@/services/reportService';
 import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
 import Select from '@/components/common/Select';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
+import {
+  createDoc, loadLogo, addHeader, addFooter,
+  addSectionTitle, addStatCards, addTable, captureChart, addChartImage,
+} from '@/utils/reportPDF';
 
 const TABS = [
-  { key: 'overview',   label: 'Overview',   icon: BarChart2 },
-  { key: 'sales',      label: 'Sales',      icon: TrendingUp },
-  { key: 'rentals',    label: 'Rentals',    icon: Package },
-  { key: 'inventory',  label: 'Inventory',  icon: Package },
-  { key: 'fines',      label: 'Fines',      icon: AlertTriangle },
+  { key: 'overview',  label: 'Overview',  icon: BarChart2 },
+  { key: 'sales',     label: 'Sales',     icon: TrendingUp },
+  { key: 'rentals',   label: 'Rentals',   icon: Package },
+  { key: 'inventory', label: 'Inventory', icon: Package },
+  { key: 'fines',     label: 'Fines',     icon: AlertTriangle },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
@@ -64,48 +69,37 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    return d.toISOString().split('T')[0];
+    const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0];
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  // All queries run unconditionally — no `enabled` gates that can get stuck
-  const {
-    data: revenueData,
-    isLoading: revenueLoading,
-    error: revenueError,
-  } = useQuery({
+  // Chart refs for PDF capture
+  const overviewChartRef  = useRef<HTMLDivElement>(null);
+  const salesBarRef       = useRef<HTMLDivElement>(null);
+  const salesPieRef       = useRef<HTMLDivElement>(null);
+  const rentalStatusRef   = useRef<HTMLDivElement>(null);
+  const inventoryChartRef = useRef<HTMLDivElement>(null);
+
+  const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useQuery({
     queryKey: ['revenue-chart', period],
     queryFn: () => reportService.getRevenueChart(period),
     staleTime: 60_000,
   });
 
-  const {
-    data: salesData,
-    isLoading: salesLoading,
-    error: salesError,
-  } = useQuery({
+  const { data: salesData, isLoading: salesLoading, error: salesError } = useQuery({
     queryKey: ['sales-report', dateFrom, dateTo],
     queryFn: () => reportService.getSalesReport({ fromDate: dateFrom, toDate: dateTo }),
     staleTime: 60_000,
   });
 
-  const {
-    data: rentalData,
-    isLoading: rentalLoading,
-    error: rentalError,
-  } = useQuery({
+  const { data: rentalData, isLoading: rentalLoading, error: rentalError } = useQuery({
     queryKey: ['rental-report', dateFrom, dateTo],
     queryFn: () => reportService.getRentalReport({ fromDate: dateFrom, toDate: dateTo }),
     staleTime: 60_000,
   });
 
-  const {
-    data: inventoryData,
-    isLoading: inventoryLoading,
-    error: inventoryError,
-  } = useQuery({
+  const { data: inventoryData, isLoading: inventoryLoading, error: inventoryError } = useQuery({
     queryKey: ['inventory-report'],
     queryFn: () => reportService.getInventoryReport(),
     staleTime: 60_000,
@@ -114,17 +108,204 @@ export default function ReportsPage() {
   const exportCSV = (data: any[], filename: string) => {
     if (!data?.length) return;
     const keys = Object.keys(data[0]);
-    const csv = [
-      keys.join(','),
-      ...data.map((row) => keys.map((k) => `"${row[k] ?? ''}"`).join(',')),
-    ].join('\n');
+    const csv = [keys.join(','), ...data.map((row) => keys.map((k) => `"${row[k] ?? ''}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    const a = document.createElement('a'); a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const periodLabel = period === 'week' ? 'Last 7 Days' : period === 'month' ? 'Last 30 Days' : 'Last 12 Months';
+  const dateRangeLabel = `${dateFrom} — ${dateTo}`;
+
+  const downloadPDF = async () => {
+    setPdfLoading(true);
+    try {
+      const doc = createDoc();
+      const logo = await loadLogo();
+
+      if (activeTab === 'overview') {
+        let y = await addHeader(doc, logo, 'Overview Report', periodLabel);
+        y = addSectionTitle(doc, 'Revenue Summary', y);
+        const s = revenueData?.summary;
+        y = addStatCards(doc, [
+          { label: 'Total Revenue',   value: formatCurrency(s?.totalRevenue   || 0) },
+          { label: 'Sales Revenue',   value: formatCurrency(s?.salesRevenue   || 0) },
+          { label: 'Rental Revenue',  value: formatCurrency(s?.rentalRevenue  || 0) },
+          { label: 'Fines Collected', value: formatCurrency(s?.finesCollected || 0) },
+        ], y);
+
+        if (overviewChartRef.current) {
+          y = addSectionTitle(doc, 'Revenue Over Time', y);
+          const img = await captureChart(overviewChartRef.current);
+          if (img) y = await addChartImage(doc, img, y, 70);
+        }
+
+        if (revenueData?.chartData?.length) {
+          y = addSectionTitle(doc, 'Revenue Data', y);
+          addTable(doc,
+            ['Period', 'Sales Revenue (LKR)', 'Rental Revenue (LKR)'],
+            revenueData.chartData.map((r: any) => [r.label, formatCurrency(r.sales_revenue || 0), formatCurrency(r.rental_revenue || 0)]),
+            y,
+          );
+        }
+      }
+
+      if (activeTab === 'sales') {
+        let y = await addHeader(doc, logo, 'Sales Report', dateRangeLabel);
+        y = addSectionTitle(doc, 'Sales Summary', y);
+        const s = salesData?.summary;
+        y = addStatCards(doc, [
+          { label: 'Total Sales',    value: String(s?.totalSales     || 0) },
+          { label: 'Total Revenue',  value: formatCurrency(s?.totalRevenue   || 0) },
+          { label: 'Avg Sale Value', value: formatCurrency(s?.avgSaleValue   || 0) },
+          { label: 'Items Sold',     value: String(s?.totalItemsSold || 0) },
+        ], y);
+
+        if (salesBarRef.current) {
+          y = addSectionTitle(doc, 'Top Selling Products', y);
+          const img = await captureChart(salesBarRef.current);
+          if (img) y = await addChartImage(doc, img, y, 60);
+        }
+
+        if (salesData?.topProducts?.length) {
+          y = addSectionTitle(doc, 'Top Products Detail', y);
+          y = addTable(doc,
+            ['#', 'Product', 'Units Sold', 'Revenue (LKR)'],
+            salesData.topProducts.slice(0, 20).map((p: any, i: number) => [
+              i + 1, p.product_name, p.total_quantity, formatCurrency(p.total_revenue || 0),
+            ]),
+            y,
+          );
+        }
+
+        if (salesPieRef.current) {
+          y = addSectionTitle(doc, 'Payment Methods', y);
+          const img = await captureChart(salesPieRef.current);
+          if (img) y = await addChartImage(doc, img, y, 55);
+        }
+
+        if (salesData?.paymentMethods?.length) {
+          addTable(doc,
+            ['Payment Method', 'Amount (LKR)', 'Transactions'],
+            salesData.paymentMethods.map((pm: any) => [
+              pm.payment_method?.replace('_', ' '),
+              formatCurrency(pm.total_amount || 0),
+              pm.transaction_count || '',
+            ]),
+            y,
+          );
+        }
+      }
+
+      if (activeTab === 'rentals') {
+        let y = await addHeader(doc, logo, 'Rentals Report', dateRangeLabel);
+        y = addSectionTitle(doc, 'Rentals Summary', y);
+        const s = rentalData?.summary;
+        y = addStatCards(doc, [
+          { label: 'Total Bookings',  value: String(s?.totalBookings  || 0) },
+          { label: 'Rental Revenue',  value: formatCurrency(s?.totalRevenue   || 0) },
+          { label: 'Avg Rental Days', value: `${s?.avgRentalDays || 0} days` },
+          { label: 'Completion Rate', value: `${s?.completionRate || 0}%` },
+        ], y);
+
+        if (rentalStatusRef.current) {
+          y = addSectionTitle(doc, 'Rentals by Status', y);
+          const img = await captureChart(rentalStatusRef.current);
+          if (img) y = await addChartImage(doc, img, y, 55);
+        }
+
+        if (rentalData?.statusBreakdown?.length) {
+          y = addTable(doc,
+            ['Status', 'Count'],
+            rentalData.statusBreakdown.map((r: any) => [r.status, r.count]),
+            y,
+          );
+        }
+
+        if (rentalData?.topProducts?.length) {
+          y = addSectionTitle(doc, 'Most Rented Items', y);
+          addTable(doc,
+            ['#', 'Product', 'Rental Count', 'Revenue (LKR)'],
+            rentalData.topProducts.slice(0, 20).map((p: any, i: number) => [
+              i + 1, p.product_name, p.rental_count, formatCurrency(p.total_revenue || 0),
+            ]),
+            y,
+          );
+        }
+      }
+
+      if (activeTab === 'inventory') {
+        let y = await addHeader(doc, logo, 'Inventory Report');
+        y = addSectionTitle(doc, 'Inventory Summary', y);
+        const s = inventoryData?.summary;
+        y = addStatCards(doc, [
+          { label: 'Total SKUs',       value: String(s?.totalSkus    ?? 0) },
+          { label: 'Total Stock',      value: String(s?.totalStock   ?? 0) },
+          { label: 'Currently Rented', value: String(s?.totalRented  ?? 0) },
+          { label: 'Damaged Items',    value: String(s?.totalDamaged ?? 0), color: [200, 70, 70] },
+        ], y);
+
+        if (inventoryChartRef.current) {
+          y = addSectionTitle(doc, 'Stock by Category', y);
+          const img = await captureChart(inventoryChartRef.current);
+          if (img) y = await addChartImage(doc, img, y, 60);
+        }
+
+        if (inventoryData?.byCategory?.length) {
+          y = addTable(doc,
+            ['Category', 'Total Stock', 'Available', 'Rented'],
+            inventoryData.byCategory.map((c: any) => [
+              c.category_name, c.total_stock, c.available, c.rented || 0,
+            ]),
+            y,
+          );
+        }
+
+        if (inventoryData?.lowStock?.length) {
+          y = addSectionTitle(doc, 'Low Stock Alerts', y);
+          addTable(doc,
+            ['SKU', 'Product', 'Size / Color', 'Stock Qty'],
+            inventoryData.lowStock.map((item: any) => [
+              item.sku, item.product_name,
+              [item.size, item.color].filter(Boolean).join(' / '),
+              item.stock_quantity,
+            ]),
+            y,
+          );
+        }
+      }
+
+      if (activeTab === 'fines') {
+        let y = await addHeader(doc, logo, 'Fines Report', dateRangeLabel);
+        y = addSectionTitle(doc, 'Fines Summary', y);
+        const fs = rentalData?.finesSummary;
+        y = addStatCards(doc, [
+          { label: 'Total Fines Issued', value: String(fs?.totalFinesIssued || 0) },
+          { label: 'Total Fine Amount',  value: formatCurrency(fs?.totalFineAmount || 0), color: [200, 70, 70] },
+          { label: 'Collected',          value: formatCurrency(fs?.totalCollected  || 0), color: [50, 180, 100] },
+        ], y);
+
+        if (rentalData?.topOffenders?.length) {
+          y = addSectionTitle(doc, 'Top Late Returners', y);
+          addTable(doc,
+            ['#', 'Customer', 'Late Returns', 'Total Fines (LKR)'],
+            rentalData.topOffenders.map((c: any, i: number) => [
+              i + 1, c.customer_name, c.late_returns, formatCurrency(c.total_fines || 0),
+            ]),
+            y,
+          );
+        }
+      }
+
+      addFooter(doc);
+      doc.save(`report_${activeTab}_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (err: any) {
+      toast.error('Failed to generate PDF: ' + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   return (
@@ -134,6 +315,14 @@ export default function ReportsPage() {
           <h2 className="page-title">Reports & Analytics</h2>
           <p className="text-charcoal-200 text-sm">Business insights and performance metrics</p>
         </div>
+        <Button
+          variant="secondary"
+          icon={<FileDown size={14} />}
+          onClick={downloadPDF}
+          loading={pdfLoading}
+        >
+          Download PDF
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -166,21 +355,11 @@ export default function ReportsPage() {
           <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-xs text-charcoal-200 mb-1">From</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="input-dark h-9 px-3 text-sm rounded-xl"
-              />
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input-dark h-9 px-3 text-sm rounded-xl" />
             </div>
             <div>
               <label className="block text-xs text-charcoal-200 mb-1">To</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="input-dark h-9 px-3 text-sm rounded-xl"
-              />
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input-dark h-9 px-3 text-sm rounded-xl" />
             </div>
           </div>
         </Card>
@@ -204,26 +383,28 @@ export default function ReportsPage() {
 
           {revenueError && <ErrorBanner message={(revenueError as any)?.message || 'Unknown error'} />}
 
-          <Card>
-            <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Revenue Over Time</h4>
-            {revenueLoading ? (
-              <div className="h-64 bg-charcoal-600 rounded-xl animate-pulse" />
-            ) : revenueData?.chartData?.length ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={revenueData.chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" />
-                  <XAxis dataKey="label" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#7a7a8c', fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Line type="monotone" dataKey="sales_revenue"  name="Sales Revenue"  stroke="#c9a96e" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="rental_revenue" name="Rental Revenue" stroke="#4ade80" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-charcoal-200 text-sm">No data for this period</div>
-            )}
-          </Card>
+          <div ref={overviewChartRef}>
+            <Card>
+              <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Revenue Over Time</h4>
+              {revenueLoading ? (
+                <div className="h-64 bg-charcoal-600 rounded-xl animate-pulse" />
+              ) : revenueData?.chartData?.length ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={revenueData.chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" />
+                    <XAxis dataKey="label" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
+                    <YAxis tick={{ fill: '#7a7a8c', fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    <Line type="monotone" dataKey="sales_revenue"  name="Sales Revenue"  stroke="#c9a96e" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="rental_revenue" name="Rental Revenue" stroke="#4ade80" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-charcoal-200 text-sm">No data for this period</div>
+              )}
+            </Card>
+          </div>
 
           {revenueLoading ? (
             <LoadingCards count={4} />
@@ -251,81 +432,73 @@ export default function ReportsPage() {
           {salesError && <ErrorBanner message={(salesError as any)?.message || 'Unknown error'} />}
 
           {salesLoading ? (
-            <>
-              <LoadingCards count={4} />
-              <div className="h-56 bg-charcoal-600 rounded-2xl animate-pulse" />
-            </>
+            <><LoadingCards count={4} /><div className="h-56 bg-charcoal-600 rounded-2xl animate-pulse" /></>
           ) : salesData ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Total Sales',   value: salesData.summary?.totalSales     || 0, fmt: 'n' },
-                  { label: 'Total Revenue', value: salesData.summary?.totalRevenue   || 0, fmt: 'c' },
-                  { label: 'Avg Sale Value',value: salesData.summary?.avgSaleValue   || 0, fmt: 'c' },
-                  { label: 'Items Sold',    value: salesData.summary?.totalItemsSold || 0, fmt: 'n' },
+                  { label: 'Total Sales',    value: salesData.summary?.totalSales     || 0, fmt: 'n' },
+                  { label: 'Total Revenue',  value: salesData.summary?.totalRevenue   || 0, fmt: 'c' },
+                  { label: 'Avg Sale Value', value: salesData.summary?.avgSaleValue   || 0, fmt: 'c' },
+                  { label: 'Items Sold',     value: salesData.summary?.totalItemsSold || 0, fmt: 'n' },
                 ].map(({ label, value, fmt }) => (
                   <Card key={label}>
                     <p className="text-xs text-charcoal-200">{label}</p>
-                    <p className="text-xl font-bold text-charcoal-50 mt-1">
-                      {fmt === 'c' ? formatCurrency(value) : value}
-                    </p>
+                    <p className="text-xl font-bold text-charcoal-50 mt-1">{fmt === 'c' ? formatCurrency(value) : value}</p>
                   </Card>
                 ))}
               </div>
 
               {salesData.topProducts?.length > 0 && (
-                <Card>
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-semibold text-charcoal-100">Top Selling Products</h4>
-                    <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(salesData.topProducts, 'top_products')}>
-                      Export
-                    </Button>
-                  </div>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart data={salesData.topProducts.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" horizontal={false} />
-                      <XAxis type="number" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
-                      <YAxis type="category" dataKey="product_name" tick={{ fill: '#7a7a8c', fontSize: 11 }} width={130} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="total_quantity" name="Units Sold" fill="#c9a96e" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Card>
+                <div ref={salesBarRef}>
+                  <Card>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-semibold text-charcoal-100">Top Selling Products</h4>
+                      <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(salesData.topProducts, 'top_products')}>Export CSV</Button>
+                    </div>
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={salesData.topProducts.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" horizontal={false} />
+                        <XAxis type="number" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
+                        <YAxis type="category" dataKey="product_name" tick={{ fill: '#7a7a8c', fontSize: 11 }} width={130} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="total_quantity" name="Units Sold" fill="#c9a96e" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
               )}
 
               {salesData.paymentMethods?.length > 0 && (
-                <Card>
-                  <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Payment Methods</h4>
-                  <div className="flex flex-col md:flex-row items-center gap-8">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <PieChart>
-                        <Pie
-                          data={salesData.paymentMethods}
-                          dataKey="total_amount"
-                          nameKey="payment_method"
-                          cx="50%" cy="50%"
-                          outerRadius={80}
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          labelLine={{ stroke: '#7a7a8c' }}
-                        >
-                          {salesData.paymentMethods.map((_: any, i: number) => (
-                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<CustomTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="space-y-2 min-w-[160px]">
-                      {salesData.paymentMethods.map((pm: any, i: number) => (
-                        <div key={pm.payment_method} className="flex items-center gap-2 text-sm">
-                          <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
-                          <span className="text-charcoal-200 capitalize">{pm.payment_method?.replace('_', ' ')}</span>
-                          <span className="ml-auto font-medium text-charcoal-50">{formatCurrency(pm.total_amount)}</span>
-                        </div>
-                      ))}
+                <div ref={salesPieRef}>
+                  <Card>
+                    <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Payment Methods</h4>
+                    <div className="flex flex-col md:flex-row items-center gap-8">
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie data={salesData.paymentMethods} dataKey="total_amount" nameKey="payment_method"
+                            cx="50%" cy="50%" outerRadius={80}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            labelLine={{ stroke: '#7a7a8c' }}>
+                            {salesData.paymentMethods.map((_: any, i: number) => (
+                              <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CustomTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="space-y-2 min-w-[160px]">
+                        {salesData.paymentMethods.map((pm: any, i: number) => (
+                          <div key={pm.payment_method} className="flex items-center gap-2 text-sm">
+                            <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                            <span className="text-charcoal-200 capitalize">{pm.payment_method?.replace('_', ' ')}</span>
+                            <span className="ml-auto font-medium text-charcoal-50">{formatCurrency(pm.total_amount)}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </Card>
+                  </Card>
+                </div>
               )}
 
               {!salesData.topProducts?.length && !salesError && (
@@ -342,10 +515,7 @@ export default function ReportsPage() {
           {rentalError && <ErrorBanner message={(rentalError as any)?.message || 'Unknown error'} />}
 
           {rentalLoading ? (
-            <>
-              <LoadingCards count={4} />
-              <div className="h-48 bg-charcoal-600 rounded-2xl animate-pulse" />
-            </>
+            <><LoadingCards count={4} /><div className="h-48 bg-charcoal-600 rounded-2xl animate-pulse" /></>
           ) : rentalData ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -357,43 +527,39 @@ export default function ReportsPage() {
                 ].map(({ label, value, fmt, suffix }) => (
                   <Card key={label}>
                     <p className="text-xs text-charcoal-200">{label}</p>
-                    <p className="text-xl font-bold text-charcoal-50 mt-1">
-                      {fmt === 'c' ? formatCurrency(value) : `${value}${suffix}`}
-                    </p>
+                    <p className="text-xl font-bold text-charcoal-50 mt-1">{fmt === 'c' ? formatCurrency(value) : `${value}${suffix}`}</p>
                   </Card>
                 ))}
               </div>
 
               {rentalData.statusBreakdown?.length > 0 && (
-                <Card>
-                  <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Rentals by Status</h4>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={rentalData.statusBreakdown}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" />
-                      <XAxis dataKey="status" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
-                      <YAxis tick={{ fill: '#7a7a8c', fontSize: 11 }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="count" name="Count" fill="#c9a96e" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Card>
+                <div ref={rentalStatusRef}>
+                  <Card>
+                    <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Rentals by Status</h4>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={rentalData.statusBreakdown}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" />
+                        <XAxis dataKey="status" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
+                        <YAxis tick={{ fill: '#7a7a8c', fontSize: 11 }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="count" name="Count" fill="#c9a96e" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
               )}
 
               {rentalData.topProducts?.length > 0 && (
                 <Card>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-sm font-semibold text-charcoal-100">Most Rented Items</h4>
-                    <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(rentalData.topProducts, 'top_rentals')}>
-                      Export
-                    </Button>
+                    <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(rentalData.topProducts, 'top_rentals')}>Export CSV</Button>
                   </div>
                   <div className="space-y-2">
                     {rentalData.topProducts.slice(0, 8).map((p: any, i: number) => (
                       <div key={p.product_name} className="flex items-center gap-3 p-2.5 bg-charcoal-600/40 rounded-xl">
                         <span className="w-6 text-center text-xs font-bold text-charcoal-300">{i + 1}</span>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-charcoal-50">{p.product_name}</p>
-                        </div>
+                        <div className="flex-1"><p className="text-sm font-medium text-charcoal-50">{p.product_name}</p></div>
                         <div className="text-right">
                           <p className="text-sm font-medium text-gold-400">{p.rental_count} rentals</p>
                           <p className="text-xs text-charcoal-200">{formatCurrency(p.total_revenue)}</p>
@@ -418,10 +584,7 @@ export default function ReportsPage() {
           {inventoryError && <ErrorBanner message={(inventoryError as any)?.message || 'Unknown error'} />}
 
           {inventoryLoading ? (
-            <>
-              <LoadingCards count={4} />
-              <div className="h-48 bg-charcoal-600 rounded-2xl animate-pulse" />
-            </>
+            <><LoadingCards count={4} /><div className="h-48 bg-charcoal-600 rounded-2xl animate-pulse" /></>
           ) : inventoryData ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -439,24 +602,24 @@ export default function ReportsPage() {
               </div>
 
               {inventoryData.byCategory?.length > 0 && (
-                <Card>
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-semibold text-charcoal-100">Stock by Category</h4>
-                    <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(inventoryData.byCategory, 'inventory_by_category')}>
-                      Export
-                    </Button>
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={inventoryData.byCategory}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" />
-                      <XAxis dataKey="category_name" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
-                      <YAxis tick={{ fill: '#7a7a8c', fontSize: 11 }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="total_stock" name="Total Stock" fill="#c9a96e" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="available"   name="Available"   fill="#4ade80" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Card>
+                <div ref={inventoryChartRef}>
+                  <Card>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-semibold text-charcoal-100">Stock by Category</h4>
+                      <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(inventoryData.byCategory, 'inventory_by_category')}>Export CSV</Button>
+                    </div>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={inventoryData.byCategory}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" />
+                        <XAxis dataKey="category_name" tick={{ fill: '#7a7a8c', fontSize: 11 }} />
+                        <YAxis tick={{ fill: '#7a7a8c', fontSize: 11 }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="total_stock" name="Total Stock" fill="#c9a96e" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="available"   name="Available"   fill="#4ade80" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </div>
               )}
 
               {inventoryData.lowStock?.length > 0 && (
@@ -494,18 +657,12 @@ export default function ReportsPage() {
 }
 
 function FinesTab({
-  rentalData,
-  rentalLoading,
-  rentalError,
-  exportCSV,
+  rentalData, rentalLoading, rentalError, exportCSV,
 }: {
-  rentalData: any;
-  rentalLoading: boolean;
-  rentalError: any;
+  rentalData: any; rentalLoading: boolean; rentalError: any;
   exportCSV: (data: any[], name: string) => void;
 }) {
   const fs = rentalData?.finesSummary;
-
   return (
     <>
       {rentalError && <ErrorBanner message={rentalError?.message || 'Unknown error'} />}
@@ -515,15 +672,13 @@ function FinesTab({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: 'Total Fines Issued', value: fs?.totalFinesIssued  || 0, fmt: 'n', color: 'text-charcoal-50' },
-            { label: 'Total Fine Amount',  value: fs?.totalFineAmount   || 0, fmt: 'c', color: 'text-red-400' },
-            { label: 'Collected',          value: fs?.totalCollected    || 0, fmt: 'c', color: 'text-emerald-400' },
+            { label: 'Total Fines Issued', value: fs?.totalFinesIssued || 0, fmt: 'n', color: 'text-charcoal-50' },
+            { label: 'Total Fine Amount',  value: fs?.totalFineAmount  || 0, fmt: 'c', color: 'text-red-400' },
+            { label: 'Collected',          value: fs?.totalCollected   || 0, fmt: 'c', color: 'text-emerald-400' },
           ].map(({ label, value, fmt, color }) => (
             <Card key={label}>
               <p className="text-xs text-charcoal-200">{label}</p>
-              <p className={`text-xl font-bold mt-1 ${color}`}>
-                {fmt === 'c' ? formatCurrency(value) : value}
-              </p>
+              <p className={`text-xl font-bold mt-1 ${color}`}>{fmt === 'c' ? formatCurrency(value) : value}</p>
             </Card>
           ))}
         </div>
@@ -533,9 +688,7 @@ function FinesTab({
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-sm font-semibold text-charcoal-100">Top Late Returners</h4>
-            <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(rentalData.topOffenders, 'late_returners')}>
-              Export
-            </Button>
+            <Button variant="ghost" size="sm" icon={<Download size={13} />} onClick={() => exportCSV(rentalData.topOffenders, 'late_returners')}>Export CSV</Button>
           </div>
           <div className="space-y-2">
             {rentalData.topOffenders.map((c: any, i: number) => (

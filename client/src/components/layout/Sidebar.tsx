@@ -46,7 +46,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <div className="flex items-center gap-3 p-4 border-b border-charcoal-600 h-16 flex-shrink-0">
         <img
           src="/logo.jpg"
-          alt="The Royale Lounge"
+          alt="The Outfit Lounge"
           className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
         />
         <AnimatePresence>
@@ -58,7 +58,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               transition={{ duration: 0.15 }}
               className="overflow-hidden"
             >
-              <p className="font-display font-semibold text-charcoal-50 leading-tight text-sm">The Royale Lounge</p>
+              <p className="font-display font-semibold text-charcoal-50 leading-tight text-sm">The Outfit Lounge</p>
               <p className="text-xs text-gold-600">POS & Rental</p>
             </motion.div>
           )}

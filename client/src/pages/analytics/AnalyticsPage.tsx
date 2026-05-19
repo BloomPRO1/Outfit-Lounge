@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Wallet, Plus, Trash2,
-  BarChart2, ChevronDown,
+  BarChart2, ChevronDown, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { analyticsService } from '@/services/analyticsService';
@@ -17,6 +17,10 @@ import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
+import {
+  createDoc, loadLogo, addHeader, addFooter,
+  addSectionTitle, addStatCards, addTable, captureChart, addChartImage,
+} from '@/utils/reportPDF';
 
 const CATEGORY_LABELS: Record<string, string> = {
   stock_purchase: 'Stock Purchase',
@@ -93,6 +97,12 @@ export default function AnalyticsPage() {
   const [toMonth, setToMonth] = useState(def.to);
   const [activeQuick, setActiveQuick] = useState('Last 12M');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // Chart refs for PDF capture
+  const barChartRef    = useRef<HTMLDivElement>(null);
+  const lineChartRef   = useRef<HTMLDivElement>(null);
+  const donutChartRef  = useRef<HTMLDivElement>(null);
   const [addForm, setAddForm] = useState({
     amount: '',
     category: 'stock_purchase',
@@ -178,6 +188,78 @@ export default function AnalyticsPage() {
   const netProfit = summary?.netProfit ?? 0;
   const isProfit = netProfit >= 0;
 
+  const downloadPDF = async () => {
+    setPdfLoading(true);
+    try {
+      const doc = createDoc();
+      const logo = await loadLogo();
+      const periodLabel = `${fromMonth} — ${toMonth}`;
+
+      let y = await addHeader(doc, logo, 'Analytics Report (P&L)', periodLabel);
+
+      y = addSectionTitle(doc, 'Summary', y);
+      y = addStatCards(doc, [
+        { label: 'Total Revenue',  value: formatCurrency(summary?.totalRevenue ?? 0) },
+        { label: 'Total Expenses', value: formatCurrency(summary?.totalCapital ?? 0) },
+        { label: 'Net Profit',     value: formatCurrency(Math.abs(netProfit)),    color: isProfit ? [50, 180, 100] : [200, 70, 70] },
+        { label: 'Profit Margin',  value: `${summary?.profitMarginPct ?? 0}%`,    color: isProfit ? [50, 180, 100] : [200, 70, 70] },
+      ], y);
+
+      if (barChartRef.current) {
+        y = addSectionTitle(doc, 'Revenue vs Business Expenses', y);
+        const img = await captureChart(barChartRef.current);
+        if (img) y = await addChartImage(doc, img, y, 70);
+      }
+
+      if (lineChartRef.current) {
+        y = addSectionTitle(doc, 'Cumulative Profit', y);
+        const img = await captureChart(lineChartRef.current);
+        if (img) y = await addChartImage(doc, img, y, 55);
+      }
+
+      if (donutChartRef.current) {
+        y = addSectionTitle(doc, 'Capital by Category', y);
+        const img = await captureChart(donutChartRef.current);
+        if (img) y = await addChartImage(doc, img, y, 55);
+      }
+
+      if (chartData.length > 0) {
+        y = addSectionTitle(doc, 'Monthly Breakdown', y);
+        y = addTable(doc,
+          ['Month', 'Revenue (LKR)', 'Expenses (LKR)', 'Profit (LKR)'],
+          chartData.map((r: any) => [
+            r.label,
+            formatCurrency(r.revenue || 0),
+            formatCurrency(r.capital || 0),
+            formatCurrency(r.profit || 0),
+          ]),
+          y,
+        );
+      }
+
+      if (capitalList?.data?.length) {
+        y = addSectionTitle(doc, 'Business Expenses', y);
+        addTable(doc,
+          ['Date', 'Category', 'Note', 'Amount (LKR)'],
+          capitalList.data.map((inv: any) => [
+            formatDate(inv.invested_at),
+            CATEGORY_LABELS[inv.category] || inv.category,
+            inv.note || '',
+            formatCurrency(parseFloat(inv.amount)),
+          ]),
+          y,
+        );
+      }
+
+      addFooter(doc);
+      doc.save(`analytics_${fromMonth}_to_${toMonth}.pdf`);
+    } catch (err: any) {
+      toast.error('Failed to generate PDF: ' + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -191,6 +273,9 @@ export default function AnalyticsPage() {
             <p className="text-sm text-charcoal-200">P&L · Revenue vs Capital · Profit trends</p>
           </div>
         </div>
+        <Button variant="secondary" icon={<FileDown size={14} />} onClick={downloadPDF} loading={pdfLoading}>
+          Download PDF
+        </Button>
       </div>
 
       {/* Period selector */}
@@ -265,6 +350,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Revenue vs Capital Bar Chart */}
+      <div ref={barChartRef}>
       <Card>
         <h3 className="font-semibold text-charcoal-50 mb-5">Revenue vs Business Expenses</h3>
         {chartData.length > 0 ? (
@@ -299,10 +385,12 @@ export default function AnalyticsPage() {
           </div>
         )}
       </Card>
+      </div>
 
       {/* Cumulative Profit + Category Donut */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Cumulative profit line */}
+        <div ref={lineChartRef}>
         <Card>
           <h3 className="font-semibold text-charcoal-50 mb-5">Cumulative Profit</h3>
           {cumulativeData.length > 0 ? (
@@ -329,8 +417,10 @@ export default function AnalyticsPage() {
             <div className="h-40 flex items-center justify-center text-charcoal-200 text-sm">No data</div>
           )}
         </Card>
+        </div>
 
         {/* Capital by category donut */}
+        <div ref={donutChartRef}>
         <Card>
           <h3 className="font-semibold text-charcoal-50 mb-5">Capital by Category</h3>
           {capitalByCategory.length > 0 ? (
@@ -376,6 +466,7 @@ export default function AnalyticsPage() {
             </div>
           )}
         </Card>
+        </div>
       </div>
 
       {/* Capital Investments table */}

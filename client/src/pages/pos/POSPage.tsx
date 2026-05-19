@@ -662,7 +662,7 @@ export default function POSPage() {
         {receipt && (
           <div className="space-y-4">
             <div className="text-center border-b border-charcoal-500 pb-4">
-              <p className="font-display text-lg font-semibold text-charcoal-50">Royal Tailor Shop</p>
+              <p className="font-display text-lg font-semibold text-charcoal-50">The Outfit Lounge</p>
               <p className="text-xs text-charcoal-200">Sale #{receipt.saleNumber}</p>
             </div>
 
