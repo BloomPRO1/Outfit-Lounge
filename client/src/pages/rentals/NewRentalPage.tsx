@@ -131,7 +131,7 @@ export default function NewRentalPage() {
       </div>
 
       {/* Steps */}
-      <div className="flex items-center gap-0 mb-8">
+      <div className="flex items-center gap-0 mb-6">
         {STEPS.map((label, i) => {
           const icons = [User, Package, Calendar, CreditCard, CheckCircle];
           const Icon = icons[i];
@@ -151,7 +151,10 @@ export default function NewRentalPage() {
         })}
       </div>
 
-      <Card>
+      <div className="flex gap-6 items-start">
+        {/* Left: step form */}
+        <div className="flex-1 min-w-0">
+        <Card>
         <AnimatePresence mode="wait">
           {/* Step 0: Customer */}
           {step === 0 && (
@@ -426,7 +429,117 @@ export default function NewRentalPage() {
             </Button>
           )}
         </div>
-      </Card>
+        </Card>
+        </div>{/* end left column */}
+
+        {/* Right: real-time summary */}
+        <div className="w-80 xl:w-96 flex-shrink-0 sticky top-6">
+          <div className="bg-charcoal-700 border border-charcoal-500 rounded-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-charcoal-600 bg-charcoal-600/40">
+              <h3 className="font-display text-sm font-semibold text-charcoal-50">Booking Summary</h3>
+            </div>
+
+            {/* Customer */}
+            <div className="px-4 py-3 border-b border-charcoal-600">
+              <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><User size={11} />Customer</p>
+              {customer ? (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-gold-700/20 border border-gold-700/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-gold-400 text-xs font-semibold">{customer.name.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-charcoal-50">{customer.name}</p>
+                    {customer.phone && <p className="text-xs text-charcoal-300">{customer.phone}</p>}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-charcoal-400 italic">Not selected yet</p>
+              )}
+            </div>
+
+            {/* Items */}
+            <div className="px-4 py-3 border-b border-charcoal-600">
+              <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Package size={11} />Items {cartItems.length > 0 && <span className="text-gold-500">({cartItems.length})</span>}</p>
+              {cartItems.length === 0 ? (
+                <p className="text-xs text-charcoal-400 italic">No items added yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {cartItems.map((item) => (
+                    <div key={item.variantId} className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-charcoal-100 truncate">{item.productName}</p>
+                        <p className="text-xs text-charcoal-400">{item.variantInfo || item.sku} × {item.quantity}</p>
+                      </div>
+                      <p className="text-xs text-gold-500 flex-shrink-0">{formatCurrency(item.rentalPricePerDay * item.quantity * rentalDays)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dates */}
+            <div className="px-4 py-3 border-b border-charcoal-600">
+              <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Calendar size={11} />Dates</p>
+              {rentalStartDate ? (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-charcoal-400">Pickup</span>
+                    <span className="text-charcoal-100 font-medium">{rentalStartDate}</span>
+                  </div>
+                  {rentalEndDate && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-charcoal-400">Return</span>
+                      <span className="text-charcoal-100 font-medium">{rentalEndDate}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs">
+                    <span className="text-charcoal-400">Duration</span>
+                    <span className="text-charcoal-100 font-medium">{rentalDays} day{rentalDays !== 1 ? 's' : ''}</span>
+                  </div>
+                  {eventType && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-charcoal-400">Event</span>
+                      <span className="text-charcoal-100">{eventType}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-charcoal-400 italic">Not set yet</p>
+              )}
+            </div>
+
+            {/* Payment & Total */}
+            <div className="px-4 py-3">
+              <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><CreditCard size={11} />Payment</p>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-charcoal-400">Total Cost</span>
+                  <span className="text-gold-400 font-semibold">{formatCurrency(totalCost)}</span>
+                </div>
+                {advancePayment && parseFloat(advancePayment) > 0 && (
+                  <>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-charcoal-400">Advance Paid</span>
+                      <span className="text-emerald-400">{formatCurrency(parseFloat(advancePayment))}</span>
+                    </div>
+                    <div className="flex justify-between text-xs pt-1 border-t border-charcoal-600">
+                      <span className="text-charcoal-200 font-medium">Balance Due</span>
+                      <span className="text-charcoal-50 font-semibold">{formatCurrency(Math.max(0, totalCost - parseFloat(advancePayment)))}</span>
+                    </div>
+                  </>
+                )}
+                {paymentMethod && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-charcoal-400">Method</span>
+                    <span className="text-charcoal-100 capitalize">{paymentMethod.replace('_', ' ')}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>{/* end flex row */}
     </div>
   );
 }
