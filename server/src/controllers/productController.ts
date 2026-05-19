@@ -39,33 +39,43 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
   );
   const total = parseInt(countRes.rows[0].count);
 
-  const variantsSelect = includeVariants === 'true'
-    ? `,COALESCE(
-        json_agg(
-          json_build_object(
-            'id', pv.id, 'sku', pv.sku, 'size', pv.size, 'color', pv.color,
-            'selling_price', pv.selling_price, 'rental_price_per_day', pv.rental_price_per_day,
-            'stock_quantity', pv.stock_quantity,
-            'available_for_rent', pv.available_for_rent
-          ) ORDER BY pv.size, pv.color
-        ) FILTER (WHERE pv.id IS NOT NULL), '[]'
-      ) as variants`
-    : '';
+  const variantsSelect = includeVariants === 'true' ? ', pv_stats.variants' : '';
 
   const dataRes = await db.query(`
     SELECT p.*,
            pc.name as category_name,
-           pi.url as primary_image,
-           COUNT(DISTINCT pv.id) as variant_count,
-           COALESCE(SUM(pv.stock_quantity), 0) as total_stock,
-           COALESCE(SUM(pv.available_for_rent), 0) as total_available
+           primary_img.url as primary_image,
+           COALESCE(pv_stats.variant_count, 0) as variant_count,
+           COALESCE(pv_stats.total_stock, 0) as total_stock,
+           COALESCE(pv_stats.total_available, 0) as total_available
            ${variantsSelect}
     FROM products p
     LEFT JOIN product_categories pc ON pc.id = p.category_id
-    LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = true
-    LEFT JOIN product_variants pv ON pv.product_id = p.id
+    LEFT JOIN LATERAL (
+      SELECT url FROM product_images
+      WHERE product_id = p.id AND is_primary = true
+      LIMIT 1
+    ) primary_img ON true
+    LEFT JOIN LATERAL (
+      SELECT
+        COUNT(*)                                      AS variant_count,
+        COALESCE(SUM(stock_quantity), 0)              AS total_stock,
+        COALESCE(SUM(available_for_rent), 0)          AS total_available,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', id, 'sku', sku, 'size', size, 'color', color,
+              'selling_price', selling_price,
+              'rental_price_per_day', rental_price_per_day,
+              'stock_quantity', stock_quantity,
+              'available_for_rent', available_for_rent
+            ) ORDER BY size, color
+          ), '[]'
+        ) AS variants
+      FROM product_variants
+      WHERE product_id = p.id
+    ) pv_stats ON true
     ${whereClause}
-    GROUP BY p.id, pc.name, pi.url
     ORDER BY p.created_at DESC
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
   `, [...params, limit, offset]);
