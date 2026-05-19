@@ -1,0 +1,580 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import { settingsService } from '@/services/settingsService';
+import Card from '@/components/common/Card';
+import Button from '@/components/common/Button';
+import Input from '@/components/common/Input';
+import Select from '@/components/common/Select';
+import Modal from '@/components/common/Modal';
+import Badge from '@/components/common/Badge';
+import { cn } from '@/utils/cn';
+import { ROLE_LABELS } from '@/utils/formatters';
+import type { User, UserRole } from '@/types';
+
+const TABS = [
+  { key: 'shop', label: 'Shop Info', icon: Store },
+  { key: 'rental', label: 'Rental Rules', icon: SettingsIcon },
+  { key: 'fines', label: 'Fine Rules', icon: DollarSign },
+  { key: 'notifications', label: 'Notifications', icon: Bell },
+  { key: 'users', label: 'Users', icon: Users },
+] as const;
+
+type TabKey = typeof TABS[number]['key'];
+
+// Utility: create controlled input props for settings
+function useSetting(settings: Record<string, any> | undefined, key: string, defaultValue = '') {
+  return settings?.[key]?.value ?? defaultValue;
+}
+
+export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<TabKey>('shop');
+  const qc = useQueryClient();
+
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsService.getAll(),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (updates: Record<string, string>) => settingsService.update(updates),
+    onSuccess: () => {
+      toast.success('Settings saved!');
+      qc.invalidateQueries({ queryKey: ['settings'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save settings'),
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">Settings</h2>
+          <p className="text-charcoal-200 text-sm">Configure your shop preferences and rules</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-5">
+        {/* Sidebar tabs */}
+        <div className="lg:w-52 flex-shrink-0">
+          <Card padding="none">
+            <nav className="p-2 space-y-0.5">
+              {TABS.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left',
+                      activeTab === tab.key
+                        ? 'bg-gold-700/20 text-gold-400'
+                        : 'text-charcoal-200 hover:bg-charcoal-600/40 hover:text-charcoal-50'
+                    )}
+                  >
+                    <Icon size={16} className="flex-shrink-0" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </Card>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-charcoal-600 rounded-2xl animate-pulse" />)}
+            </div>
+          ) : (
+            <>
+              {activeTab === 'shop' && <ShopSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
+              {activeTab === 'rental' && <RentalSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
+              {activeTab === 'fines' && <FineSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
+              {activeTab === 'notifications' && <NotificationSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
+              {activeTab === 'users' && <UserManagement />}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shop Info ──────────────────────────────────────────────────────────────
+function ShopSettings({ settings, onSave, saving }: { settings: any; onSave: (u: Record<string, string>) => void; saving: boolean }) {
+  const [form, setForm] = useState({
+    shop_name: useSetting(settings, 'shop_name', 'The Outfit Lounge'),
+    shop_phone: useSetting(settings, 'shop_phone', ''),
+    shop_email: useSetting(settings, 'shop_email', ''),
+    shop_address: useSetting(settings, 'shop_address', ''),
+    currency: useSetting(settings, 'currency', 'LKR'),
+    currency_symbol: useSetting(settings, 'currency_symbol', 'LKR'),
+    timezone: useSetting(settings, 'timezone', 'Asia/Colombo'),
+    receipt_footer: useSetting(settings, 'receipt_footer', 'Thank you for your business!'),
+  });
+
+  // Update local state when settings load
+  const s = (k: string, def = '') => settings?.[k]?.value ?? def;
+
+  return (
+    <Card>
+      <h4 className="text-base font-semibold text-charcoal-50 mb-5">Shop Information</h4>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input label="Shop Name" value={s('shop_name', 'The Outfit Lounge')} onChange={(e) => setForm({ ...form, shop_name: e.target.value })} placeholder="The Outfit Lounge" />
+          <Input label="Phone" value={s('shop_phone')} onChange={(e) => setForm({ ...form, shop_phone: e.target.value })} placeholder="+94123456789" />
+          <Input label="Email" type="email" value={s('shop_email')} onChange={(e) => setForm({ ...form, shop_email: e.target.value })} placeholder="shop@example.com" />
+          <Select
+            label="Currency"
+            options={[
+              { value: 'LKR', label: 'LKR — Sri Lankan Rupee' },
+              { value: 'USD', label: 'USD — US Dollar' },
+              { value: 'EUR', label: 'EUR — Euro' },
+              { value: 'SGD', label: 'SGD — Singapore Dollar' },
+            ]}
+            value={s('currency', 'LKR')}
+            onChange={(e) => setForm({ ...form, currency: e.target.value })}
+          />
+          <Input label="Currency Symbol" value={s('currency_symbol', 'LKR')} onChange={(e) => setForm({ ...form, currency_symbol: e.target.value })} placeholder="LKR" />
+          <Select
+            label="Timezone"
+            options={[
+              { value: 'Asia/Colombo', label: 'Asia/Colombo (GMT+5:30)' },
+              { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (GMT+8)' },
+              { value: 'Asia/Singapore', label: 'Asia/Singapore (GMT+8)' },
+              { value: 'UTC', label: 'UTC' },
+            ]}
+            value={s('timezone', 'Asia/Kuala_Lumpur')}
+            onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+          />
+        </div>
+        <Input label="Address" value={s('shop_address')} onChange={(e) => setForm({ ...form, shop_address: e.target.value })} placeholder="123 Main Street, Kuala Lumpur" />
+        <Input label="Receipt Footer Message" value={s('receipt_footer', 'Thank you for your business!')} onChange={(e) => setForm({ ...form, receipt_footer: e.target.value })} placeholder="Thank you for your business!" />
+        <div className="flex justify-end pt-2">
+          <Button variant="primary" onClick={() => onSave(form)} loading={saving}>Save Changes</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Rental Rules ───────────────────────────────────────────────────────────
+function RentalSettings({ settings, onSave, saving }: { settings: any; onSave: (u: Record<string, string>) => void; saving: boolean }) {
+  const s = (k: string, def = '') => settings?.[k]?.value ?? def;
+  const [form, setForm] = useState<Record<string, string>>({});
+  const get = (k: string, def = '') => form[k] !== undefined ? form[k] : s(k, def);
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <Card>
+      <h4 className="text-base font-semibold text-charcoal-50 mb-5">Rental Rules</h4>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input label="Minimum Rental Days" type="number" min="1" value={get('min_rental_days', '1')} onChange={(e) => set('min_rental_days', e.target.value)} />
+          <Input label="Maximum Rental Days" type="number" min="1" value={get('max_rental_days', '30')} onChange={(e) => set('max_rental_days', e.target.value)} />
+          <Input label="Default Advance Payment (%)" type="number" min="0" max="100" value={get('default_advance_percent', '30')} onChange={(e) => set('default_advance_percent', e.target.value)} hint="Percentage of total rental cost" />
+          <Input label="Booking Number Prefix" value={get('booking_prefix', 'TS')} onChange={(e) => set('booking_prefix', e.target.value)} placeholder="TS" />
+          <Select
+            label="Booking Number Year Format"
+            options={[
+              { value: 'full', label: 'Full year (TS-2024-0001)' },
+              { value: 'short', label: 'Short year (TS-24-0001)' },
+              { value: 'none', label: 'No year (TS-0001)' },
+            ]}
+            value={get('booking_year_format', 'full')}
+            onChange={(e) => set('booking_year_format', e.target.value)}
+          />
+        </div>
+        <div className="flex justify-end pt-2">
+          <Button variant="primary" onClick={() => onSave({ ...form })} loading={saving}>Save Changes</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Fine Rules ─────────────────────────────────────────────────────────────
+function FineSettings({ settings, onSave, saving }: { settings: any; onSave: (u: Record<string, string>) => void; saving: boolean }) {
+  const s = (k: string, def = '') => settings?.[k]?.value ?? def;
+  const [form, setForm] = useState<Record<string, string>>({});
+  const get = (k: string, def = '') => form[k] !== undefined ? form[k] : s(k, def);
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <Card>
+      <h4 className="text-base font-semibold text-charcoal-50 mb-5">Fine & Late Return Rules</h4>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="Grace Period (days)"
+            type="number"
+            min="0"
+            value={get('grace_period_days', '0')}
+            onChange={(e) => set('grace_period_days', e.target.value)}
+            hint="Days after due date before fine starts"
+          />
+          <Input
+            label="Default Fine Per Day (LKR)"
+            type="number"
+            min="0"
+            step="0.50"
+            value={get('default_fine_per_day', '10')}
+            onChange={(e) => set('default_fine_per_day', e.target.value)}
+            hint="Used if product has no fine set"
+          />
+          <Input
+            label="Maximum Fine Cap (LKR)"
+            type="number"
+            min="0"
+            value={get('max_fine_amount', '0')}
+            onChange={(e) => set('max_fine_amount', e.target.value)}
+            hint="0 = no cap"
+          />
+          <Select
+            label="Fine Multiplier for Damage"
+            options={[
+              { value: '1', label: '1× (no multiplier)' },
+              { value: '2', label: '2× fine rate' },
+              { value: '3', label: '3× fine rate' },
+              { value: '5', label: '5× fine rate' },
+            ]}
+            value={get('damage_fine_multiplier', '2')}
+            onChange={(e) => set('damage_fine_multiplier', e.target.value)}
+          />
+        </div>
+
+        <div className="p-4 bg-charcoal-600/40 rounded-xl">
+          <p className="text-sm font-medium text-charcoal-100 mb-1">Fine Calculation Formula</p>
+          <p className="text-xs text-charcoal-200">
+            Fine = max(0, days_late − grace_period) × fine_per_day
+            <br />
+            If product has a custom fine rate, that overrides the default.
+          </p>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button variant="primary" onClick={() => onSave({ ...form })} loading={saving}>Save Changes</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Notification Settings ───────────────────────────────────────────────────
+function NotificationSettings({ settings, onSave, saving }: { settings: any; onSave: (u: Record<string, string>) => void; saving: boolean }) {
+  const s = (k: string, def = '') => settings?.[k]?.value ?? def;
+  const [form, setForm] = useState<Record<string, string>>({});
+  const get = (k: string, def = '') => form[k] !== undefined ? form[k] : s(k, def);
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const toggleBool = (k: string, def = 'false') => {
+    const current = get(k, def);
+    set(k, current === 'true' ? 'false' : 'true');
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <h4 className="text-base font-semibold text-charcoal-50 mb-5">Notification Channels</h4>
+        <div className="space-y-3">
+          {[
+            { key: 'sms_enabled', label: 'SMS Notifications', desc: 'Send SMS for bookings, reminders, and alerts' },
+            { key: 'whatsapp_enabled', label: 'WhatsApp Notifications', desc: 'Send WhatsApp messages (requires Twilio)' },
+            { key: 'email_enabled', label: 'Email Notifications', desc: 'Send emails (requires SMTP config)' },
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between p-3.5 bg-charcoal-600/40 rounded-xl">
+              <div>
+                <p className="text-sm font-medium text-charcoal-50">{label}</p>
+                <p className="text-xs text-charcoal-200">{desc}</p>
+              </div>
+              <button
+                onClick={() => toggleBool(key, 'false')}
+                className={cn(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors',
+                  get(key, 'false') === 'true' ? 'bg-gold-600' : 'bg-charcoal-500'
+                )}
+              >
+                <span className={cn(
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5',
+                  get(key, 'false') === 'true' ? 'translate-x-5' : 'translate-x-0.5'
+                )} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h4 className="text-base font-semibold text-charcoal-50 mb-5">Automated Reminders</h4>
+        <div className="space-y-3">
+          {[
+            { key: 'pickup_reminder_enabled', label: 'Pickup Reminders', desc: 'Remind customers 1 day before pickup date' },
+            { key: 'return_reminder_enabled', label: 'Return Reminders', desc: 'Remind customers on the due return date' },
+            { key: 'late_warning_enabled', label: 'Late Return Warnings', desc: 'Alert customers when rental is overdue' },
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between p-3.5 bg-charcoal-600/40 rounded-xl">
+              <div>
+                <p className="text-sm font-medium text-charcoal-50">{label}</p>
+                <p className="text-xs text-charcoal-200">{desc}</p>
+              </div>
+              <button
+                onClick={() => toggleBool(key, 'true')}
+                className={cn(
+                  'relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors',
+                  get(key, 'true') === 'true' ? 'bg-gold-600' : 'bg-charcoal-500'
+                )}
+              >
+                <span className={cn(
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5',
+                  get(key, 'true') === 'true' ? 'translate-x-5' : 'translate-x-0.5'
+                )} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h4 className="text-base font-semibold text-charcoal-50 mb-1">FitSMS Configuration</h4>
+        <p className="text-xs text-charcoal-200 mb-5">
+          SMS gateway via <span className="text-gold-400">app.fitsms.lk</span>. Get your API token from the FitSMS dashboard.
+        </p>
+        <div className="space-y-4">
+          <Input
+            label="FitSMS API Token"
+            type="password"
+            value={get('fitsms_api_token')}
+            onChange={(e) => set('fitsms_api_token', e.target.value)}
+            placeholder="492|xxxxxxxxxxxxxxxxxxxx"
+            hint="Bearer token from your FitSMS account"
+          />
+          <Input
+            label="Sender ID"
+            value={get('fitsms_sender_id', 'OutfitLnge')}
+            onChange={(e) => set('fitsms_sender_id', e.target.value.substring(0, 11))}
+            placeholder="OutfitLnge"
+            hint="Alphanumeric, max 11 characters — shown as sender on customer's phone"
+          />
+        </div>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button variant="primary" onClick={() => onSave({ ...form })} loading={saving}>Save All Settings</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── User Management ─────────────────────────────────────────────────────────
+function UserManagement() {
+  const qc = useQueryClient();
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetUserId, setResetUserId] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cashier' as UserRole, phone: '' });
+
+  const { data: users, isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => settingsService.getUsers(),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: any) => settingsService.createUser(payload),
+    onSuccess: () => {
+      toast.success('User created!');
+      setShowModal(false);
+      resetForm();
+      qc.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create user'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => settingsService.updateUser(id, payload),
+    onSuccess: () => {
+      toast.success('User updated!');
+      setShowModal(false);
+      setEditingUser(null);
+      resetForm();
+      qc.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update user'),
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: (id: string) => settingsService.deactivateUser(id),
+    onSuccess: () => {
+      toast.success('User deactivated');
+      qc.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to deactivate user'),
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) => settingsService.resetPassword(id, password),
+    onSuccess: () => {
+      toast.success('Password reset!');
+      setShowResetModal(false);
+      setNewPassword('');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to reset password'),
+  });
+
+  const resetForm = () => setForm({ name: '', email: '', password: '', role: 'cashier', phone: '' });
+
+  const openEdit = (user: User) => {
+    setEditingUser(user);
+    setForm({ name: user.name, email: user.email, password: '', role: user.role, phone: user.phone || '' });
+    setShowModal(true);
+  };
+
+  const openResetPassword = (userId: string) => {
+    setResetUserId(userId);
+    setNewPassword('');
+    setShowResetModal(true);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h4 className="text-base font-semibold text-charcoal-50">User Accounts</h4>
+        <Button variant="primary" size="sm" icon={<Plus size={14} />} onClick={() => { setEditingUser(null); resetForm(); setShowModal(true); }}>
+          Add User
+        </Button>
+      </div>
+
+      <Card padding="none">
+        {isLoading ? (
+          <div className="p-4 space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-charcoal-600 rounded-xl animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="divide-y divide-charcoal-600">
+            {(users || []).map((user: any) => (
+              <div key={user.id} className="flex items-center gap-4 p-4">
+                <div className="w-10 h-10 rounded-full bg-gold-700/20 border border-gold-700/30 flex items-center justify-center flex-shrink-0">
+                  <span className="text-gold-400 font-semibold text-sm">{user.name?.charAt(0)}</span>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-charcoal-50">{user.name}</p>
+                    {!user.is_active && <Badge variant="error" size="sm">Inactive</Badge>}
+                  </div>
+                  <p className="text-xs text-charcoal-200">{user.email}</p>
+                </div>
+                <Badge variant={user.role === 'super_admin' ? 'warning' : 'neutral'} size="sm">
+                  {ROLE_LABELS[user.role as UserRole] || user.role}
+                </Badge>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" icon={<Pencil size={13} />} onClick={() => openEdit(user)} />
+                  <Button variant="ghost" size="sm" icon={<RefreshCw size={13} />} onClick={() => openResetPassword(user.id)} />
+                  {user.is_active && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Trash2 size={13} />}
+                      className="text-red-400 hover:text-red-300"
+                      onClick={() => deactivateMutation.mutate(user.id)}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Add/Edit Modal */}
+      <Modal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditingUser(null); }}
+        title={editingUser ? 'Edit User' : 'Add New User'}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (editingUser) {
+                  const payload: any = { name: form.name, role: form.role, phone: form.phone };
+                  if (form.password) payload.password = form.password;
+                  updateMutation.mutate({ id: editingUser.id, payload });
+                } else {
+                  createMutation.mutate(form);
+                }
+              }}
+              loading={createMutation.isPending || updateMutation.isPending}
+              disabled={!form.name || !form.email || (!editingUser && !form.password)}
+            >
+              {editingUser ? 'Save Changes' : 'Create User'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" required />
+          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@example.com" required disabled={!!editingUser} />
+          <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+60123456789" />
+          <Select
+            label="Role"
+            options={[
+              { value: 'cashier', label: 'Cashier' },
+              { value: 'inventory_staff', label: 'Inventory Staff' },
+              { value: 'manager', label: 'Manager' },
+              { value: 'super_admin', label: 'Super Admin' },
+            ]}
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
+          />
+          <Input
+            label={editingUser ? 'New Password (leave blank to keep)' : 'Password'}
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            placeholder={editingUser ? 'Leave blank to keep current' : 'Min 8 characters'}
+            required={!editingUser}
+          />
+        </div>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        open={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        title="Reset Password"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowResetModal(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={() => resetMutation.mutate({ id: resetUserId, password: newPassword })}
+              loading={resetMutation.isPending}
+              disabled={newPassword.length < 8}
+            >
+              Reset Password
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-charcoal-200">Enter a new password for this user.</p>
+          <Input
+            label="New Password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Min 8 characters"
+            hint="Must be at least 8 characters"
+          />
+        </div>
+      </Modal>
+    </div>
+  );
+}
