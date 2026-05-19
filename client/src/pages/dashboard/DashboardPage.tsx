@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const { data: chartData } = useQuery({
     queryKey: ['revenue-chart', 'month'],
     queryFn: () => reportService.getRevenueChart('month'),
+    refetchInterval: 60_000,
   });
 
   // Merge sales + rentals chart data by date

@@ -18,6 +18,7 @@ import ReturnsPage from './pages/returns/ReturnsPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import AnalyticsPage from './pages/analytics/AnalyticsPage';
 
 export default function App() {
   const { token } = useAuthStore();
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/returns" element={<ReturnsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

@@ -75,6 +75,8 @@ export default function POSPage() {
       setCustomer(null, null);
       setMobileTab('products');
       qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['revenue-chart'] });
       toast.success(`Sale ${data.sale.sale_number} completed!`);
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Checkout failed'),

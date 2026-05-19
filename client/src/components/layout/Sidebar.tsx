@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, Users, Calendar, ShoppingCart,
-  ArchiveX, RotateCcw, BarChart3, Bell, Settings,
+  ArchiveX, RotateCcw, BarChart3, BarChart2, Bell, Settings,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { path: '/customers', label: 'Customers', icon: Users, module: 'customers' },
   { path: '/inventory', label: 'Inventory', icon: ArchiveX, module: 'inventory' },
   { path: '/reports', label: 'Reports', icon: BarChart3, module: 'reports' },
+  { path: '/analytics', label: 'Analytics', icon: BarChart2, module: 'analytics' },
   { path: '/notifications', label: 'Notifications', icon: Bell, module: 'notifications' },
   { path: '/settings', label: 'Settings', icon: Settings, module: 'settings' },
 ];
