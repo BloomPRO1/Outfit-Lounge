@@ -1,6 +1,6 @@
 [build]
   builder = "NIXPACKS"
-  buildCommand = "cd client && npm install && npm run build && cd ../server && npm install && npm run build && cp -r src/db/migrations dist/db/"
+  buildCommand = "cd client && npm install --include=dev && npm run build && cd ../server && npm install --include=dev && npm run build && cp -r src/db/migrations dist/db/"
 
 [deploy]
   startCommand = "cd server && node dist/db/migrate.js && node dist/index.js"
