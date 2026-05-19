@@ -33,25 +33,14 @@ export default function DashboardPage() {
     refetchInterval: 60_000,
   });
 
-  // Merge sales + rentals chart data by date
+  // Server returns { chartData: [{label, sales_revenue, rental_revenue}], summary }
   const mergedChart = (() => {
-    if (!chartData) return [];
-    const map: Record<string, any> = {};
-    for (const row of chartData.sales || []) {
-      const d = row.date?.slice(0, 10);
-      if (d) map[d] = { ...map[d], date: d, sales: parseFloat(row.revenue || 0) };
-    }
-    for (const row of chartData.rentals || []) {
-      const d = row.date?.slice(0, 10);
-      if (d) map[d] = { ...map[d], date: d, rentals: parseFloat(row.revenue || 0) };
-    }
-    return Object.values(map)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-14)
-      .map(row => ({
-        ...row,
-        date: new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      }));
+    const rows: any[] = chartData?.chartData || [];
+    return rows.slice(-14).map((row: any) => ({
+      date: new Date(row.label + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      sales: row.sales_revenue || 0,
+      rentals: row.rental_revenue || 0,
+    }));
   })();
 
   const customTooltipStyle = {
