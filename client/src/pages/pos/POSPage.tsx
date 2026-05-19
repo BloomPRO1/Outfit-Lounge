@@ -32,6 +32,7 @@ export default function POSPage() {
     discount: '',
     notes: '',
   });
+  const [variantPickerProduct, setVariantPickerProduct] = useState<any | null>(null);
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const {
@@ -133,6 +134,17 @@ export default function POSPage() {
       discount: 0,
       subtotal: parseFloat(variant.selling_price || product.selling_price || 0),
     });
+    setVariantPickerProduct(null);
+  };
+
+  const handleProductCardClick = (product: any) => {
+    const variants = (product.variants || []).filter((v: any) => v.stock_quantity > 0);
+    const allVariants = product.variants || [];
+    if (allVariants.length === 1) {
+      if (allVariants[0].stock_quantity > 0) handleAddProduct(product, allVariants[0]);
+    } else {
+      setVariantPickerProduct(product);
+    }
   };
 
   const subtotal = getSubtotal();
@@ -222,18 +234,19 @@ export default function POSPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
               {products.data.map((product: any) => {
-                const variants = product.variants || [];
-                const variant = variants[0];
-                if (!variant) return null;
-                const price = parseFloat(variant.selling_price || product.selling_price || 0);
-                const inStock = variant.stock_quantity > 0;
+                const variants: any[] = product.variants || [];
+                if (variants.length === 0) return null;
+                const totalStock = variants.reduce((s: number, v: any) => s + (v.stock_quantity || 0), 0);
+                const inStock = totalStock > 0;
+                const lowestPrice = Math.min(...variants.map((v: any) => parseFloat(v.selling_price || product.selling_price || 0)));
+                const multipleVariants = variants.length > 1;
 
                 return (
                   <motion.button
-                    key={`${product.id}-${variant.id}`}
+                    key={product.id}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => inStock && handleAddProduct(product, variant)}
+                    onClick={() => inStock && handleProductCardClick(product)}
                     disabled={!inStock}
                     className={cn(
                       'relative bg-charcoal-700 border border-charcoal-500 rounded-xl overflow-hidden text-left transition-all duration-200',
@@ -251,17 +264,28 @@ export default function POSPage() {
                     </div>
                     <div className="p-2.5">
                       <p className="text-xs font-medium text-charcoal-50 leading-tight truncate">{product.name}</p>
-                      {variant.size && <p className="text-xs text-charcoal-200 mt-0.5">Size: {variant.size}</p>}
+                      {multipleVariants ? (
+                        <p className="text-xs text-gold-500/80 mt-0.5">{variants.length} sizes available</p>
+                      ) : (
+                        variants[0].size && <p className="text-xs text-charcoal-200 mt-0.5">Size: {variants[0].size}</p>
+                      )}
                       <div className="flex items-center justify-between mt-1.5">
-                        <span className="text-sm font-semibold text-gold-400">{formatCurrency(price)}</span>
+                        <span className="text-sm font-semibold text-gold-400">
+                          {multipleVariants ? 'From ' : ''}{formatCurrency(lowestPrice)}
+                        </span>
                         <span className={cn('text-xs', inStock ? 'text-charcoal-200' : 'text-red-400')}>
-                          {variant.stock_quantity} left
+                          {totalStock} left
                         </span>
                       </div>
                     </div>
                     {!inStock && (
                       <div className="absolute inset-0 flex items-center justify-center bg-charcoal-900/60 rounded-xl">
                         <span className="text-xs text-red-400 font-medium">Out of Stock</span>
+                      </div>
+                    )}
+                    {multipleVariants && inStock && (
+                      <div className="absolute top-1.5 right-1.5 bg-charcoal-900/70 text-gold-400 text-xs px-1.5 py-0.5 rounded-md font-medium">
+                        Pick size
                       </div>
                     )}
                   </motion.button>
@@ -461,6 +485,86 @@ export default function POSPage() {
           </div>
         )}
       </div>
+
+      {/* Variant Picker */}
+      <AnimatePresence>
+        {variantPickerProduct && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+              onClick={() => setVariantPickerProduct(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'tween', duration: 0.18 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div
+                className="pointer-events-auto bg-charcoal-800 border border-charcoal-500 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center gap-3 p-4 border-b border-charcoal-600">
+                  <div className="w-12 h-12 rounded-xl bg-charcoal-600 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    {variantPickerProduct.primary_image
+                      ? <img src={variantPickerProduct.primary_image} alt="" className="w-full h-full object-cover" />
+                      : <Package size={20} className="text-charcoal-300" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-charcoal-50 truncate">{variantPickerProduct.name}</p>
+                    <p className="text-xs text-charcoal-300 mt-0.5">Select a size to add to cart</p>
+                  </div>
+                  <button
+                    onClick={() => setVariantPickerProduct(null)}
+                    className="text-charcoal-300 hover:text-charcoal-50 transition-colors flex-shrink-0"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Variants grid */}
+                <div className="p-4 grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                  {(variantPickerProduct.variants || []).map((v: any) => {
+                    const price = parseFloat(v.selling_price || variantPickerProduct.selling_price || 0);
+                    const available = v.stock_quantity > 0;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => available && handleAddProduct(variantPickerProduct, v)}
+                        disabled={!available}
+                        className={cn(
+                          'flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all duration-150',
+                          available
+                            ? 'border-charcoal-500 bg-charcoal-700 hover:border-gold-600 hover:bg-gold-700/10 cursor-pointer'
+                            : 'border-charcoal-600 bg-charcoal-700/40 opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                          {v.size && (
+                            <span className="text-sm font-bold text-charcoal-50">{v.size}</span>
+                          )}
+                          {v.color && (
+                            <span className="text-xs text-charcoal-300">{v.color}</span>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold text-gold-400">{formatCurrency(price)}</span>
+                        <span className={cn('text-xs mt-0.5', available ? 'text-charcoal-300' : 'text-red-400')}>
+                          {available ? `${v.stock_quantity} in stock` : 'Out of stock'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Checkout Modal */}
       <Drawer
