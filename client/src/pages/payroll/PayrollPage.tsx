@@ -168,7 +168,7 @@ export default function PayrollPage() {
             <div className="hidden md:grid grid-cols-[1fr_120px_120px_120px_120px_100px_80px] gap-3 px-3 pb-2 border-b border-charcoal-600 text-xs text-charcoal-300 font-medium">
               <span>Employee</span>
               <span>Base Salary</span>
-              <span>Bonuses</span>
+              <span>Allowances</span>
               <span>Deductions</span>
               <span>Net Pay</span>
               <span>Status</span>
@@ -200,16 +200,16 @@ export default function PayrollPage() {
                     <span className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.base_salary || row.profile_salary || 0))}</span>
                   </div>
 
-                  {/* Bonuses */}
+                  {/* Allowances */}
                   <div>
-                    <span className="md:hidden text-xs text-charcoal-300 mr-1">Bonuses:</span>
+                    <span className="md:hidden text-xs text-charcoal-300 mr-1">Allowances:</span>
                     {row.payroll_id && row.status !== 'paid' ? (
                       <EditableCell
-                        value={parseFloat(row.bonuses || 0)}
-                        onSave={v => updateMutation.mutate({ id: row.payroll_id, payload: { bonuses: v } })}
+                        value={parseFloat(row.allowances || 0)}
+                        onSave={v => updateMutation.mutate({ id: row.payroll_id, payload: { allowances: v } })}
                       />
                     ) : (
-                      <span className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.bonuses || 0))}</span>
+                      <span className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.allowances || 0))}</span>
                     )}
                   </div>
 

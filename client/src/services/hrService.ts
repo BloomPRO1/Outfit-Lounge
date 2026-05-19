@@ -46,7 +46,7 @@ export const hrService = {
     const { data } = await api.post(`/hr/payroll/generate/${period}`);
     return data;
   },
-  updatePayrollRecord: async (id: string, payload: { bonuses?: number; deductions?: number; notes?: string }) => {
+  updatePayrollRecord: async (id: string, payload: { allowances?: number; deductions?: number; notes?: string }) => {
     const { data } = await api.patch(`/hr/payroll/${id}`, payload);
     return data;
   },

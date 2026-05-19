@@ -249,7 +249,7 @@ export async function getPayroll(req: Request, res: Response): Promise<void> {
   const result = await db.query(`
     SELECT u.id as employee_id, u.name, u.email, u.role,
            ep.department, ep.designation, ep.base_salary as profile_salary,
-           pr.id as payroll_id, pr.base_salary, pr.bonuses, pr.deductions,
+           pr.id as payroll_id, pr.base_salary, pr.allowances, pr.deductions,
            pr.net_pay, pr.status, pr.paid_at, pr.notes,
            pby.name as processed_by_name
     FROM users u
@@ -289,7 +289,7 @@ export async function generatePayroll(req: AuthRequest, res: Response): Promise<
     for (const emp of employees.rows as any[]) {
       const salary = parseFloat(emp.base_salary || 0);
       const res2 = await client.query(`
-        INSERT INTO payroll_records (employee_id, period_month, base_salary, bonuses, deductions, net_pay)
+        INSERT INTO payroll_records (employee_id, period_month, base_salary, allowances, deductions, net_pay)
         VALUES ($1, $2, $3, 0, 0, $3)
         ON CONFLICT (employee_id, period_month) DO NOTHING
         RETURNING id
@@ -308,18 +308,18 @@ export async function generatePayroll(req: AuthRequest, res: Response): Promise<
 
 export async function updatePayrollRecord(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params;
-  const { bonuses, deductions, notes } = req.body;
+  const { allowances, deductions, notes } = req.body;
 
   const result = await db.query(`
     UPDATE payroll_records SET
-      bonuses    = COALESCE($1, bonuses),
+      allowances    = COALESCE($1, allowances),
       deductions = COALESCE($2, deductions),
-      net_pay    = base_salary + COALESCE($1, bonuses) - COALESCE($2, deductions),
+      net_pay    = base_salary + COALESCE($1, allowances) - COALESCE($2, deductions),
       notes      = COALESCE($3, notes),
       updated_at = NOW()
     WHERE id = $4 AND status != 'paid'
     RETURNING *
-  `, [bonuses ?? null, deductions ?? null, notes ?? null, id]);
+  `, [allowances ?? null, deductions ?? null, notes ?? null, id]);
 
   if (!result.rows[0]) { res.status(404).json({ error: 'Record not found or already paid' }); return; }
   res.json(result.rows[0]);
