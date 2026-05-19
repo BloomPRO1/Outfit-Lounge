@@ -14,6 +14,7 @@ import type { ProductCategory } from '@/types';
 const STEPS = ['Basic Info', 'Pricing', 'Variants', 'Review'];
 
 interface VariantForm {
+  id?: string;
   size: string;
   color: string;
   material: string;
@@ -84,6 +85,7 @@ export default function ProductFormPage() {
       lateFinePerDay: (existing as any).late_fine_per_day ?? '',
     });
     const vars = ((existing as any).variants || []).map((v: any) => ({
+      id: v.id,
       size: v.size || '',
       color: v.color || '',
       material: v.material || '',

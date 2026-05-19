@@ -213,29 +213,80 @@ export async function updateProduct(req: AuthRequest, res: Response): Promise<vo
   const {
     name, description, categoryId, type,
     sellingPrice, rentalPricePerDay, lateFinePerDay, isActive,
+    variants = [],
   } = req.body;
 
-  const result = await db.query(`
-    UPDATE products SET
-      name = COALESCE($1, name),
-      description = COALESCE($2, description),
-      category_id = COALESCE($3, category_id),
-      type = COALESCE($4, type),
-      selling_price = COALESCE($5, selling_price),
-      rental_price_per_day = COALESCE($6, rental_price_per_day),
-      late_fine_per_day = COALESCE($7, late_fine_per_day),
-      is_active = COALESCE($8, is_active),
-      updated_at = NOW()
-    WHERE id = $9
-    RETURNING *
-  `, [name, description, categoryId, type, sellingPrice, rentalPricePerDay, lateFinePerDay, isActive, id]);
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
 
-  if (!result.rows[0]) {
-    res.status(404).json({ error: 'Product not found' });
-    return;
+    const result = await client.query(`
+      UPDATE products SET
+        name = COALESCE($1, name),
+        description = COALESCE($2, description),
+        category_id = COALESCE($3, category_id),
+        type = COALESCE($4, type),
+        selling_price = COALESCE($5, selling_price),
+        rental_price_per_day = COALESCE($6, rental_price_per_day),
+        late_fine_per_day = COALESCE($7, late_fine_per_day),
+        is_active = COALESCE($8, is_active),
+        updated_at = NOW()
+      WHERE id = $9
+      RETURNING *
+    `, [name, description, categoryId, type, sellingPrice, rentalPricePerDay, lateFinePerDay, isActive, id]);
+
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const productSku = result.rows[0].sku;
+
+    for (const variant of variants) {
+      if (variant.id) {
+        // Update existing variant
+        await client.query(`
+          UPDATE product_variants SET
+            size = COALESCE($1, size),
+            color = COALESCE($2, color),
+            material = COALESCE($3, material),
+            selling_price = COALESCE($4, selling_price),
+            rental_price_per_day = COALESCE($5, rental_price_per_day),
+            stock_quantity = COALESCE($6, stock_quantity),
+            available_for_rent = COALESCE($7, available_for_rent),
+            updated_at = NOW()
+          WHERE id = $8 AND product_id = $9
+        `, [
+          variant.size || null, variant.color || null, variant.material || null,
+          variant.sellingPrice || null, variant.rentalPricePerDay || null,
+          variant.stockQuantity ?? null, variant.availableForRent ?? null,
+          variant.id, id,
+        ]);
+      } else {
+        // Insert new variant
+        const variantSku = generateVariantSKU(productSku, variant.size, variant.color);
+        await client.query(`
+          INSERT INTO product_variants (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+          id, variantSku, variant.size || null, variant.color || null, variant.material || null,
+          variant.sellingPrice || sellingPrice || null,
+          variant.rentalPricePerDay || rentalPricePerDay || null,
+          variant.stockQuantity || 0,
+          variant.availableForRent || 0,
+        ]);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
-
-  res.json(result.rows[0]);
 }
 
 export async function deleteProduct(req: Request, res: Response): Promise<void> {
