@@ -3,6 +3,7 @@ import {
   getEmployees, getEmployee, upsertEmployeeProfile,
   getLeaves, applyLeave, reviewLeave, cancelLeave, getLeaveCalendar,
   getPayroll, generatePayroll, updatePayrollRecord, markPaid, bulkMarkPaid,
+  addAllowance, deleteAllowance,
 } from '../controllers/hrController';
 import { authenticate } from '../middleware/auth';
 import { requireManagerOrAbove } from '../middleware/roles';
@@ -23,10 +24,12 @@ router.patch('/leaves/:id/review',    requireManagerOrAbove, reviewLeave);
 router.patch('/leaves/:id/cancel',    cancelLeave);
 
 // Payroll
-router.get('/payroll',                requireManagerOrAbove, getPayroll);
-router.post('/payroll/generate/:period', requireManagerOrAbove, generatePayroll);
-router.patch('/payroll/:id/pay',      requireManagerOrAbove, markPaid);
-router.post('/payroll/pay-all/:period', requireManagerOrAbove, bulkMarkPaid);
-router.patch('/payroll/:id',          requireManagerOrAbove, updatePayrollRecord);
+router.get('/payroll',                         requireManagerOrAbove, getPayroll);
+router.post('/payroll/generate/:period',        requireManagerOrAbove, generatePayroll);
+router.patch('/payroll/:id/pay',               requireManagerOrAbove, markPaid);
+router.post('/payroll/pay-all/:period',         requireManagerOrAbove, bulkMarkPaid);
+router.patch('/payroll/:id',                   requireManagerOrAbove, updatePayrollRecord);
+router.post('/payroll/:id/allowances',          requireManagerOrAbove, addAllowance);
+router.delete('/payroll/:id/allowances/:allowanceId', requireManagerOrAbove, deleteAllowance);
 
 export default router;

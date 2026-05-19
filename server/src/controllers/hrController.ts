@@ -245,13 +245,16 @@ export async function getPayroll(req: Request, res: Response): Promise<void> {
   const { period } = req.query as Record<string, string>;
   const periodDate = period ? `${period}-01` : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
 
-  // Return all active employees, with their payroll record if it exists
+  // Return all active employees, with their payroll record and allowance items if they exist
   const result = await db.query(`
     SELECT u.id as employee_id, u.name, u.email, u.role,
            ep.department, ep.designation, ep.base_salary as profile_salary,
            pr.id as payroll_id, pr.base_salary, pr.allowances, pr.deductions,
            pr.net_pay, pr.status, pr.paid_at, pr.notes,
-           pby.name as processed_by_name
+           pby.name as processed_by_name,
+           (SELECT json_agg(json_build_object('id', pa.id, 'label', pa.label, 'amount', pa.amount)
+                            ORDER BY pa.created_at)
+            FROM payroll_allowances pa WHERE pa.payroll_record_id = pr.id) as allowances_list
     FROM users u
     LEFT JOIN employee_profiles ep ON ep.user_id = u.id
     LEFT JOIN payroll_records pr ON pr.employee_id = u.id AND pr.period_month = $1
@@ -308,21 +311,92 @@ export async function generatePayroll(req: AuthRequest, res: Response): Promise<
 
 export async function updatePayrollRecord(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params;
-  const { allowances, deductions, notes } = req.body;
+  const { deductions, notes } = req.body;
 
   const result = await db.query(`
     UPDATE payroll_records SET
-      allowances    = COALESCE($1, allowances),
-      deductions = COALESCE($2, deductions),
-      net_pay    = base_salary + COALESCE($1, allowances) - COALESCE($2, deductions),
-      notes      = COALESCE($3, notes),
+      deductions = COALESCE($1, deductions),
+      net_pay    = base_salary + allowances - COALESCE($1, deductions),
+      notes      = COALESCE($2, notes),
       updated_at = NOW()
-    WHERE id = $4 AND status != 'paid'
+    WHERE id = $3 AND status != 'paid'
     RETURNING *
-  `, [allowances ?? null, deductions ?? null, notes ?? null, id]);
+  `, [deductions ?? null, notes ?? null, id]);
 
   if (!result.rows[0]) { res.status(404).json({ error: 'Record not found or already paid' }); return; }
   res.json(result.rows[0]);
+}
+
+export async function addAllowance(req: AuthRequest, res: Response): Promise<void> {
+  const { id } = req.params;
+  const { label, amount } = req.body;
+
+  if (!label?.trim() || amount === undefined || amount === null) {
+    res.status(400).json({ error: 'label and amount are required' }); return;
+  }
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Verify record exists and is not paid
+    const check = await client.query(`SELECT id FROM payroll_records WHERE id = $1 AND status != 'paid'`, [id]);
+    if (!check.rows[0]) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Record not found or already paid' }); return; }
+
+    const ins = await client.query(`
+      INSERT INTO payroll_allowances (payroll_record_id, label, amount)
+      VALUES ($1, $2, $3) RETURNING *
+    `, [id, label.trim(), parseFloat(amount)]);
+
+    await client.query(`
+      UPDATE payroll_records SET
+        allowances = COALESCE((SELECT SUM(amount) FROM payroll_allowances WHERE payroll_record_id = $1), 0),
+        net_pay    = base_salary + COALESCE((SELECT SUM(amount) FROM payroll_allowances WHERE payroll_record_id = $1), 0) - deductions,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+
+    await client.query('COMMIT');
+    res.status(201).json(ins.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteAllowance(req: AuthRequest, res: Response): Promise<void> {
+  const { id, allowanceId } = req.params;
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    const del = await client.query(`
+      DELETE FROM payroll_allowances
+      WHERE id = $1 AND payroll_record_id = $2
+      RETURNING id
+    `, [allowanceId, id]);
+
+    if (!del.rows[0]) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Allowance not found' }); return; }
+
+    await client.query(`
+      UPDATE payroll_records SET
+        allowances = COALESCE((SELECT SUM(amount) FROM payroll_allowances WHERE payroll_record_id = $1), 0),
+        net_pay    = base_salary + COALESCE((SELECT SUM(amount) FROM payroll_allowances WHERE payroll_record_id = $1), 0) - deductions,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+
+    await client.query('COMMIT');
+    res.status(204).send();
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function markPaid(req: AuthRequest, res: Response): Promise<void> {

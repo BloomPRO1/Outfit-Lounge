@@ -1,7 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Banknote, RefreshCw, CheckCircle, Users, TrendingUp, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Banknote, RefreshCw, CheckCircle, Users, TrendingUp, Clock,
+  Edit2, X, Plus, Trash2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { hrService } from '@/services/hrService';
 import Card from '@/components/common/Card';
@@ -25,48 +28,244 @@ function currentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Inline editable cell
-function EditableCell({ value, onSave }: { value: number; onSave: (v: number) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(String(value));
-  const inputRef = useRef<HTMLInputElement>(null);
+// ─── Edit Drawer ──────────────────────────────────────────────────────────────
 
-  const commit = () => {
-    setEditing(false);
-    const num = parseFloat(val) || 0;
-    if (num !== value) onSave(num);
-  };
+interface DrawerProps {
+  employeeId: string;
+  period: string;
+  onClose: () => void;
+}
 
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        autoFocus
-        type="number"
-        min="0"
-        step="0.01"
-        value={val}
-        onChange={e => setVal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); }}
-        className="w-24 bg-charcoal-600 border border-gold-600 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:outline-none"
-      />
-    );
-  }
+function PayrollEditDrawer({ employeeId, period, onClose }: DrawerProps) {
+  const qc = useQueryClient();
+
+  // Always read from live query so allowances list auto-updates
+  const { data: payrollData } = useQuery({
+    queryKey: ['payroll', period],
+    queryFn: () => hrService.getPayroll(period),
+  });
+  const row: any = payrollData?.data?.find((r: any) => r.employee_id === employeeId) || {};
+
+  const allowancesList: any[] = row.allowances_list || [];
+  const isPaid = row.status === 'paid';
+
+  const [deductions, setDeductions] = useState(() => String(parseFloat(row.deductions || 0)));
+  const [notes, setNotes] = useState(() => row.notes || '');
+  const [newLabel, setNewLabel] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+
+  const allowancesTotal = allowancesList.reduce((s: number, a: any) => s + parseFloat(a.amount), 0);
+  const baseSalary = parseFloat(row.base_salary || row.profile_salary || 0);
+  const netPay = baseSalary + allowancesTotal - (parseFloat(deductions) || 0);
+
+  const addMutation = useMutation({
+    mutationFn: () => hrService.addAllowance(row.payroll_id, { label: newLabel, amount: parseFloat(newAmount) || 0 }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payroll'] });
+      setNewLabel('');
+      setNewAmount('');
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to add allowance'),
+  });
+
+  const delMutation = useMutation({
+    mutationFn: (aId: string) => hrService.deleteAllowance(row.payroll_id, aId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll'] }),
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => hrService.updatePayrollRecord(row.payroll_id, {
+      deductions: parseFloat(deductions) || 0,
+      notes: notes || undefined,
+    }),
+    onSuccess: () => {
+      toast.success('Payroll record saved');
+      qc.invalidateQueries({ queryKey: ['payroll'] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to save'),
+  });
+
+  const canAddAllowance = newLabel.trim() && newAmount && !isPaid && !!row.payroll_id;
+
   return (
-    <button
-      onClick={() => { setEditing(true); setVal(String(value)); }}
-      className="text-sm text-charcoal-100 hover:text-gold-400 transition-colors underline decoration-dotted underline-offset-2"
-      title="Click to edit"
-    >
-      {formatCurrency(value)}
-    </button>
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="relative w-full max-w-md bg-charcoal-800 border-l border-charcoal-600 h-full overflow-y-auto flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 border-b border-charcoal-600">
+          <div>
+            <h2 className="text-base font-semibold text-charcoal-50">Edit Payroll</h2>
+            <p className="text-sm text-charcoal-300 mt-0.5">{row.name}</p>
+            <p className="text-xs text-charcoal-400">
+              {[ROLE_LABELS[row.role], row.department].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-charcoal-700 text-charcoal-300 hover:text-charcoal-100">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 p-5 space-y-6">
+          {/* Base Salary */}
+          <div>
+            <p className="text-xs font-medium text-charcoal-400 uppercase tracking-wider mb-1">Base Salary</p>
+            <p className="text-xl font-semibold text-charcoal-50">{formatCurrency(baseSalary)}</p>
+          </div>
+
+          {/* Allowances */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-charcoal-400 uppercase tracking-wider">Allowances</p>
+              {allowancesTotal > 0 && (
+                <span className="text-xs text-emerald-400 font-medium">+{formatCurrency(allowancesTotal)}</span>
+              )}
+            </div>
+
+            {/* Allowance list */}
+            {allowancesList.length === 0 ? (
+              <p className="text-xs text-charcoal-400 italic mb-3">No allowances added yet.</p>
+            ) : (
+              <div className="space-y-2 mb-3">
+                {allowancesList.map((a: any) => (
+                  <div key={a.id} className="flex items-center justify-between bg-charcoal-700/50 rounded-xl px-3 py-2.5">
+                    <span className="text-sm text-charcoal-100">{a.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-emerald-400">{formatCurrency(parseFloat(a.amount))}</span>
+                      {!isPaid && (
+                        <button
+                          onClick={() => delMutation.mutate(a.id)}
+                          disabled={delMutation.isPending}
+                          className="p-1 rounded-lg text-charcoal-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add allowance form */}
+            {!isPaid && row.payroll_id && (
+              <div className="flex gap-2">
+                <input
+                  placeholder="Label (e.g. Transport)"
+                  value={newLabel}
+                  onChange={e => setNewLabel(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && canAddAllowance) addMutation.mutate(); }}
+                  className="flex-1 min-w-0 bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2 text-sm text-charcoal-100 placeholder:text-charcoal-400 focus:ring-2 focus:ring-gold-600 outline-none"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Amount"
+                  value={newAmount}
+                  onChange={e => setNewAmount(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && canAddAllowance) addMutation.mutate(); }}
+                  className="w-28 bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2 text-sm text-charcoal-100 placeholder:text-charcoal-400 focus:ring-2 focus:ring-gold-600 outline-none"
+                />
+                <button
+                  onClick={() => addMutation.mutate()}
+                  disabled={!canAddAllowance || addMutation.isPending}
+                  className={cn(
+                    'px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 text-sm font-medium',
+                    canAddAllowance
+                      ? 'bg-gold-700/30 text-gold-400 hover:bg-gold-700/50 border border-gold-700/50'
+                      : 'bg-charcoal-700 text-charcoal-500 border border-charcoal-600 cursor-not-allowed'
+                  )}
+                >
+                  <Plus size={14} />
+                  Add
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Deductions */}
+          <div>
+            <p className="text-xs font-medium text-charcoal-400 uppercase tracking-wider mb-2">Deductions</p>
+            {isPaid ? (
+              <p className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.deductions || 0))}</p>
+            ) : (
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={deductions}
+                onChange={e => setDeductions(e.target.value)}
+                className="w-full bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2 text-sm text-charcoal-100 focus:ring-2 focus:ring-gold-600 outline-none"
+              />
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <p className="text-xs font-medium text-charcoal-400 uppercase tracking-wider mb-2">Notes</p>
+            {isPaid ? (
+              <p className="text-sm text-charcoal-300">{row.notes || '—'}</p>
+            ) : (
+              <textarea
+                rows={3}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Optional notes..."
+                className="w-full bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2 text-sm text-charcoal-100 placeholder:text-charcoal-400 focus:ring-2 focus:ring-gold-600 outline-none resize-none"
+              />
+            )}
+          </div>
+
+          {/* Net Pay */}
+          <div className="bg-charcoal-700/50 rounded-2xl p-4 border border-charcoal-600">
+            <p className="text-xs text-charcoal-400 mb-1">Net Pay</p>
+            <p className={cn('text-2xl font-bold', netPay >= 0 ? 'text-gold-400' : 'text-red-400')}>
+              {formatCurrency(netPay)}
+            </p>
+            <p className="text-xs text-charcoal-400 mt-1">
+              {formatCurrency(baseSalary)} base + {formatCurrency(allowancesTotal)} allowances − {formatCurrency(parseFloat(deductions) || 0)} deductions
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        {!isPaid && row.payroll_id && (
+          <div className="p-5 border-t border-charcoal-600 flex gap-3">
+            <Button
+              variant="primary"
+              className="flex-1"
+              loading={saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+            >
+              Save Changes
+            </Button>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          </div>
+        )}
+        {isPaid && (
+          <div className="p-5 border-t border-charcoal-600">
+            <Button variant="secondary" className="w-full" onClick={onClose}>Close</Button>
+          </div>
+        )}
+      </motion.div>
+    </div>
   );
 }
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PayrollPage() {
   const qc = useQueryClient();
   const [period, setPeriod] = useState(currentPeriod());
+  const [editEmployeeId, setEditEmployeeId] = useState<string | null>(null);
 
   const { data: payrollData, isLoading } = useQuery({
     queryKey: ['payroll', period],
@@ -77,12 +276,6 @@ export default function PayrollPage() {
     mutationFn: () => hrService.generatePayroll(period),
     onSuccess: (data) => { toast.success(data.message); qc.invalidateQueries({ queryKey: ['payroll'] }); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed'),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: any) => hrService.updatePayrollRecord(id, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['payroll'] }),
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update'),
   });
 
   const markPaidMutation = useMutation({
@@ -165,7 +358,7 @@ export default function PayrollPage() {
         ) : (
           <>
             {/* Table header */}
-            <div className="hidden md:grid grid-cols-[1fr_120px_120px_120px_120px_100px_80px] gap-3 px-3 pb-2 border-b border-charcoal-600 text-xs text-charcoal-300 font-medium">
+            <div className="hidden md:grid grid-cols-[1fr_110px_110px_110px_110px_100px_90px] gap-3 px-3 pb-2 border-b border-charcoal-600 text-xs text-charcoal-300 font-medium">
               <span>Employee</span>
               <span>Base Salary</span>
               <span>Allowances</span>
@@ -181,7 +374,7 @@ export default function PayrollPage() {
                   key={row.employee_id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="grid grid-cols-1 md:grid-cols-[1fr_120px_120px_120px_120px_100px_80px] gap-3 items-center px-3 py-3 rounded-xl hover:bg-charcoal-700/50 transition-colors"
+                  className="grid grid-cols-1 md:grid-cols-[1fr_110px_110px_110px_110px_100px_90px] gap-3 items-center px-3 py-3 rounded-xl hover:bg-charcoal-700/50 transition-colors"
                 >
                   {/* Employee */}
                   <div className="flex items-center gap-3">
@@ -203,27 +396,18 @@ export default function PayrollPage() {
                   {/* Allowances */}
                   <div>
                     <span className="md:hidden text-xs text-charcoal-300 mr-1">Allowances:</span>
-                    {row.payroll_id && row.status !== 'paid' ? (
-                      <EditableCell
-                        value={parseFloat(row.allowances || 0)}
-                        onSave={v => updateMutation.mutate({ id: row.payroll_id, payload: { allowances: v } })}
-                      />
-                    ) : (
+                    <div>
                       <span className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.allowances || 0))}</span>
-                    )}
+                      {row.allowances_list?.length > 0 && (
+                        <span className="ml-1 text-xs text-charcoal-400">({row.allowances_list.length})</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Deductions */}
                   <div>
                     <span className="md:hidden text-xs text-charcoal-300 mr-1">Deductions:</span>
-                    {row.payroll_id && row.status !== 'paid' ? (
-                      <EditableCell
-                        value={parseFloat(row.deductions || 0)}
-                        onSave={v => updateMutation.mutate({ id: row.payroll_id, payload: { deductions: v } })}
-                      />
-                    ) : (
-                      <span className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.deductions || 0))}</span>
-                    )}
+                    <span className="text-sm text-charcoal-100">{formatCurrency(parseFloat(row.deductions || 0))}</span>
                   </div>
 
                   {/* Net Pay */}
@@ -245,8 +429,17 @@ export default function PayrollPage() {
                     )}
                   </div>
 
-                  {/* Action */}
-                  <div>
+                  {/* Actions */}
+                  <div className="flex items-center gap-1.5">
+                    {row.payroll_id && (
+                      <button
+                        onClick={() => setEditEmployeeId(row.employee_id)}
+                        className="p-1.5 rounded-lg text-charcoal-400 hover:text-gold-400 hover:bg-gold-700/20 transition-colors"
+                        title="Edit payroll"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
                     {row.payroll_id && row.status !== 'paid' && (
                       <Button
                         variant="secondary"
@@ -268,6 +461,17 @@ export default function PayrollPage() {
           </>
         )}
       </Card>
+
+      {/* Edit Drawer */}
+      <AnimatePresence>
+        {editEmployeeId && (
+          <PayrollEditDrawer
+            employeeId={editEmployeeId}
+            period={period}
+            onClose={() => setEditEmployeeId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

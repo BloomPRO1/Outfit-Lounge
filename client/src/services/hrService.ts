@@ -46,7 +46,7 @@ export const hrService = {
     const { data } = await api.post(`/hr/payroll/generate/${period}`);
     return data;
   },
-  updatePayrollRecord: async (id: string, payload: { allowances?: number; deductions?: number; notes?: string }) => {
+  updatePayrollRecord: async (id: string, payload: { deductions?: number; notes?: string }) => {
     const { data } = await api.patch(`/hr/payroll/${id}`, payload);
     return data;
   },
@@ -57,5 +57,12 @@ export const hrService = {
   bulkMarkPaid: async (period: string) => {
     const { data } = await api.post(`/hr/payroll/pay-all/${period}`);
     return data;
+  },
+  addAllowance: async (id: string, payload: { label: string; amount: number }) => {
+    const { data } = await api.post(`/hr/payroll/${id}/allowances`, payload);
+    return data;
+  },
+  deleteAllowance: async (id: string, allowanceId: string) => {
+    await api.delete(`/hr/payroll/${id}/allowances/${allowanceId}`);
   },
 };
