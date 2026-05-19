@@ -311,20 +311,45 @@ export async function generatePayroll(req: AuthRequest, res: Response): Promise<
 
 export async function updatePayrollRecord(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params;
-  const { deductions, notes } = req.body;
+  const { baseSalary, deductions, notes } = req.body;
 
-  const result = await db.query(`
-    UPDATE payroll_records SET
-      deductions = COALESCE($1, deductions),
-      net_pay    = base_salary + allowances - COALESCE($1, deductions),
-      notes      = COALESCE($2, notes),
-      updated_at = NOW()
-    WHERE id = $3 AND status != 'paid'
-    RETURNING *
-  `, [deductions ?? null, notes ?? null, id]);
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
 
-  if (!result.rows[0]) { res.status(404).json({ error: 'Record not found or already paid' }); return; }
-  res.json(result.rows[0]);
+    const result = await client.query(`
+      UPDATE payroll_records SET
+        base_salary = COALESCE($1, base_salary),
+        deductions  = COALESCE($2, deductions),
+        net_pay     = COALESCE($1, base_salary) + allowances - COALESCE($2, deductions),
+        notes       = COALESCE($3, notes),
+        updated_at  = NOW()
+      WHERE id = $4 AND status != 'paid'
+      RETURNING *
+    `, [baseSalary ?? null, deductions ?? null, notes ?? null, id]);
+
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Record not found or already paid' }); return;
+    }
+
+    // Sync base salary back to employee profile so future payrolls use the updated value
+    if (baseSalary !== undefined && baseSalary !== null) {
+      await client.query(`
+        INSERT INTO employee_profiles (user_id, base_salary)
+        VALUES ($1, $2)
+        ON CONFLICT (user_id) DO UPDATE SET base_salary = $2, updated_at = NOW()
+      `, [result.rows[0].employee_id, baseSalary]);
+    }
+
+    await client.query('COMMIT');
+    res.json(result.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function addAllowance(req: AuthRequest, res: Response): Promise<void> {

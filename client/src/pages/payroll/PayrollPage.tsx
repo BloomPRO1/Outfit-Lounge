@@ -49,14 +49,15 @@ function PayrollEditDrawer({ employeeId, period, onClose }: DrawerProps) {
   const allowancesList: any[] = row.allowances_list || [];
   const isPaid = row.status === 'paid';
 
+  const [baseSalary, setBaseSalary] = useState(() => String(parseFloat(row.base_salary || row.profile_salary || 0)));
   const [deductions, setDeductions] = useState(() => String(parseFloat(row.deductions || 0)));
   const [notes, setNotes] = useState(() => row.notes || '');
   const [newLabel, setNewLabel] = useState('');
   const [newAmount, setNewAmount] = useState('');
 
   const allowancesTotal = allowancesList.reduce((s: number, a: any) => s + parseFloat(a.amount), 0);
-  const baseSalary = parseFloat(row.base_salary || row.profile_salary || 0);
-  const netPay = baseSalary + allowancesTotal - (parseFloat(deductions) || 0);
+  const baseSalaryNum = parseFloat(baseSalary) || 0;
+  const netPay = baseSalaryNum + allowancesTotal - (parseFloat(deductions) || 0);
 
   const addMutation = useMutation({
     mutationFn: () => hrService.addAllowance(row.payroll_id, { label: newLabel, amount: parseFloat(newAmount) || 0 }),
@@ -76,6 +77,7 @@ function PayrollEditDrawer({ employeeId, period, onClose }: DrawerProps) {
 
   const saveMutation = useMutation({
     mutationFn: () => hrService.updatePayrollRecord(row.payroll_id, {
+      baseSalary: parseFloat(baseSalary) || 0,
       deductions: parseFloat(deductions) || 0,
       notes: notes || undefined,
     }),
@@ -116,8 +118,20 @@ function PayrollEditDrawer({ employeeId, period, onClose }: DrawerProps) {
         <div className="flex-1 p-5 space-y-6">
           {/* Base Salary */}
           <div>
-            <p className="text-xs font-medium text-charcoal-400 uppercase tracking-wider mb-1">Base Salary</p>
-            <p className="text-xl font-semibold text-charcoal-50">{formatCurrency(baseSalary)}</p>
+            <p className="text-xs font-medium text-charcoal-400 uppercase tracking-wider mb-2">Base Salary</p>
+            {isPaid ? (
+              <p className="text-xl font-semibold text-charcoal-50">{formatCurrency(baseSalaryNum)}</p>
+            ) : (
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={baseSalary}
+                onChange={e => setBaseSalary(e.target.value)}
+                className="w-full bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2 text-sm text-charcoal-100 focus:ring-2 focus:ring-gold-600 outline-none"
+              />
+            )}
+            <p className="text-xs text-charcoal-400 mt-1">Saving will also update the employee's profile salary.</p>
           </div>
 
           {/* Allowances */}
@@ -231,7 +245,7 @@ function PayrollEditDrawer({ employeeId, period, onClose }: DrawerProps) {
               {formatCurrency(netPay)}
             </p>
             <p className="text-xs text-charcoal-400 mt-1">
-              {formatCurrency(baseSalary)} base + {formatCurrency(allowancesTotal)} allowances − {formatCurrency(parseFloat(deductions) || 0)} deductions
+              {formatCurrency(baseSalaryNum)} base + {formatCurrency(allowancesTotal)} allowances − {formatCurrency(parseFloat(deductions) || 0)} deductions
             </p>
           </div>
         </div>
