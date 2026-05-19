@@ -11,7 +11,4 @@ export const env = {
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads',
   FITSMS_API_TOKEN: process.env.FITSMS_API_TOKEN || '',
   FITSMS_SENDER_ID: process.env.FITSMS_SENDER_ID || 'OutfitLnge',
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || '',
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
 };
