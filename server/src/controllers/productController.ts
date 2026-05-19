@@ -257,7 +257,10 @@ export async function uploadProductImage(req: AuthRequest, res: Response): Promi
     return;
   }
 
-  const imageUrl = `/uploads/${req.file.filename}`;
+  // Cloudinary returns the full URL in req.file.path; disk storage needs a relative path
+  const imageUrl = (req.file as any).path?.startsWith('http')
+    ? (req.file as any).path
+    : `/uploads/${req.file.filename}`;
 
   if (isPrimary === 'true' || isPrimary === true) {
     await db.query(`UPDATE product_images SET is_primary = false WHERE product_id = $1`, [id]);
