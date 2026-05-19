@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, Plus, Trash2, CheckCircle, Package } from 'lucide-react';
+import { Upload, X, Plus, Trash2, CheckCircle, Package, Tag, Calendar, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
@@ -39,6 +39,9 @@ export default function ProductFormPage() {
     sellingPrice: '', rentalPricePerDay: '', lateFinePerDay: '',
   });
 
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   const [variants, setVariants] = useState<VariantForm[]>([]);
   const [newVariant, setNewVariant] = useState<VariantForm>({
     size: '', color: '', material: '', stockQuantity: 0,
@@ -48,6 +51,18 @@ export default function ProductFormPage() {
   const { data: categories } = useQuery({
     queryKey: ['product-categories'],
     queryFn: productService.getCategories,
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => productService.createCategory({ name }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['product-categories'] });
+      setForm((prev) => ({ ...prev, categoryId: data.id }));
+      setNewCategoryName('');
+      setShowNewCategory(false);
+      toast.success(`Category "${data.name}" created`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to create category'),
   });
 
   const { data: existing } = useQuery({
@@ -193,15 +208,90 @@ export default function ProductFormPage() {
             <motion.div key="step0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
               <h3 className="section-title">Basic Information</h3>
               <Input label="Product Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Classic Black Tuxedo" required />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select label="Category" options={categoryOptions} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} />
-                <Select
-                  label="Product Type"
-                  options={[{ value: 'both', label: 'Rental & Sale' }, { value: 'rental', label: 'Rental Only' }, { value: 'sale', label: 'Sale Only' }]}
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  required
-                />
+              {/* Category with inline creation */}
+              <div>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Select label="Category" options={categoryOptions} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewCategory(!showNewCategory)}
+                    className="mb-0.5 flex items-center gap-1 px-3 py-2.5 rounded-xl border border-charcoal-400 bg-charcoal-600 text-charcoal-200 hover:border-gold-700/60 hover:text-gold-400 transition-colors text-xs font-medium flex-shrink-0"
+                    title="Create new category"
+                  >
+                    <Plus size={14} />
+                    New
+                  </button>
+                </div>
+                <AnimatePresence>
+                  {showNewCategory && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex items-center gap-2 mt-2 p-3 bg-charcoal-600/50 rounded-xl border border-charcoal-400">
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && newCategoryName.trim()) createCategoryMutation.mutate(newCategoryName.trim());
+                            if (e.key === 'Escape') { setShowNewCategory(false); setNewCategoryName(''); }
+                          }}
+                          placeholder="Category name (e.g. Suits, Sherwanis)"
+                          className="flex-1 bg-transparent text-sm text-charcoal-50 placeholder-charcoal-300 outline-none"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => newCategoryName.trim() && createCategoryMutation.mutate(newCategoryName.trim())}
+                          loading={createCategoryMutation.isPending}
+                          disabled={!newCategoryName.trim()}
+                        >
+                          Save
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => { setShowNewCategory(false); setNewCategoryName(''); }}
+                          className="text-charcoal-300 hover:text-charcoal-50 transition-colors"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Product Type tiles */}
+              <div>
+                <p className="text-sm font-medium text-charcoal-100 mb-2">Product Type <span className="text-red-400">*</span></p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: 'sale', label: 'Sale Only', icon: ShoppingBag, desc: 'Sold to customers' },
+                    { value: 'rental', label: 'Rental Only', icon: Calendar, desc: 'Available to rent' },
+                    { value: 'both', label: 'Rental & Sale', icon: Tag, desc: 'Both options' },
+                  ].map(({ value, label, icon: Icon, desc }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setForm({ ...form, type: value })}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-150 text-center ${
+                        form.type === value
+                          ? 'border-gold-600 bg-gold-700/10 text-gold-400'
+                          : 'border-charcoal-400 bg-charcoal-600/30 text-charcoal-200 hover:border-charcoal-300 hover:text-charcoal-50'
+                      }`}
+                    >
+                      <Icon size={20} />
+                      <span className="text-xs font-semibold leading-tight">{label}</span>
+                      <span className="text-xs opacity-60 leading-tight hidden sm:block">{desc}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe this product..." rows={3} />
             </motion.div>
@@ -316,7 +406,7 @@ export default function ProductFormPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { label: 'Name', value: form.name },
-                    { label: 'Type', value: form.type },
+                    { label: 'Type', value: form.type === 'both' ? 'Rental & Sale' : form.type === 'rental' ? 'Rental Only' : 'Sale Only' },
                     { label: 'Category', value: categories?.find((c: ProductCategory) => c.id === form.categoryId)?.name || '—' },
                     { label: 'Selling Price', value: form.sellingPrice ? `LKR ${form.sellingPrice}` : '—' },
                     { label: 'Rental Price/Day', value: form.rentalPricePerDay ? `LKR ${form.rentalPricePerDay}` : '—' },
