@@ -278,7 +278,7 @@ export async function generatePayroll(req: AuthRequest, res: Response): Promise<
   const employees = await db.query(`
     SELECT u.id, ep.base_salary
     FROM users u
-    JOIN employee_profiles ep ON ep.user_id = u.id
+    LEFT JOIN employee_profiles ep ON ep.user_id = u.id
     WHERE u.is_active = true
   `);
 
