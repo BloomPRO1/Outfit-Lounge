@@ -11,9 +11,18 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   footer?: React.ReactNode;
   closeOnOverlay?: boolean;
+  variant?: 'drawer' | 'dialog';
 }
 
-const SIZES = {
+const DRAWER_SIZES = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  full: 'max-w-2xl',
+};
+
+const DIALOG_SIZES = {
   sm: 'max-w-md',
   md: 'max-w-xl',
   lg: 'max-w-2xl',
@@ -21,59 +30,108 @@ const SIZES = {
   full: 'max-w-7xl',
 };
 
-export default function Modal({ open, onClose, title, children, size = 'md', footer, closeOnOverlay = true }: ModalProps) {
-  // Close on Escape
+export default function Modal({
+  open, onClose, title, children, size = 'md', footer, closeOnOverlay = true, variant = 'drawer',
+}: ModalProps) {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     if (open) window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [open, onClose]);
 
-  // Prevent scroll
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
+  if (variant === 'dialog') {
+    return (
+      <AnimatePresence>
+        {open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={closeOnOverlay ? onClose : undefined}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className={cn(
+                'relative bg-charcoal-700 border border-charcoal-500 rounded-2xl shadow-card w-full z-10',
+                'flex flex-col max-h-[90vh]',
+                DIALOG_SIZES[size]
+              )}
+            >
+              {title && (
+                <div className="flex items-center justify-between p-5 border-b border-charcoal-500 flex-shrink-0">
+                  <h2 className="font-display text-lg font-semibold text-charcoal-50">{title}</h2>
+                  <button
+                    onClick={onClose}
+                    className="p-1.5 rounded-lg text-charcoal-200 hover:bg-charcoal-500 hover:text-charcoal-50 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">{children}</div>
+              {footer && (
+                <div className="flex-shrink-0 border-t border-charcoal-500 p-4 flex items-center justify-end gap-3">
+                  {footer}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  // Drawer (default) — slides in from right
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex justify-end">
           {/* Overlay */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            transition={{ duration: 0.25 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={closeOnOverlay ? onClose : undefined}
           />
 
-          {/* Content */}
+          {/* Drawer panel */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 16 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
             className={cn(
-              'relative bg-charcoal-700 border border-charcoal-500 rounded-2xl shadow-card w-full z-10',
-              'flex flex-col max-h-[90vh]',
-              SIZES[size]
+              'relative h-full bg-charcoal-800 border-l border-charcoal-500 shadow-2xl z-10',
+              'flex flex-col w-full',
+              DRAWER_SIZES[size]
             )}
           >
             {/* Header */}
-            {title && (
-              <div className="flex items-center justify-between p-5 border-b border-charcoal-500 flex-shrink-0">
-                <h2 className="font-display text-lg font-semibold text-charcoal-50">{title}</h2>
-                <button
-                  onClick={onClose}
-                  className="p-1.5 rounded-lg text-charcoal-200 hover:bg-charcoal-500 hover:text-charcoal-50 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-charcoal-600 flex-shrink-0">
+              <h2 className="font-display text-lg font-semibold text-charcoal-50">
+                {title ?? ''}
+              </h2>
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-charcoal-200 hover:bg-charcoal-600 hover:text-charcoal-50 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">
@@ -82,7 +140,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', foo
 
             {/* Footer */}
             {footer && (
-              <div className="flex-shrink-0 border-t border-charcoal-500 p-4 flex items-center justify-end gap-3">
+              <div className="flex-shrink-0 border-t border-charcoal-600 p-4 flex items-center justify-end gap-3">
                 {footer}
               </div>
             )}

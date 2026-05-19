@@ -17,7 +17,7 @@ export default function ConfirmDialog({
   confirmLabel = 'Confirm', variant = 'danger', loading,
 }: ConfirmDialogProps) {
   return (
-    <Modal open={open} onClose={onClose} title={title} size="sm">
+    <Modal open={open} onClose={onClose} title={title} size="sm" variant="dialog">
       <p className="text-charcoal-200 text-sm">{message}</p>
       <div className="flex gap-3 justify-end mt-6">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
