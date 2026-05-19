@@ -83,7 +83,15 @@ export default function ProductFormPage() {
 
   const createMutation = useMutation({
     mutationFn: productService.create,
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
+      // Upload images sequentially after product is created
+      for (let i = 0; i < images.length; i++) {
+        try {
+          await productService.uploadImage(data.id, images[i], i === 0);
+        } catch {
+          toast.error(`Failed to upload image ${i + 1}`);
+        }
+      }
       toast.success('Product created successfully!');
       qc.invalidateQueries({ queryKey: ['products'] });
       navigate(`/products/${data.id}`);
@@ -93,7 +101,15 @@ export default function ProductFormPage() {
 
   const updateMutation = useMutation({
     mutationFn: (payload: any) => productService.update(id!, payload),
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Upload any new images added during edit
+      for (let i = 0; i < images.length; i++) {
+        try {
+          await productService.uploadImage(id!, images[i], i === 0);
+        } catch {
+          toast.error(`Failed to upload image ${i + 1}`);
+        }
+      }
       toast.success('Product updated successfully!');
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['product', id] });
