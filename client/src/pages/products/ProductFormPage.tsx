@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -64,22 +64,37 @@ export default function ProductFormPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to create category'),
   });
 
+  const [existingImages, setExistingImages] = useState<{ id: string; url: string; is_primary: boolean }[]>([]);
+
   const { data: existing } = useQuery({
     queryKey: ['product', id],
     queryFn: () => productService.getById(id!),
     enabled: isEdit,
-    onSuccess: (data: any) => {
-      setForm({
-        name: data.name || '',
-        description: data.description || '',
-        categoryId: data.category_id || '',
-        type: data.type || 'both',
-        sellingPrice: data.selling_price || '',
-        rentalPricePerDay: data.rental_price_per_day || '',
-        lateFinePerDay: data.late_fine_per_day || '',
-      });
-    },
-  } as any);
+  });
+
+  useEffect(() => {
+    if (!existing) return;
+    setForm({
+      name: (existing as any).name || '',
+      description: (existing as any).description || '',
+      categoryId: (existing as any).category_id || '',
+      type: (existing as any).type || 'both',
+      sellingPrice: (existing as any).selling_price ?? '',
+      rentalPricePerDay: (existing as any).rental_price_per_day ?? '',
+      lateFinePerDay: (existing as any).late_fine_per_day ?? '',
+    });
+    const vars = ((existing as any).variants || []).map((v: any) => ({
+      size: v.size || '',
+      color: v.color || '',
+      material: v.material || '',
+      stockQuantity: v.stock_quantity ?? 0,
+      availableForRent: v.available_for_rent ?? 0,
+      sellingPrice: v.selling_price ?? '',
+      rentalPricePerDay: v.rental_price_per_day ?? '',
+    }));
+    setVariants(vars);
+    setExistingImages((existing as any).images || []);
+  }, [existing]);
 
   const createMutation = useMutation({
     mutationFn: productService.create,
@@ -417,10 +432,22 @@ export default function ProductFormPage() {
                 <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
                   onChange={(e) => addImages(Array.from(e.target.files || []))} />
 
-                {imagePreviews.length > 0 && (
+                {(existingImages.length > 0 || imagePreviews.length > 0) && (
                   <div className="grid grid-cols-4 gap-3 mt-3">
+                    {existingImages.map((img) => (
+                      <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden bg-charcoal-600">
+                        <img src={img.url} alt="" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => setExistingImages((prev) => prev.filter((x) => x.id !== img.id))}
+                          className="absolute top-1 right-1 w-6 h-6 bg-red-500/80 rounded-full flex items-center justify-center"
+                        >
+                          <X size={12} className="text-white" />
+                        </button>
+                        {img.is_primary && <span className="absolute bottom-1 left-1 text-xs bg-gold-600 text-charcoal-900 px-1.5 py-0.5 rounded font-medium">Primary</span>}
+                      </div>
+                    ))}
                     {imagePreviews.map((src, i) => (
-                      <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-charcoal-600">
+                      <div key={`new-${i}`} className="relative aspect-square rounded-xl overflow-hidden bg-charcoal-600">
                         <img src={src} alt="" className="w-full h-full object-cover" />
                         <button
                           onClick={() => removeImage(i)}
@@ -428,7 +455,8 @@ export default function ProductFormPage() {
                         >
                           <X size={12} className="text-white" />
                         </button>
-                        {i === 0 && <span className="absolute bottom-1 left-1 text-xs bg-gold-600 text-charcoal-900 px-1.5 py-0.5 rounded font-medium">Primary</span>}
+                        {existingImages.length === 0 && i === 0 && <span className="absolute bottom-1 left-1 text-xs bg-gold-600 text-charcoal-900 px-1.5 py-0.5 rounded font-medium">Primary</span>}
+                        <span className="absolute bottom-1 right-1 text-xs bg-charcoal-700/80 text-charcoal-200 px-1.5 py-0.5 rounded">New</span>
                       </div>
                     ))}
                   </div>
@@ -451,7 +479,7 @@ export default function ProductFormPage() {
                     { label: 'Rental Price/Day', value: form.rentalPricePerDay ? `LKR ${form.rentalPricePerDay}` : '—' },
                     { label: 'Late Fine/Day', value: form.lateFinePerDay ? `LKR ${form.lateFinePerDay}` : '—' },
                     { label: 'Variants', value: variants.length > 0 ? `${variants.length} variant(s)` : 'None' },
-                    { label: 'Images', value: images.length > 0 ? `${images.length} image(s)` : 'None' },
+                    { label: 'Images', value: existingImages.length + images.length > 0 ? `${existingImages.length + images.length} image(s)` : 'None' },
                   ].map(({ label, value }) => (
                     <div key={label} className="p-3 bg-charcoal-600/50 rounded-xl">
                       <p className="text-xs text-charcoal-200">{label}</p>
