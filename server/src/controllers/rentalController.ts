@@ -6,6 +6,8 @@ import { generateBookingNumber } from '../utils/generateSKU';
 import {
   sendNotification,
   buildBookingConfirmationMessage,
+  buildReadyForPickupMessage,
+  buildPickedUpMessage,
 } from '../services/notificationService';
 
 export async function getRentals(req: Request, res: Response): Promise<void> {
@@ -291,7 +293,49 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
     }
 
     await client.query('COMMIT');
-    res.json(result.rows[0]);
+
+    const rental = result.rows[0];
+
+    // Send status-change notifications
+    if (status === 'ready_for_pickup' || status === 'picked_up') {
+      const customerRes = await db.query(
+        `SELECT * FROM customers WHERE id = $1`, [rental.customer_id]
+      );
+      const customer = customerRes.rows[0];
+      const phone = customer?.whatsapp || customer?.phone;
+
+      if (phone) {
+        let message: string;
+        let notifType: string;
+
+        if (status === 'ready_for_pickup') {
+          message = buildReadyForPickupMessage({
+            customerName: customer.name,
+            bookingNumber: rental.booking_number,
+            pickupDate: rental.rental_start_date,
+          });
+          notifType = 'ready_for_pickup';
+        } else {
+          message = buildPickedUpMessage({
+            customerName: customer.name,
+            bookingNumber: rental.booking_number,
+            returnDate: rental.rental_end_date,
+          });
+          notifType = 'picked_up';
+        }
+
+        await sendNotification({
+          rentalId: rental.id,
+          customerId: rental.customer_id,
+          type: notifType,
+          channel: customer.whatsapp ? 'whatsapp' : 'sms',
+          recipient: phone,
+          message,
+        });
+      }
+    }
+
+    res.json(rental);
   } catch (err: any) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: err.message });

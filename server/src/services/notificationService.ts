@@ -182,6 +182,32 @@ export function buildBookingConfirmationMessage(data: {
   );
 }
 
+export function buildReadyForPickupMessage(data: {
+  customerName: string;
+  bookingNumber: string;
+  pickupDate: string;
+}): string {
+  return (
+    `Dear ${data.customerName},\n\n` +
+    `Great news! Your rental items for booking #${data.bookingNumber} are ready for pickup.\n\n` +
+    `Pickup date: ${data.pickupDate}\n\n` +
+    `Please visit us at your convenience.\n\n${SHOP}`
+  );
+}
+
+export function buildPickedUpMessage(data: {
+  customerName: string;
+  bookingNumber: string;
+  returnDate: string;
+}): string {
+  return (
+    `Dear ${data.customerName},\n\n` +
+    `Your rental items (#${data.bookingNumber}) have been picked up successfully.\n\n` +
+    `Please return them by: ${data.returnDate}\n\n` +
+    `Thank you for choosing ${SHOP}!`
+  );
+}
+
 export function buildPickupReminderMessage(data: {
   customerName: string;
   bookingNumber: string;
