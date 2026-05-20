@@ -120,10 +120,7 @@ export default function ReturnsPage() {
   const handleProcessReturn = () => {
     if (!selectedRental) return;
     const items = Object.entries(itemConditions).map(([id, condition]) => {
-      // For lost items with no selling price, forward the custom charge
-      const item = (selectedRental.items || []).find((i: any) => i.id === id);
-      const needsCustomCharge = condition === 'lost' && item && !isSaleItem(item);
-      const charge = needsCustomCharge ? parseFloat(itemCustomCharges[id] || '0') || 0 : 0;
+      const charge = condition !== 'good' ? parseFloat(itemCustomCharges[id] || '0') || 0 : 0;
       return { rentalItemId: id, condition, charge };
     });
     processReturnMutation.mutate({
@@ -139,18 +136,12 @@ export default function ReturnsPage() {
       .filter((i: any) => !i.is_returned)
       .reduce((sum: number, item: any) => {
         const cond = itemConditions[item.id] || 'good';
-        if (cond === 'damaged') {
-          return sum + calcDamageCharge(item, selectedRental, dmgType, dmgFlat, dmgPercent);
-        }
-        if (cond === 'lost') {
-          if (isSaleItem(item) && item.product_selling_price) {
-            return sum + parseFloat(item.product_selling_price);
-          }
+        if (cond !== 'good') {
           return sum + (parseFloat(itemCustomCharges[item.id] || '0') || 0);
         }
         return sum;
       }, 0);
-  }, [itemConditions, itemCustomCharges, selectedRental, dmgType, dmgFlat, dmgPercent]);
+  }, [itemConditions, itemCustomCharges, selectedRental]);
 
   // ── table data ────────────────────────────────────────────────────────────
   const overdueReturns = (pendingReturns || []).filter((r: any) => parseInt(r.days_overdue) > 0);
@@ -352,8 +343,9 @@ export default function ReturnsPage() {
                       <button
                         onClick={() => {
                           setItemConditions({ ...itemConditions, [item.id]: 'damaged' });
-                          const { [item.id]: _, ...rest } = itemCustomCharges;
-                          setItemCustomCharges(rest);
+                          // Pre-fill with auto-calculated charge so user can edit it
+                          const auto = calcDamageCharge(item, selectedRental, dmgType, dmgFlat, dmgPercent);
+                          setItemCustomCharges({ ...itemCustomCharges, [item.id]: auto > 0 ? String(auto) : '' });
                         }}
                         className={cn(
                           'flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-xs font-medium transition-all',
@@ -368,7 +360,14 @@ export default function ReturnsPage() {
 
                       {/* Lost */}
                       <button
-                        onClick={() => setItemConditions({ ...itemConditions, [item.id]: 'lost' })}
+                        onClick={() => {
+                          setItemConditions({ ...itemConditions, [item.id]: 'lost' });
+                          // Pre-fill with selling price if available
+                          const auto = isSaleItem(item) && item.product_selling_price
+                            ? String(parseFloat(item.product_selling_price))
+                            : '';
+                          setItemCustomCharges({ ...itemCustomCharges, [item.id]: auto });
+                        }}
                         className={cn(
                           'flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 text-xs font-medium transition-all',
                           cond === 'lost'
@@ -381,50 +380,47 @@ export default function ReturnsPage() {
                       </button>
                     </div>
 
-                    {/* Damage charge preview (read-only, from settings) */}
+                    {/* Damaged — editable charge (pre-filled from settings) */}
                     {cond === 'damaged' && (
-                      <div className="flex items-center justify-between px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <div>
-                          <p className="text-xs font-medium text-amber-300">Damage charge</p>
-                          <p className="text-[11px] text-amber-400/70 mt-0.5">
-                            {dmgType === 'flat'
-                              ? 'Flat charge per item'
-                              : dmgType === 'percentage_of_rental'
-                              ? `${dmgPercent}% of item rental cost`
-                              : 'No damage charge configured'}
-                          </p>
-                        </div>
-                        <span className="text-sm font-semibold text-amber-400">
-                          {dmgType === 'none' ? '—' : formatCurrency(dmgCharge)}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Lost — selling price (auto) */}
-                    {cond === 'lost' && hasSellingPx && (
-                      <div className="flex items-center justify-between px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-                        <div>
-                          <p className="text-xs font-medium text-red-300">Lost item charge</p>
-                          <p className="text-[11px] text-red-400/70 mt-0.5">Selling price</p>
-                        </div>
-                        <span className="text-sm font-semibold text-red-400">
-                          {formatCurrency(item.product_selling_price)}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Lost — no selling price, user enters custom value */}
-                    {cond === 'lost' && !hasSellingPx && (
                       <div className="space-y-1.5">
-                        <p className="text-xs text-charcoal-200">
-                          Lost item charge <span className="text-charcoal-300">(rental-only item — enter amount)</span>
-                        </p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-amber-300">Damage charge (LKR)</p>
+                          {dmgCharge > 0 && (
+                            <span className="text-[10px] text-amber-400/60">
+                              Auto: {formatCurrency(dmgCharge)}
+                            </span>
+                          )}
+                        </div>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           placeholder="0.00"
-                          value={itemCustomCharges[item.id] || ''}
+                          value={itemCustomCharges[item.id] ?? ''}
+                          onChange={(e) => setItemCustomCharges({ ...itemCustomCharges, [item.id]: e.target.value })}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="w-full bg-charcoal-600 border border-amber-500/30 rounded-xl px-3 py-2 text-sm text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-amber-500/60"
+                        />
+                      </div>
+                    )}
+
+                    {/* Lost — editable charge (pre-filled from selling price or blank) */}
+                    {cond === 'lost' && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-red-300">Lost item charge (LKR)</p>
+                          {hasSellingPx && (
+                            <span className="text-[10px] text-red-400/60">
+                              Selling price: {formatCurrency(item.product_selling_price)}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={itemCustomCharges[item.id] ?? ''}
                           onChange={(e) => setItemCustomCharges({ ...itemCustomCharges, [item.id]: e.target.value })}
                           onWheel={(e) => e.currentTarget.blur()}
                           className="w-full bg-charcoal-600 border border-red-500/30 rounded-xl px-3 py-2 text-sm text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-red-500/60"

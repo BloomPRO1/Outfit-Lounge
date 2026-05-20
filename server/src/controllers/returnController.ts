@@ -119,23 +119,26 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
         let chargeNote = '';
 
         if (condition === 'damaged') {
-          // Always compute from settings
-          if (dmgType === 'flat') {
+          if (clientCharge > 0) {
+            // User manually set the charge — use that
+            charge = clientCharge;
+          } else if (dmgType === 'flat') {
             charge = dmgFlat;
           } else if (dmgType === 'percentage_of_rental') {
             const itemCost = parseFloat(rental_price_per_day) * (itemQty || 1) * rentalDays;
             charge = itemCost * (dmgPercent / 100);
           }
           chargeNote = 'Damage charge';
-          if (condition === 'damaged') damageNotes.push('Item damaged');
+          damageNotes.push('Item damaged');
         } else if (condition === 'lost') {
-          const isSaleItem = product_type === 'sale' || product_type === 'both';
-          if (isSaleItem && selling_price && parseFloat(selling_price) > 0) {
-            // Use selling price from DB
-            charge = parseFloat(selling_price);
+          if (clientCharge > 0) {
+            // User manually set the charge — use that
+            charge = clientCharge;
           } else {
-            // Fall back to client-provided value (rental-only item with no selling price)
-            charge = parseFloat(clientCharge) || 0;
+            const isSaleItem = product_type === 'sale' || product_type === 'both';
+            if (isSaleItem && selling_price && parseFloat(selling_price) > 0) {
+              charge = parseFloat(selling_price);
+            }
           }
           chargeNote = 'Lost item charge';
           damageNotes.push('Item lost');
