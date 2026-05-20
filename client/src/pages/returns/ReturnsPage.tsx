@@ -55,6 +55,7 @@ export default function ReturnsPage() {
   // custom charge only for lost items that have no selling price
   const [itemCustomCharges, setItemCustomCharges] = useState<Record<string, string>>({});
   const [fineCalc, setFineCalc] = useState<any>(null);
+  const [collectFine, setCollectFine] = useState(true);
 
   // ── data ──────────────────────────────────────────────────────────────────
   const { data: pendingReturns, isLoading } = useQuery({
@@ -115,6 +116,7 @@ export default function ReturnsPage() {
     }
     setItemConditions(conditions);
     setItemCustomCharges({});
+    setCollectFine(true);
     try {
       const fine = await returnService.getFineCalc(rental.id, returnDate);
       setFineCalc(fine);
@@ -133,7 +135,7 @@ export default function ReturnsPage() {
     });
     processReturnMutation.mutate({
       rentalId: selectedRental.id,
-      payload: { items, returnDate, paymentMethod, collectFine: true },
+      payload: { items, returnDate, paymentMethod, collectFine },
     });
   };
 
@@ -470,11 +472,30 @@ export default function ReturnsPage() {
             <div className={cn('p-4 rounded-xl', fineCalc.totalFine > 0 ? 'bg-red-500/10 border border-red-500/20' : 'bg-emerald-500/10 border border-emerald-500/20')}>
               {fineCalc.totalFine > 0 ? (
                 <>
-                  <p className="font-semibold text-red-300 mb-2">Late Return Fine</p>
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <p className="font-semibold text-red-300">Late Return Fine</p>
+                    {/* Waive toggle */}
+                    <button
+                      onClick={() => setCollectFine(!collectFine)}
+                      className={cn(
+                        'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-all flex-shrink-0',
+                        collectFine
+                          ? 'bg-red-500/15 border-red-500/40 text-red-300 hover:bg-charcoal-600 hover:border-charcoal-400 hover:text-charcoal-200'
+                          : 'bg-charcoal-600 border-charcoal-400 text-charcoal-300 hover:bg-red-500/15 hover:border-red-500/40 hover:text-red-300'
+                      )}
+                    >
+                      {collectFine ? <><AlertTriangle size={11} /> Collect fine</> : <><XCircle size={11} /> Fine waived</>}
+                    </button>
+                  </div>
                   <div className="space-y-1 text-sm text-charcoal-200">
                     <p>Days late: <span className="text-red-400 font-medium">{fineCalc.daysLate}</span></p>
                     <p>Fine / day: <span className="text-red-400 font-medium">{formatCurrency(fineCalc.finePerDay)}</span></p>
-                    <p className="text-base font-semibold text-red-300 mt-1">Total fine: {formatCurrency(fineCalc.totalFine)}</p>
+                    <p className={cn('text-base font-semibold mt-1', collectFine ? 'text-red-300' : 'line-through text-charcoal-400')}>
+                      Total fine: {formatCurrency(fineCalc.totalFine)}
+                    </p>
+                    {!collectFine && (
+                      <p className="text-xs text-charcoal-400 italic">Fine will not be charged</p>
+                    )}
                   </div>
                 </>
               ) : (
@@ -486,10 +507,10 @@ export default function ReturnsPage() {
           )}
 
           {/* Charges summary */}
-          {(totalDamageCharge > 0 || (fineCalc?.totalFine ?? 0) > 0) && (
+          {(totalDamageCharge > 0 || (collectFine && (fineCalc?.totalFine ?? 0) > 0)) && (
             <div className="p-4 bg-charcoal-600/40 rounded-xl space-y-2">
               <p className="text-sm font-semibold text-charcoal-100 mb-1">Charges Summary</p>
-              {(fineCalc?.totalFine ?? 0) > 0 && (
+              {collectFine && (fineCalc?.totalFine ?? 0) > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-charcoal-200">Late fine</span>
                   <span className="text-red-400">{formatCurrency(fineCalc.totalFine)}</span>
@@ -504,7 +525,7 @@ export default function ReturnsPage() {
               <div className="flex justify-between text-sm font-semibold border-t border-charcoal-500 pt-2 mt-1">
                 <span className="text-charcoal-100">Total to collect</span>
                 <span className="text-amber-400">
-                  {formatCurrency((fineCalc?.totalFine ?? 0) + totalDamageCharge)}
+                  {formatCurrency((collectFine ? (fineCalc?.totalFine ?? 0) : 0) + totalDamageCharge)}
                 </span>
               </div>
             </div>
