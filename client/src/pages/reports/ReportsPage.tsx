@@ -4,18 +4,42 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown } from 'lucide-react';
+import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { reportService } from '@/services/reportService';
 import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
 import Select from '@/components/common/Select';
-import { formatCurrency } from '@/utils/formatters';
+import { formatCurrency, formatDate } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
 import {
   createDoc, loadLogo, addHeader, addFooter,
   addSectionTitle, addStatCards, addTable, captureChart, addChartImage,
 } from '@/utils/reportPDF';
+
+const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
+  stock_purchase: 'Stock Purchase',
+  equipment:      'Equipment',
+  rent:           'Rent',
+  utilities:      'Utilities',
+  salaries:       'Salaries',
+  other:          'Other',
+};
+
+const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
+  stock_purchase: '#60a5fa',
+  equipment:      '#a78bfa',
+  rent:           '#fb923c',
+  utilities:      '#facc15',
+  salaries:       '#f472b6',
+  other:          '#94a3b8',
+};
+
+function expMonthLabel(m: string): string {
+  const [y, mo] = m.split('-');
+  return new Date(parseInt(y), parseInt(mo) - 1, 1)
+    .toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+}
 
 const TABS = [
   { key: 'overview',  label: 'Overview',  icon: BarChart2 },
@@ -23,6 +47,7 @@ const TABS = [
   { key: 'rentals',   label: 'Rentals',   icon: Package },
   { key: 'inventory', label: 'Inventory', icon: Package },
   { key: 'fines',     label: 'Fines',     icon: AlertTriangle },
+  { key: 'expenses',  label: 'Expenses',  icon: Receipt },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
@@ -75,11 +100,13 @@ export default function ReportsPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   // Chart refs for PDF capture
-  const overviewChartRef  = useRef<HTMLDivElement>(null);
-  const salesBarRef       = useRef<HTMLDivElement>(null);
-  const salesPieRef       = useRef<HTMLDivElement>(null);
-  const rentalStatusRef   = useRef<HTMLDivElement>(null);
-  const inventoryChartRef = useRef<HTMLDivElement>(null);
+  const overviewChartRef   = useRef<HTMLDivElement>(null);
+  const salesBarRef        = useRef<HTMLDivElement>(null);
+  const salesPieRef        = useRef<HTMLDivElement>(null);
+  const rentalStatusRef    = useRef<HTMLDivElement>(null);
+  const inventoryChartRef  = useRef<HTMLDivElement>(null);
+  const expPieRef          = useRef<HTMLDivElement>(null);
+  const expBarRef          = useRef<HTMLDivElement>(null);
 
   const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useQuery({
     queryKey: ['revenue-chart', period],
@@ -103,6 +130,13 @@ export default function ReportsPage() {
     queryKey: ['inventory-report'],
     queryFn: () => reportService.getInventoryReport(),
     staleTime: 60_000,
+  });
+
+  const { data: expensesData, isLoading: expensesLoading, error: expensesError } = useQuery({
+    queryKey: ['expenses-report-tab', dateFrom, dateTo],
+    queryFn: () => reportService.getExpensesReport({ fromDate: dateFrom, toDate: dateTo }),
+    staleTime: 60_000,
+    enabled: activeTab === 'expenses',
   });
 
   const exportCSV = (data: any[], filename: string) => {
@@ -299,6 +333,56 @@ export default function ReportsPage() {
         }
       }
 
+      if (activeTab === 'expenses') {
+        let y = await addHeader(doc, logo, 'Expenses Report', dateRangeLabel);
+        const es = expensesData?.summary;
+        y = addSectionTitle(doc, 'Expenses Summary', y);
+        y = addStatCards(doc, [
+          { label: 'Total Expenses', value: formatCurrency(es?.total     || 0), color: [200, 70, 70] },
+          { label: 'This Month',     value: formatCurrency(es?.thisMonth || 0) },
+          { label: 'Total Entries',  value: String(es?.count || 0) },
+          { label: 'Top Category',   value: es?.topCategory ? (EXPENSE_CATEGORY_LABELS[es.topCategory] || es.topCategory) : '—' },
+        ], y);
+
+        if (expPieRef.current) {
+          y = addSectionTitle(doc, 'By Category', y);
+          const img = await captureChart(expPieRef.current);
+          if (img) y = await addChartImage(doc, img, y, 55);
+        }
+
+        if (expensesData?.byCategory?.length) {
+          y = addTable(doc,
+            ['Category', 'Total (LKR)', 'Entries'],
+            expensesData.byCategory.map((r: any) => [
+              EXPENSE_CATEGORY_LABELS[r.category] || r.category,
+              formatCurrency(r.total),
+              String(r.count),
+            ]),
+            y,
+          );
+        }
+
+        if (expBarRef.current) {
+          y = addSectionTitle(doc, 'Monthly Trend', y);
+          const img = await captureChart(expBarRef.current);
+          if (img) y = await addChartImage(doc, img, y, 55);
+        }
+
+        if (expensesData?.list?.length) {
+          y = addSectionTitle(doc, 'Expense Entries', y);
+          addTable(doc,
+            ['Date', 'Category', 'Note', 'Amount (LKR)'],
+            expensesData.list.slice(0, 80).map((r: any) => [
+              formatDate(r.invested_at),
+              EXPENSE_CATEGORY_LABELS[r.category] || r.category,
+              r.note || '',
+              formatCurrency(parseFloat(r.amount)),
+            ]),
+            y,
+          );
+        }
+      }
+
       addFooter(doc);
       doc.save(`report_${activeTab}_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err: any) {
@@ -350,7 +434,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* Date Range (sales / rentals / fines) */}
-      {(activeTab === 'sales' || activeTab === 'rentals' || activeTab === 'fines') && (
+      {(activeTab === 'sales' || activeTab === 'rentals' || activeTab === 'fines' || activeTab === 'expenses') && (
         <Card>
           <div className="flex flex-wrap items-end gap-4">
             <div>
@@ -650,6 +734,157 @@ export default function ReportsPage() {
       {activeTab === 'fines' && (
         <div className="space-y-5">
           <FinesTab rentalData={rentalData} rentalLoading={rentalLoading} rentalError={rentalError} exportCSV={exportCSV} />
+        </div>
+      )}
+
+      {/* ── Expenses ─────────────────────────────────────────── */}
+      {activeTab === 'expenses' && (
+        <div className="space-y-5">
+          {expensesError && <ErrorBanner message={(expensesError as any)?.message || 'Unknown error'} />}
+
+          {expensesLoading ? (
+            <><LoadingCards count={4} /><div className="h-56 bg-charcoal-600 rounded-2xl animate-pulse" /></>
+          ) : expensesData ? (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Expenses', value: formatCurrency(expensesData.summary?.total     || 0), color: 'text-blue-400' },
+                  { label: 'This Month',     value: formatCurrency(expensesData.summary?.thisMonth || 0), color: 'text-amber-400' },
+                  { label: 'Total Entries',  value: String(expensesData.summary?.count || 0),              color: 'text-charcoal-50' },
+                  {
+                    label: 'Top Category',
+                    value: expensesData.summary?.topCategory
+                      ? (EXPENSE_CATEGORY_LABELS[expensesData.summary.topCategory] || expensesData.summary.topCategory)
+                      : '—',
+                    color: 'text-charcoal-50',
+                  },
+                ].map(({ label, value, color }) => (
+                  <Card key={label}>
+                    <p className="text-xs text-charcoal-200">{label}</p>
+                    <p className={`text-xl font-bold mt-1 ${color}`}>{value}</p>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Charts row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Donut by category */}
+                {expensesData.byCategory?.length > 0 && (
+                  <div ref={expPieRef}>
+                    <Card>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-sm font-semibold text-charcoal-100">By Category</h4>
+                        <Button variant="ghost" size="sm" icon={<Download size={13} />}
+                          onClick={() => exportCSV(expensesData.byCategory, 'expenses_by_category')}>Export CSV</Button>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <ResponsiveContainer width="45%" height={180}>
+                          <PieChart>
+                            <Pie
+                              data={expensesData.byCategory} dataKey="total" nameKey="category"
+                              cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3}
+                            >
+                              {expensesData.byCategory.map((entry: any) => (
+                                <Cell key={entry.category}
+                                  fill={EXPENSE_CATEGORY_COLORS[entry.category] || '#94a3b8'} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #2a2a38', borderRadius: 8, color: '#f4f4f6' }}
+                              formatter={(v: number, name: string) => [formatCurrency(v), EXPENSE_CATEGORY_LABELS[name] || name]}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="flex-1 space-y-2">
+                          {expensesData.byCategory.map((entry: any) => (
+                            <div key={entry.category} className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ background: EXPENSE_CATEGORY_COLORS[entry.category] || '#94a3b8' }} />
+                                <span className="text-xs text-charcoal-200">
+                                  {EXPENSE_CATEGORY_LABELS[entry.category] || entry.category}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-medium text-charcoal-50">{formatCurrency(entry.total)}</p>
+                                <p className="text-xs text-charcoal-300">{entry.count} entries</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Monthly trend */}
+                {expensesData.byMonth?.length > 0 && (
+                  <div ref={expBarRef}>
+                    <Card>
+                      <h4 className="text-sm font-semibold text-charcoal-100 mb-4">Monthly Trend</h4>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <BarChart data={expensesData.byMonth.map((r: any) => ({ ...r, label: expMonthLabel(r.month) }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" vertical={false} />
+                          <XAxis dataKey="label" tick={{ fill: '#7a7a8c', fontSize: 11 }} axisLine={false} tickLine={false} />
+                          <YAxis
+                            tick={{ fill: '#7a7a8c', fontSize: 11 }} axisLine={false} tickLine={false}
+                            tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                          />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #2a2a38', borderRadius: 8, color: '#f4f4f6' }}
+                            formatter={(v: number) => [formatCurrency(v), 'Expenses']}
+                          />
+                          <Bar dataKey="total" fill="#60a5fa" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Card>
+                  </div>
+                )}
+              </div>
+
+              {/* Expense list */}
+              {expensesData.list?.length > 0 && (
+                <Card>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold text-charcoal-100">Expense Entries</h4>
+                    <Button variant="ghost" size="sm" icon={<Download size={13} />}
+                      onClick={() => exportCSV(expensesData.list, 'expenses_list')}>Export CSV</Button>
+                  </div>
+                  <div className="space-y-2">
+                    {expensesData.list.slice(0, 50).map((inv: any) => (
+                      <div key={inv.id} className="flex items-center gap-3 p-2.5 bg-charcoal-600/40 rounded-xl">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ background: EXPENSE_CATEGORY_COLORS[inv.category] || '#94a3b8' }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className="text-xs font-medium px-2 py-0.5 rounded-full"
+                              style={{
+                                background: `${EXPENSE_CATEGORY_COLORS[inv.category] || '#94a3b8'}22`,
+                                color: EXPENSE_CATEGORY_COLORS[inv.category] || '#94a3b8',
+                              }}
+                            >
+                              {EXPENSE_CATEGORY_LABELS[inv.category] || inv.category}
+                            </span>
+                            {inv.note && <span className="text-xs text-charcoal-200 truncate">{inv.note}</span>}
+                          </div>
+                          <p className="text-xs text-charcoal-300 mt-0.5">{formatDate(inv.invested_at)}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-blue-400">{formatCurrency(parseFloat(inv.amount))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {!expensesData.list?.length && !expensesError && (
+                <div className="text-center py-12 text-charcoal-200 text-sm">No expenses in this date range</div>
+              )}
+            </>
+          ) : null}
         </div>
       )}
     </div>

@@ -329,6 +329,81 @@ export async function getRentalReport(req: Request, res: Response): Promise<void
   }
 }
 
+export async function getExpensesReport(req: Request, res: Response): Promise<void> {
+  try {
+    const { fromDate, toDate, category } = req.query as Record<string, string>;
+    const from = fromDate || new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0];
+    const to   = toDate   || new Date().toISOString().split('T')[0];
+
+    const baseParams: any[] = [from, to];
+    const catFilter = category && category !== 'all' ? ` AND category = $3` : '';
+    if (category && category !== 'all') baseParams.push(category);
+
+    const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString().split('T')[0];
+
+    const [summaryRes, byCategoryRes, byMonthRes, listRes, thisMonthRes] = await Promise.all([
+      db.query(`
+        SELECT COALESCE(SUM(amount), 0)::float AS total, COUNT(*)::int AS count
+        FROM capital_investments
+        WHERE invested_at BETWEEN $1 AND $2${catFilter}
+      `, baseParams),
+
+      db.query(`
+        SELECT category,
+               COALESCE(SUM(amount), 0)::float AS total,
+               COUNT(*)::int AS count
+        FROM capital_investments
+        WHERE invested_at BETWEEN $1 AND $2
+        GROUP BY category ORDER BY total DESC
+      `, [from, to]),
+
+      db.query(`
+        SELECT TO_CHAR(DATE_TRUNC('month', invested_at), 'YYYY-MM') AS month,
+               COALESCE(SUM(amount), 0)::float AS total
+        FROM capital_investments
+        WHERE invested_at BETWEEN $1 AND $2${catFilter}
+        GROUP BY DATE_TRUNC('month', invested_at)
+        ORDER BY 1 ASC
+      `, baseParams),
+
+      db.query(`
+        SELECT ci.*, u.name AS created_by_name
+        FROM capital_investments ci
+        LEFT JOIN users u ON u.id = ci.created_by
+        WHERE ci.invested_at BETWEEN $1 AND $2${catFilter}
+        ORDER BY ci.invested_at DESC, ci.created_at DESC
+        LIMIT 200
+      `, baseParams),
+
+      db.query(`
+        SELECT COALESCE(SUM(amount), 0)::float AS total, COUNT(*)::int AS count
+        FROM capital_investments WHERE invested_at >= $1
+      `, [thisMonthStart]),
+    ]);
+
+    const s   = summaryRes.rows[0]    as any;
+    const tm  = thisMonthRes.rows[0]  as any;
+    const byCategory = byCategoryRes.rows as any[];
+
+    res.json({
+      summary: {
+        total:      s.total,
+        count:      s.count,
+        thisMonth:  tm.total,
+        thisMonthCount: tm.count,
+        topCategory: byCategory[0]?.category || null,
+      },
+      byCategory,
+      byMonth:  byMonthRes.rows,
+      list:     listRes.rows,
+    });
+  } catch (err: any) {
+    console.error('getExpensesReport error:', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 export async function getInventoryReport(_req: Request, res: Response): Promise<void> {
   try {
     const [overviewRes, byCategoryRes, lowStockRes, movementsRes, rentedRes] = await Promise.all([

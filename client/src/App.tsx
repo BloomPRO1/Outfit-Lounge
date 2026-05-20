@@ -19,6 +19,7 @@ import ReportsPage from './pages/reports/ReportsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import AnalyticsPage from './pages/analytics/AnalyticsPage';
+import ExpensesPage from './pages/expenses/ExpensesPage';
 import EmployeesPage from './pages/employees/EmployeesPage';
 import PayrollPage from './pages/payroll/PayrollPage';
 
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/returns" element={<ReturnsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/expenses" element={<ExpensesPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/payroll" element={<PayrollPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

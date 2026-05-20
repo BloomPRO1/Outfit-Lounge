@@ -22,4 +22,8 @@ export const reportService = {
     const { data } = await api.get('/reports/inventory');
     return data;
   },
+  getExpensesReport: async (params?: Record<string, any>) => {
+    const { data } = await api.get('/reports/expenses', { params });
+    return data;
+  },
 };
