@@ -29,11 +29,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(svgRef.current, item.sku, {
         format: 'CODE128',
-        width: 1.8,
-        height: 50,
+        width: 1.2,
+        height: 35,
         displayValue: true,
-        fontSize: 11,
-        margin: 6,
+        fontSize: 9,
+        margin: 4,
         background: '#ffffff',
         lineColor: '#000000',
       });
@@ -55,11 +55,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(tempSvg, item.sku, {
         format: 'CODE128',
-        width: 2,
-        height: 55,
+        width: 1.4,
+        height: 38,
         displayValue: true,
-        fontSize: 11,
-        margin: 6,
+        fontSize: 9,
+        margin: 4,
         background: '#ffffff',
         lineColor: '#000000',
       });
@@ -91,16 +91,16 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     body{font-family:Arial,Helvetica,sans-serif;background:#fff}
     .grid{display:flex;flex-wrap:wrap;gap:3mm;padding:6mm}
     .label{
-      width:60mm;border:0.4pt solid #bbb;
-      padding:3mm;display:flex;flex-direction:column;
+      width:45mm;border:0.4pt solid #bbb;
+      padding:2mm;display:flex;flex-direction:column;
       align-items:center;page-break-inside:avoid
     }
-    .pname{font-size:8pt;font-weight:700;text-align:center;
-      max-width:54mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      margin-bottom:1.5mm}
-    .variant{font-size:7pt;color:#555;margin-bottom:1.5mm;text-align:center}
+    .pname{font-size:7pt;font-weight:700;text-align:center;
+      max-width:41mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      margin-bottom:1mm}
+    .variant{font-size:6pt;color:#555;margin-bottom:1mm;text-align:center}
     .barcode svg{max-width:100%}
-    .price{font-size:9pt;font-weight:700;margin-top:1.5mm}
+    .price{font-size:8pt;font-weight:700;margin-top:1mm}
     @media print{@page{margin:5mm}body{margin:0}}
   </style>
 </head>
