@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -71,6 +71,14 @@ export default function ReturnsPage() {
   const dmgType    = settings?.['damage_charge_type']?.value    || 'none';
   const dmgFlat    = parseFloat(settings?.['damage_flat_charge']?.value    || '0');
   const dmgPercent = parseFloat(settings?.['damage_charge_percent']?.value || '0');
+
+  // Re-fetch fine whenever returnDate changes while modal is open
+  useEffect(() => {
+    if (!showReturnModal || !selectedRental) return;
+    returnService.getFineCalc(selectedRental.id, returnDate)
+      .then(setFineCalc)
+      .catch(() => setFineCalc(null));
+  }, [returnDate, selectedRental?.id, showReturnModal]);
 
   // ── mutations ─────────────────────────────────────────────────────────────
   const processReturnMutation = useMutation({

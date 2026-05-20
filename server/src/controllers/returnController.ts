@@ -239,11 +239,16 @@ export async function getFineCalculation(req: Request, res: Response): Promise<v
     return;
   }
 
+  const fineSettingRes = await db.query<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'default_fine_per_day'`
+  );
+  const finePerDay = parseFloat(fineSettingRes.rows[0]?.value || '20');
+
   const actualReturn = returnDate ? new Date(returnDate as string) : new Date();
   const fine = await calculateFine(
     new Date(rentalRes.rows[0].rental_end_date),
     actualReturn,
-    20
+    finePerDay
   );
 
   res.json(fine);
