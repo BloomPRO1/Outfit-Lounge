@@ -176,7 +176,18 @@ export default function NewRentalPage() {
       {/* Header */}
       <div className="page-header flex-shrink-0">
         <h2 className="page-title">New Rental Booking</h2>
-        <Button variant="secondary" onClick={() => navigate('/rentals')}>Cancel</Button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowRules(true)}
+            title="View rental & fine rules"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-charcoal-500 text-charcoal-300 hover:text-gold-400 hover:border-gold-700/50 bg-charcoal-700/40 transition-colors text-xs font-medium"
+          >
+            <Info size={14} />
+            Rules
+          </button>
+          <Button variant="secondary" onClick={() => navigate('/rentals')}>Cancel</Button>
+        </div>
       </div>
 
       {/* Step indicator */}
@@ -588,16 +599,8 @@ export default function NewRentalPage() {
         {/* Right: real-time summary */}
         <div className="w-72 xl:w-80 flex-shrink-0 overflow-y-auto">
           <div className="bg-charcoal-700 border border-charcoal-500 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-charcoal-600 bg-charcoal-600/40 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-charcoal-600 bg-charcoal-600/40">
               <h3 className="font-display text-sm font-semibold text-charcoal-50">Booking Summary</h3>
-              <button
-                type="button"
-                onClick={() => setShowRules(true)}
-                title="View rental & fine rules"
-                className="p-1.5 rounded-lg text-charcoal-300 hover:text-gold-400 hover:bg-charcoal-600 transition-colors"
-              >
-                <Info size={15} />
-              </button>
             </div>
 
             <div className="px-4 py-3 border-b border-charcoal-600">
