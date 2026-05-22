@@ -5,11 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Minus, Trash2, CheckCircle, User, Package, Calendar, CreditCard,
   Banknote, Smartphone, Building2, Heart, Star, Gift, Sparkles, PartyPopper,
+  Info, X, AlertTriangle, Clock, Shield,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { rentalService } from '@/services/rentalService';
 import { customerService } from '@/services/customerService';
 import { productService } from '@/services/productService';
+import { settingsService } from '@/services/settingsService';
 import { calculatePromoDiscount } from '@/services/promotionService';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
@@ -43,6 +45,7 @@ interface RentalCartItem {
   variantInfo: string;
   sku: string;
   rentalPricePerDay: number;
+  lateFinePerDay: number;
   quantity: number;
 }
 
@@ -72,6 +75,12 @@ export default function NewRentalPage() {
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [manualDiscount, setManualDiscount] = useState('');
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
+  const [showRules, setShowRules] = useState(false);
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => settingsService.getAll(),
+  });
 
   const { data: customerResults } = useQuery({
     queryKey: ['customer-search', customerSearch],
@@ -119,7 +128,7 @@ export default function NewRentalPage() {
   const manualDiscountAmt = parseFloat(manualDiscount || '0');
   const finalTotal = Math.max(0, totalCost - manualDiscountAmt - promoDiscount);
 
-  const addToCart = (variant: any, productName: string) => {
+  const addToCart = (variant: any, productName: string, lateFinePerDay = 0) => {
     const existing = cartItems.find((i) => i.variantId === variant.id);
     if (existing) {
       setCartItems(cartItems.map((i) => i.variantId === variant.id ? { ...i, quantity: i.quantity + 1 } : i));
@@ -130,6 +139,7 @@ export default function NewRentalPage() {
         variantInfo: [variant.size, variant.color].filter(Boolean).join(' / '),
         sku: variant.sku,
         rentalPricePerDay: parseFloat(variant.rental_price_per_day || variant.rentalPricePerDay || 0),
+        lateFinePerDay: parseFloat(String(lateFinePerDay || 0)),
         quantity: 1,
       }]);
     }
@@ -307,7 +317,7 @@ export default function NewRentalPage() {
                                 <button
                                   key={v.id}
                                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-charcoal-600 transition-colors border-b border-charcoal-600/50 last:border-0"
-                                  onMouseDown={() => addToCart(v, product.name)}
+                                  onMouseDown={() => addToCart(v, product.name, product.late_fine_per_day)}
                                 >
                                   <Package size={14} className="text-charcoal-300 flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
@@ -578,8 +588,16 @@ export default function NewRentalPage() {
         {/* Right: real-time summary */}
         <div className="w-72 xl:w-80 flex-shrink-0 overflow-y-auto">
           <div className="bg-charcoal-700 border border-charcoal-500 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-charcoal-600 bg-charcoal-600/40">
+            <div className="px-4 py-3 border-b border-charcoal-600 bg-charcoal-600/40 flex items-center justify-between">
               <h3 className="font-display text-sm font-semibold text-charcoal-50">Booking Summary</h3>
+              <button
+                type="button"
+                onClick={() => setShowRules(true)}
+                title="View rental & fine rules"
+                className="p-1.5 rounded-lg text-charcoal-300 hover:text-gold-400 hover:bg-charcoal-600 transition-colors"
+              >
+                <Info size={15} />
+              </button>
             </div>
 
             <div className="px-4 py-3 border-b border-charcoal-600">
@@ -691,6 +709,136 @@ export default function NewRentalPage() {
         </div>
 
       </div>
+
+      {/* Rules Popup */}
+      <AnimatePresence>
+        {showRules && (
+          <motion.div
+            key="rules-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowRules(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="bg-charcoal-700 border border-charcoal-500 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-charcoal-600 bg-charcoal-600/40">
+                <h3 className="font-display font-semibold text-charcoal-50 flex items-center gap-2">
+                  <Info size={16} className="text-gold-400" />
+                  Rental Rules
+                </h3>
+                <button onClick={() => setShowRules(false)} className="p-1.5 rounded-lg text-charcoal-300 hover:text-charcoal-50 hover:bg-charcoal-600 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+
+                {/* Rental Rules */}
+                <section>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-charcoal-200 uppercase tracking-wider mb-3">
+                    <Clock size={12} /> Rental Rules
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Minimum Rental Days',  value: settings?.['min_rental_days']?.value        || '1',   suffix: 'day(s)' },
+                      { label: 'Grace Period',          value: settings?.['rental_grace_period']?.value   || '0',   suffix: 'day(s)' },
+                      { label: 'Booking Prefix',        value: settings?.['booking_prefix']?.value        || 'TS',  suffix: '' },
+                    ].map(({ label, value, suffix }) => (
+                      <div key={label} className="flex justify-between items-center text-sm py-2 border-b border-charcoal-600/50 last:border-0">
+                        <span className="text-charcoal-300">{label}</span>
+                        <span className="text-charcoal-50 font-medium">{value}{suffix && <span className="text-charcoal-400 font-normal ml-1">{suffix}</span>}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Fine Rules */}
+                <section>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-charcoal-200 uppercase tracking-wider mb-3">
+                    <AlertTriangle size={12} /> Late Return Fines
+                  </p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-sm py-2 border-b border-charcoal-600/50">
+                      <span className="text-charcoal-300">Default Fine / Day</span>
+                      <span className="text-amber-400 font-medium">LKR {settings?.['default_fine_per_day']?.value || '0'}</span>
+                    </div>
+                    {cartItems.length > 0 && (
+                      <>
+                        <p className="text-[11px] text-charcoal-400 pt-1">Per-item overrides (current booking)</p>
+                        {cartItems.map((item) => (
+                          <div key={item.variantId} className="flex justify-between items-center text-sm py-1.5">
+                            <div className="flex-1 min-w-0 mr-3">
+                              <p className="text-charcoal-100 truncate text-xs">{item.productName}</p>
+                              {item.variantInfo && <p className="text-charcoal-400 text-[10px]">{item.variantInfo}</p>}
+                            </div>
+                            <span className={cn('font-medium text-xs flex-shrink-0', item.lateFinePerDay > 0 ? 'text-amber-400' : 'text-charcoal-400')}>
+                              {item.lateFinePerDay > 0 ? `LKR ${item.lateFinePerDay}/day` : 'Uses default'}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {cartItems.length === 0 && (
+                      <p className="text-xs text-charcoal-400 italic">Add items to see per-item fine rates</p>
+                    )}
+                  </div>
+                </section>
+
+                {/* Damage Rules */}
+                <section>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-charcoal-200 uppercase tracking-wider mb-3">
+                    <Shield size={12} /> Damage Policy
+                  </p>
+                  <div className="space-y-2">
+                    {(() => {
+                      const dmgType = settings?.['damage_charge_type']?.value || 'none';
+                      return (
+                        <>
+                          <div className="flex justify-between items-center text-sm py-2 border-b border-charcoal-600/50">
+                            <span className="text-charcoal-300">Charge Type</span>
+                            <span className={cn('font-medium capitalize px-2 py-0.5 rounded-md text-xs',
+                              dmgType === 'none'                ? 'bg-charcoal-600 text-charcoal-200' :
+                              dmgType === 'flat'                ? 'bg-blue-500/15 text-blue-400' :
+                                                                  'bg-amber-500/15 text-amber-400'
+                            )}>
+                              {dmgType === 'none' ? 'No charge' : dmgType === 'flat' ? 'Flat amount' : '% of rental cost'}
+                            </span>
+                          </div>
+                          {dmgType === 'flat' && (
+                            <div className="flex justify-between items-center text-sm py-2">
+                              <span className="text-charcoal-300">Flat Charge</span>
+                              <span className="text-red-400 font-medium">LKR {settings?.['damage_flat_charge']?.value || '0'}</span>
+                            </div>
+                          )}
+                          {dmgType === 'percentage_of_rental' && (
+                            <div className="flex justify-between items-center text-sm py-2">
+                              <span className="text-charcoal-300">Charge %</span>
+                              <span className="text-red-400 font-medium">{settings?.['damage_charge_percent']?.value || '0'}% of rental cost</span>
+                            </div>
+                          )}
+                          {dmgType === 'none' && (
+                            <p className="text-xs text-charcoal-400 italic">No automatic damage charge configured</p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </section>
+
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
