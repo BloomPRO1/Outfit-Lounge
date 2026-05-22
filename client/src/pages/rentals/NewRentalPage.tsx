@@ -2,22 +2,40 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, Minus, Trash2, CheckCircle, User, Package, Calendar, CreditCard } from 'lucide-react';
+import {
+  Search, Plus, Minus, Trash2, CheckCircle, User, Package, Calendar, CreditCard,
+  Banknote, Smartphone, Building2, Heart, Star, Gift, Sparkles, PartyPopper,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { rentalService } from '@/services/rentalService';
 import { customerService } from '@/services/customerService';
 import { productService } from '@/services/productService';
 import { calculatePromoDiscount } from '@/services/promotionService';
 import Button from '@/components/common/Button';
-import Card from '@/components/common/Card';
 import Input from '@/components/common/Input';
-import Select from '@/components/common/Select';
 import Textarea from '@/components/common/Textarea';
 import PromotionSelector from '@/components/common/PromotionSelector';
 import { formatCurrency, getDaysDiff } from '@/utils/formatters';
-import type { Customer, ProductVariant, Promotion } from '@/types';
+import { cn } from '@/utils/cn';
+import type { Customer, Promotion } from '@/types';
 
 const STEPS = ['Customer', 'Items', 'Dates', 'Payment', 'Confirm'];
+
+const PAYMENT_METHODS = [
+  { value: 'cash',           label: 'Cash',         icon: Banknote   },
+  { value: 'card',           label: 'Card',         icon: CreditCard },
+  { value: 'mobile_payment', label: 'Mobile Pay',   icon: Smartphone },
+  { value: 'bank_transfer',  label: 'Bank Transfer',icon: Building2  },
+] as const;
+
+const PRESET_EVENTS = [
+  { label: 'Wedding',       icon: Heart      },
+  { label: 'Birthday',      icon: Star       },
+  { label: 'Anniversary',   icon: Gift       },
+  { label: 'Gala',          icon: Sparkles   },
+  { label: 'Formal Dinner', icon: PartyPopper},
+  { label: 'Other',         icon: null       },
+];
 
 interface RentalCartItem {
   variantId: string;
@@ -26,7 +44,6 @@ interface RentalCartItem {
   sku: string;
   rentalPricePerDay: number;
   quantity: number;
-  image?: string;
 }
 
 export default function NewRentalPage() {
@@ -47,10 +64,12 @@ export default function NewRentalPage() {
   const [rentalStartDate, setRentalStartDate] = useState('');
   const [rentalEndDate, setRentalEndDate] = useState('');
   const [eventType, setEventType] = useState('');
+  const [eventTypeCustom, setEventTypeCustom] = useState(false);
+  const [customEventText, setCustomEventText] = useState('');
   const [notes, setNotes] = useState('');
 
   const [advancePayment, setAdvancePayment] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [manualDiscount, setManualDiscount] = useState('');
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
 
@@ -118,9 +137,10 @@ export default function NewRentalPage() {
     setShowProductResults(false);
   };
 
+  const finalEventType = eventTypeCustom ? customEventText : eventType;
+
   const handleSubmit = () => {
     if (!customer || !rentalStartDate || !rentalEndDate || cartItems.length === 0) return;
-
     createRentalMutation.mutate({
       customerId: customer.id,
       rentalStartDate,
@@ -133,7 +153,7 @@ export default function NewRentalPage() {
       advancePayment: parseFloat(advancePayment || '0'),
       discountAmount: manualDiscountAmt,
       promotionId: selectedPromotion?.id ?? null,
-      eventType,
+      eventType: finalEventType,
       notes,
       paymentMethod,
     });
@@ -142,360 +162,426 @@ export default function NewRentalPage() {
   const today = new Date().toISOString().split('T')[0];
 
   return (
-    <div>
-      <div className="page-header">
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="page-header flex-shrink-0">
         <h2 className="page-title">New Rental Booking</h2>
         <Button variant="secondary" onClick={() => navigate('/rentals')}>Cancel</Button>
       </div>
 
-      {/* Steps */}
-      <div className="flex items-center gap-0 mb-6">
+      {/* Step indicator */}
+      <div className="flex items-center gap-0 mb-4 flex-shrink-0">
         {STEPS.map((label, i) => {
           const icons = [User, Package, Calendar, CreditCard, CheckCircle];
           const Icon = icons[i];
           return (
             <div key={i} className="flex items-center flex-1">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium flex-shrink-0 transition-all duration-200 ${
-                i < step ? 'bg-gold-gradient text-charcoal-900' :
+              <div className={cn(
+                'flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium flex-shrink-0 transition-all duration-200',
+                i < step  ? 'bg-gold-gradient text-charcoal-900' :
                 i === step ? 'bg-charcoal-600 border-2 border-gold-600 text-gold-400' :
-                'bg-charcoal-600 border border-charcoal-400 text-charcoal-300'
-              }`}>
+                             'bg-charcoal-600 border border-charcoal-400 text-charcoal-300'
+              )}>
                 {i < step ? <CheckCircle size={14} /> : <Icon size={14} />}
               </div>
-              <span className={`ml-2 text-xs hidden sm:inline ${i === step ? 'text-charcoal-50 font-medium' : 'text-charcoal-300'}`}>{label}</span>
-              {i < STEPS.length - 1 && <div className={`flex-1 h-px mx-3 ${i < step ? 'bg-gold-700' : 'bg-charcoal-500'}`} />}
+              <span className={cn('ml-2 text-xs hidden sm:inline', i === step ? 'text-charcoal-50 font-medium' : 'text-charcoal-300')}>
+                {label}
+              </span>
+              {i < STEPS.length - 1 && (
+                <div className={cn('flex-1 h-px mx-3', i < step ? 'bg-gold-700' : 'bg-charcoal-500')} />
+              )}
             </div>
           );
         })}
       </div>
 
-      <div className="flex gap-6 items-start">
+      {/* Main area — fills remaining height */}
+      <div className="flex gap-5 flex-1 min-h-0">
+
         {/* Left: step form */}
-        <div className="flex-1 min-w-0">
-        <Card>
-        <AnimatePresence mode="wait">
-          {/* Step 0: Customer */}
-          {step === 0 && (
-            <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <h3 className="section-title">Select Customer</h3>
-              {!newCustomerMode ? (
-                <>
-                  <div className="relative">
-                    <Input
-                      label="Search Customer"
-                      value={customerSearch}
-                      onChange={(e) => { setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
-                      placeholder="Search by name or phone..."
-                      icon={<Search size={15} />}
-                    />
-                    {showCustomerResults && customerResults && customerResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-10 overflow-hidden">
-                        {customerResults.map((c: Customer) => (
-                          <button
-                            key={c.id}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-charcoal-600 transition-colors"
-                            onClick={() => { setCustomer(c); setCustomerSearch(c.name); setShowCustomerResults(false); }}
-                          >
-                            <div className="w-8 h-8 rounded-full bg-gold-700/20 flex items-center justify-center flex-shrink-0">
-                              <span className="text-gold-400 text-sm font-semibold">{c.name.charAt(0)}</span>
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
+          <div className="card p-5 flex-1 flex flex-col min-h-0 overflow-hidden">
+            {/* Scrollable step content */}
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+              <AnimatePresence mode="wait">
+
+                {/* Step 0: Customer */}
+                {step === 0 && (
+                  <motion.div key="s0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                    <h3 className="section-title">Select Customer</h3>
+                    {!newCustomerMode ? (
+                      <>
+                        <div className="relative">
+                          <Input
+                            label="Search Customer"
+                            value={customerSearch}
+                            onChange={(e) => { setCustomerSearch(e.target.value); setShowCustomerResults(true); }}
+                            placeholder="Search by name or phone..."
+                            icon={<Search size={15} />}
+                          />
+                          {showCustomerResults && customerResults && customerResults.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-10 overflow-hidden">
+                              {customerResults.map((c: Customer) => (
+                                <button
+                                  key={c.id}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-charcoal-600 transition-colors"
+                                  onClick={() => { setCustomer(c); setCustomerSearch(c.name); setShowCustomerResults(false); }}
+                                >
+                                  <div className="w-8 h-8 rounded-full bg-gold-700/20 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-gold-400 text-sm font-semibold">{c.name.charAt(0)}</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-charcoal-50">{c.name}</p>
+                                    {c.phone && <p className="text-xs text-charcoal-200">{c.phone}</p>}
+                                  </div>
+                                </button>
+                              ))}
                             </div>
-                            <div>
-                              <p className="text-sm font-medium text-charcoal-50">{c.name}</p>
-                              {c.phone && <p className="text-xs text-charcoal-200">{c.phone}</p>}
+                          )}
+                        </div>
+
+                        {customer && (
+                          <div className="p-4 bg-charcoal-600/50 rounded-xl border border-gold-700/30 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gold-700/20 flex items-center justify-center">
+                              <span className="text-gold-400 font-semibold">{customer.name.charAt(0)}</span>
                             </div>
-                          </button>
+                            <div className="flex-1">
+                              <p className="font-medium text-charcoal-50">{customer.name}</p>
+                              <p className="text-sm text-charcoal-200">{customer.phone}</p>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => setCustomer(null)}>Change</Button>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => setNewCustomerMode(true)}
+                          className="w-full p-3 border-2 border-dashed border-charcoal-400 rounded-xl text-sm text-charcoal-200 hover:border-gold-700/50 hover:text-charcoal-100 transition-colors"
+                        >
+                          <Plus size={14} className="inline mr-2" /> Create New Customer
+                        </button>
+                      </>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-charcoal-100">New Customer</p>
+                          <button onClick={() => setNewCustomerMode(false)} className="text-xs text-charcoal-200 hover:text-charcoal-50">Cancel</button>
+                        </div>
+                        <Input placeholder="Full Name *" value={newCustomerForm.name} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })} />
+                        <div className="grid grid-cols-2 gap-3">
+                          <Input placeholder="Phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })} />
+                          <Input placeholder="WhatsApp" value={newCustomerForm.whatsapp} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, whatsapp: e.target.value })} />
+                        </div>
+                        <Input placeholder="Email" type="email" value={newCustomerForm.email} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })} />
+                        <Button variant="primary" size="sm" onClick={() => createCustomerMutation.mutate(newCustomerForm)} loading={createCustomerMutation.isPending}>
+                          Save & Continue
+                        </Button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Step 1: Items */}
+                {step === 1 && (
+                  <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                    <h3 className="section-title">Select Items</h3>
+                    <div className="relative">
+                      <Input
+                        value={productSearch}
+                        onChange={(e) => { setProductSearch(e.target.value); setShowProductResults(true); }}
+                        onFocus={() => setShowProductResults(true)}
+                        onBlur={() => setTimeout(() => setShowProductResults(false), 150)}
+                        placeholder="Search rental items by name or SKU..."
+                        icon={<Search size={15} />}
+                      />
+                      {showProductResults && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-10 overflow-hidden max-h-64 overflow-y-auto">
+                          {(productResults?.data?.length ?? 0) === 0 ? (
+                            <p className="text-xs text-charcoal-300 text-center py-4">
+                              {productSearch.length === 0 ? 'Start typing to search rental items...' : 'No rental items found'}
+                            </p>
+                          ) : (
+                            productResults?.data.map((product: any) => {
+                              const variants = (product.variants || []).filter((v: any) => (v.available_for_rent ?? v.stock_quantity) > 0);
+                              if (variants.length === 0) return null;
+                              return variants.map((v: any) => (
+                                <button
+                                  key={v.id}
+                                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-charcoal-600 transition-colors border-b border-charcoal-600/50 last:border-0"
+                                  onMouseDown={() => addToCart(v, product.name)}
+                                >
+                                  <Package size={14} className="text-charcoal-300 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-charcoal-50 truncate">{product.name}</p>
+                                    <p className="text-xs text-charcoal-200">{[v.size, v.color].filter(Boolean).join(' / ')} · {v.sku}</p>
+                                    <p className="text-xs text-gold-500 mt-0.5">{formatCurrency(v.rental_price_per_day)}/day</p>
+                                  </div>
+                                  <span className="text-xs font-medium text-emerald-400 flex-shrink-0">{v.available_for_rent ?? v.stock_quantity} avail</span>
+                                </button>
+                              ));
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {cartItems.length === 0 ? (
+                      <div className="py-10 text-center text-charcoal-200 text-sm">No items added yet. Search above.</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {cartItems.map((item) => (
+                          <div key={item.variantId} className="flex items-center gap-3 p-3 bg-charcoal-600/50 rounded-xl">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-charcoal-50">{item.productName}</p>
+                              <p className="text-xs text-charcoal-200">{item.variantInfo} · {formatCurrency(item.rentalPricePerDay)}/day</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => setCartItems(cartItems.map((i) => i.variantId === item.variantId ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))} className="w-7 h-7 rounded-lg bg-charcoal-500 flex items-center justify-center text-charcoal-100 hover:bg-charcoal-400">
+                                <Minus size={12} />
+                              </button>
+                              <span className="w-6 text-center text-sm font-medium text-charcoal-50">{item.quantity}</span>
+                              <button onClick={() => setCartItems(cartItems.map((i) => i.variantId === item.variantId ? { ...i, quantity: i.quantity + 1 } : i))} className="w-7 h-7 rounded-lg bg-charcoal-500 flex items-center justify-center text-charcoal-100 hover:bg-charcoal-400">
+                                <Plus size={12} />
+                              </button>
+                              <button onClick={() => setCartItems(cartItems.filter((i) => i.variantId !== item.variantId))} className="text-charcoal-200 hover:text-red-400 ml-1">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
-                  </div>
+                  </motion.div>
+                )}
 
-                  {customer && (
-                    <div className="p-4 bg-charcoal-600/50 rounded-xl border border-gold-700/30 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gold-700/20 flex items-center justify-center">
-                        <span className="text-gold-400 font-semibold">{customer.name.charAt(0)}</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-charcoal-50">{customer.name}</p>
-                        <p className="text-sm text-charcoal-200">{customer.phone}</p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => setCustomer(null)}>Change</Button>
+                {/* Step 2: Dates */}
+                {step === 2 && (
+                  <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+                    <h3 className="section-title">Rental Dates</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="Pickup Date" type="date" min={today} value={rentalStartDate} onChange={(e) => setRentalStartDate(e.target.value)} required />
+                      <Input label="Return Date" type="date" min={rentalStartDate || today} value={rentalEndDate} onChange={(e) => setRentalEndDate(e.target.value)} required />
                     </div>
-                  )}
 
-                  <button
-                    onClick={() => setNewCustomerMode(true)}
-                    className="w-full p-3 border-2 border-dashed border-charcoal-400 rounded-xl text-sm text-charcoal-200 hover:border-gold-700/50 hover:text-charcoal-100 transition-colors"
-                  >
-                    <Plus size={14} className="inline mr-2" /> Create New Customer
-                  </button>
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-charcoal-100">New Customer</p>
-                    <button onClick={() => setNewCustomerMode(false)} className="text-xs text-charcoal-200 hover:text-charcoal-50">Cancel</button>
-                  </div>
-                  <Input placeholder="Full Name *" value={newCustomerForm.name} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })} />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input placeholder="Phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })} />
-                    <Input placeholder="WhatsApp" value={newCustomerForm.whatsapp} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, whatsapp: e.target.value })} />
-                  </div>
-                  <Input placeholder="Email" type="email" value={newCustomerForm.email} onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })} />
-                  <Button variant="primary" size="sm" onClick={() => createCustomerMutation.mutate(newCustomerForm)} loading={createCustomerMutation.isPending}>
-                    Save & Continue
-                  </Button>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* Step 1: Items */}
-          {step === 1 && (
-            <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <h3 className="section-title">Select Items</h3>
-
-              {/* Search */}
-              <div className="relative">
-                <Input
-                  value={productSearch}
-                  onChange={(e) => { setProductSearch(e.target.value); setShowProductResults(true); }}
-                  onFocus={() => setShowProductResults(true)}
-                  onBlur={() => setTimeout(() => setShowProductResults(false), 150)}
-                  placeholder="Search rental items by name or SKU..."
-                  icon={<Search size={15} />}
-                />
-                {showProductResults && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-10 overflow-hidden max-h-72 overflow-y-auto">
-                    {(productResults?.data?.length ?? 0) === 0 ? (
-                      <p className="text-xs text-charcoal-300 text-center py-4">
-                        {productSearch.length === 0 ? 'Start typing to search rental items...' : 'No rental items found'}
-                      </p>
-                    ) : (
-                      productResults?.data.map((product: any) => {
-                        const variants = (product.variants || []).filter((v: any) => (v.available_for_rent ?? v.stock_quantity) > 0);
-                        if (variants.length === 0) return null;
-                        return variants.map((v: any) => (
-                          <button
-                            key={v.id}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-charcoal-600 transition-colors border-b border-charcoal-600/50 last:border-0"
-                            onMouseDown={() => addToCart(v, product.name)}
-                          >
-                            <Package size={14} className="text-charcoal-300 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-charcoal-50 truncate">{product.name}</p>
-                              <p className="text-xs text-charcoal-200">{[v.size, v.color].filter(Boolean).join(' / ')} · {v.sku}</p>
-                              <p className="text-xs text-gold-500 mt-0.5">{formatCurrency(v.rental_price_per_day)}/day</p>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <span className="text-xs font-medium text-emerald-400">{v.available_for_rent ?? v.stock_quantity} avail</span>
-                            </div>
-                          </button>
-                        ));
-                      })
+                    {rentalStartDate && rentalEndDate && (
+                      <div className="flex gap-3">
+                        <div className="flex-1 p-3 bg-charcoal-600/50 rounded-xl text-center">
+                          <p className="text-xs text-charcoal-300 mb-1">Duration</p>
+                          <p className="text-lg font-semibold text-charcoal-50">{rentalDays}<span className="text-xs font-normal text-charcoal-300 ml-1">day{rentalDays !== 1 ? 's' : ''}</span></p>
+                        </div>
+                        <div className="flex-1 p-3 bg-charcoal-600/50 rounded-xl text-center">
+                          <p className="text-xs text-charcoal-300 mb-1">Estimated Cost</p>
+                          <p className="text-lg font-semibold text-gold-400">{formatCurrency(totalCost)}</p>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                )}
-              </div>
 
-              {/* Cart */}
-              {cartItems.length === 0 ? (
-                <div className="py-8 text-center text-charcoal-200 text-sm">No items added yet. Search for products above.</div>
+                    {/* Event Type Tiles */}
+                    <div>
+                      <p className="text-sm font-medium text-charcoal-200 mb-2">Event Type</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {PRESET_EVENTS.map(({ label, icon: Icon }) => {
+                          const isSelected = !eventTypeCustom
+                            ? eventType === label
+                            : label === 'Other';
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => {
+                                if (label === 'Other') {
+                                  setEventTypeCustom(true);
+                                  setEventType('');
+                                } else {
+                                  setEventTypeCustom(false);
+                                  setEventType(label);
+                                }
+                              }}
+                              className={cn(
+                                'flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-xs font-medium',
+                                isSelected
+                                  ? 'border-gold-600 bg-gold-700/10 text-gold-400'
+                                  : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                              )}
+                            >
+                              {Icon ? <Icon size={16} /> : <span className="text-base">✏️</span>}
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {eventTypeCustom && (
+                        <Input
+                          className="mt-2"
+                          placeholder="Describe the event..."
+                          value={customEventText}
+                          onChange={(e) => setCustomEventText(e.target.value)}
+                        />
+                      )}
+                    </div>
+
+                    <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requests or notes..." rows={2} />
+                  </motion.div>
+                )}
+
+                {/* Step 3: Payment */}
+                {step === 3 && (
+                  <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+                    <h3 className="section-title">Payment Details</h3>
+
+                    {/* Cost breakdown */}
+                    <div className="p-4 bg-charcoal-600/30 rounded-xl space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-charcoal-200">Total Rental Cost</span>
+                        <span className="text-charcoal-50 font-medium">{formatCurrency(totalCost)}</span>
+                      </div>
+                      {manualDiscountAmt > 0 && (
+                        <div className="flex justify-between text-sm text-emerald-400">
+                          <span>Manual Discount</span>
+                          <span>-{formatCurrency(manualDiscountAmt)}</span>
+                        </div>
+                      )}
+                      {promoDiscount > 0 && selectedPromotion && (
+                        <div className="flex justify-between text-sm text-emerald-400">
+                          <span>Promotion ({selectedPromotion.name})</span>
+                          <span>-{formatCurrency(promoDiscount)}</span>
+                        </div>
+                      )}
+                      {(manualDiscountAmt > 0 || promoDiscount > 0) && (
+                        <div className="flex justify-between text-sm font-bold pt-1 border-t border-charcoal-500">
+                          <span className="text-charcoal-100">Net Total</span>
+                          <span className="text-gold-400">{formatCurrency(finalTotal)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Payment Method Tiles */}
+                    <div>
+                      <p className="text-sm font-medium text-charcoal-200 mb-2">Payment Method</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {PAYMENT_METHODS.map(({ value, label, icon: Icon }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setPaymentMethod(value)}
+                            className={cn(
+                              'flex flex-col items-center gap-2 py-3 px-2 rounded-xl border-2 transition-all',
+                              paymentMethod === value
+                                ? 'border-gold-600 bg-gold-700/10 text-gold-400'
+                                : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                            )}
+                          >
+                            <Icon size={20} />
+                            <span className="text-xs font-medium text-center leading-tight">{label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Advance Payment (LKR)"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={advancePayment}
+                        onChange={(e) => setAdvancePayment(e.target.value)}
+                        placeholder="0.00"
+                        hint="Amount paid now"
+                      />
+                      <Input
+                        label="Manual Discount (LKR)"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={manualDiscount}
+                        onChange={(e) => setManualDiscount(e.target.value)}
+                        placeholder="0.00"
+                        hint="Optional discount"
+                      />
+                    </div>
+
+                    <PromotionSelector
+                      scope="rental"
+                      cartSubtotal={totalCost}
+                      cartItems={cartItems.map(i => ({ unitPrice: i.rentalPricePerDay, quantity: i.quantity }))}
+                      rentalDays={rentalDays}
+                      selectedId={selectedPromotion?.id ?? null}
+                      onSelect={setSelectedPromotion}
+                    />
+                  </motion.div>
+                )}
+
+                {/* Step 4: Confirm */}
+                {step === 4 && (
+                  <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                    <h3 className="section-title">Booking Summary</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Customer',       value: customer?.name },
+                        { label: 'Phone',          value: customer?.phone || '—' },
+                        { label: 'Pickup Date',    value: rentalStartDate },
+                        { label: 'Return Date',    value: rentalEndDate },
+                        { label: 'Duration',       value: `${rentalDays} day(s)` },
+                        { label: 'Event',          value: finalEventType || '—' },
+                        { label: 'Items',          value: `${cartItems.length} item(s)` },
+                        { label: 'Rental Cost',    value: formatCurrency(totalCost) },
+                        ...(promoDiscount > 0 || manualDiscountAmt > 0 ? [{ label: 'Net Total', value: formatCurrency(finalTotal) }] : []),
+                        ...(selectedPromotion ? [{ label: 'Promotion', value: selectedPromotion.name }] : []),
+                        { label: 'Advance Paid',   value: formatCurrency(parseFloat(advancePayment || '0')) },
+                        { label: 'Balance Due',    value: formatCurrency(Math.max(0, finalTotal - parseFloat(advancePayment || '0'))) },
+                        { label: 'Payment Method', value: paymentMethod.replace('_', ' ') },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="p-3 bg-charcoal-600/50 rounded-xl">
+                          <p className="text-xs text-charcoal-200">{label}</p>
+                          <p className="text-sm font-medium text-charcoal-50 mt-0.5 capitalize">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {notes && (
+                      <div className="p-3 bg-charcoal-600/50 rounded-xl">
+                        <p className="text-xs text-charcoal-200">Notes</p>
+                        <p className="text-sm text-charcoal-100 mt-0.5">{notes}</p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+              </AnimatePresence>
+            </div>
+
+            {/* Navigation — pinned at bottom of card */}
+            <div className="flex justify-between mt-4 pt-4 border-t border-charcoal-500 flex-shrink-0">
+              <Button variant="secondary" onClick={() => step > 0 ? setStep(step - 1) : navigate('/rentals')} disabled={createRentalMutation.isPending}>
+                {step === 0 ? 'Cancel' : 'Back'}
+              </Button>
+              {step < STEPS.length - 1 ? (
+                <Button
+                  variant="primary"
+                  onClick={() => setStep(step + 1)}
+                  disabled={
+                    (step === 0 && !customer) ||
+                    (step === 1 && cartItems.length === 0) ||
+                    (step === 2 && (!rentalStartDate || !rentalEndDate))
+                  }
+                >
+                  Next
+                </Button>
               ) : (
-                <div className="space-y-2">
-                  {cartItems.map((item) => (
-                    <div key={item.variantId} className="flex items-center gap-3 p-3 bg-charcoal-600/50 rounded-xl">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-charcoal-50">{item.productName}</p>
-                        <p className="text-xs text-charcoal-200">{item.variantInfo} · {formatCurrency(item.rentalPricePerDay)}/day</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setCartItems(cartItems.map((i) => i.variantId === item.variantId ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i))} className="w-7 h-7 rounded-lg bg-charcoal-500 flex items-center justify-center text-charcoal-100 hover:bg-charcoal-400">
-                          <Minus size={12} />
-                        </button>
-                        <span className="w-6 text-center text-sm font-medium text-charcoal-50">{item.quantity}</span>
-                        <button onClick={() => setCartItems(cartItems.map((i) => i.variantId === item.variantId ? { ...i, quantity: i.quantity + 1 } : i))} className="w-7 h-7 rounded-lg bg-charcoal-500 flex items-center justify-center text-charcoal-100 hover:bg-charcoal-400">
-                          <Plus size={12} />
-                        </button>
-                        <button onClick={() => setCartItems(cartItems.filter((i) => i.variantId !== item.variantId))} className="text-charcoal-200 hover:text-red-400 ml-1">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Button variant="primary" onClick={handleSubmit} loading={createRentalMutation.isPending} icon={<CheckCircle size={16} />}>
+                  Confirm Booking
+                </Button>
               )}
-            </motion.div>
-          )}
-
-          {/* Step 2: Dates */}
-          {step === 2 && (
-            <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <h3 className="section-title">Rental Dates</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Pickup Date"
-                  type="date"
-                  min={today}
-                  value={rentalStartDate}
-                  onChange={(e) => setRentalStartDate(e.target.value)}
-                  required
-                />
-                <Input
-                  label="Return Date"
-                  type="date"
-                  min={rentalStartDate || today}
-                  value={rentalEndDate}
-                  onChange={(e) => setRentalEndDate(e.target.value)}
-                  required
-                />
-              </div>
-              <Input label="Event Type" value={eventType} onChange={(e) => setEventType(e.target.value)} placeholder="e.g. Wedding, Formal Dinner, Gala" />
-              <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any special requests or notes..." rows={2} />
-
-              {rentalStartDate && rentalEndDate && (
-                <div className="p-3 bg-charcoal-600/50 rounded-xl">
-                  <p className="text-sm text-charcoal-200">Rental duration: <span className="text-charcoal-50 font-medium">{rentalDays} day(s)</span></p>
-                  <p className="text-sm text-charcoal-200 mt-1">Estimated total: <span className="text-gold-400 font-semibold">{formatCurrency(totalCost)}</span></p>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* Step 3: Payment */}
-          {step === 3 && (
-            <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <h3 className="section-title">Payment Details</h3>
-
-              <div className="p-4 bg-charcoal-600/30 rounded-xl space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-charcoal-200">Total Rental Cost:</span>
-                  <span className="text-charcoal-50 font-medium">{formatCurrency(totalCost)}</span>
-                </div>
-                {manualDiscountAmt > 0 && (
-                  <div className="flex justify-between text-sm text-emerald-400">
-                    <span>Manual Discount:</span>
-                    <span>-{formatCurrency(manualDiscountAmt)}</span>
-                  </div>
-                )}
-                {promoDiscount > 0 && selectedPromotion && (
-                  <div className="flex justify-between text-sm text-emerald-400">
-                    <span>Promotion ({selectedPromotion.name}):</span>
-                    <span>-{formatCurrency(promoDiscount)}</span>
-                  </div>
-                )}
-                {(manualDiscountAmt > 0 || promoDiscount > 0) && (
-                  <div className="flex justify-between text-sm font-bold pt-1 border-t border-charcoal-500">
-                    <span className="text-charcoal-100">Net Total:</span>
-                    <span className="text-gold-400">{formatCurrency(finalTotal)}</span>
-                  </div>
-                )}
-              </div>
-
-              <Select
-                label="Payment Method"
-                options={[
-                  { value: 'cash', label: 'Cash' },
-                  { value: 'card', label: 'Card' },
-                  { value: 'mobile_payment', label: 'Mobile Payment' },
-                  { value: 'bank_transfer', label: 'Bank Transfer' },
-                ]}
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              />
-              <Input label="Advance Payment (LKR)" type="number" step="0.01" min="0" value={advancePayment} onChange={(e) => setAdvancePayment(e.target.value)} placeholder="0.00" hint="Amount paid upfront now" />
-              <Input
-                label="Manual Discount (LKR)"
-                type="number"
-                step="0.01"
-                min="0"
-                value={manualDiscount}
-                onChange={(e) => setManualDiscount(e.target.value)}
-                placeholder="0.00"
-                hint="Optional cashier-applied discount"
-              />
-              <PromotionSelector
-                scope="rental"
-                cartSubtotal={totalCost}
-                cartItems={cartItems.map(i => ({ unitPrice: i.rentalPricePerDay, quantity: i.quantity }))}
-                rentalDays={rentalDays}
-                selectedId={selectedPromotion?.id ?? null}
-                onSelect={setSelectedPromotion}
-              />
-            </motion.div>
-          )}
-
-          {/* Step 4: Confirm */}
-          {step === 4 && (
-            <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <h3 className="section-title">Booking Summary</h3>
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    { label: 'Customer', value: customer?.name },
-                    { label: 'Phone', value: customer?.phone || '—' },
-                    { label: 'Pickup Date', value: rentalStartDate },
-                    { label: 'Return Date', value: rentalEndDate },
-                    { label: 'Duration', value: `${rentalDays} day(s)` },
-                    { label: 'Event', value: eventType || '—' },
-                    { label: 'Items', value: `${cartItems.length} item(s)` },
-                    { label: 'Rental Cost', value: formatCurrency(totalCost) },
-                    ...(promoDiscount > 0 || manualDiscountAmt > 0 ? [{ label: 'Net Total', value: formatCurrency(finalTotal) }] : []),
-                    ...(selectedPromotion ? [{ label: 'Promotion', value: selectedPromotion.name }] : []),
-                    { label: 'Advance Paid', value: formatCurrency(parseFloat(advancePayment || '0')) },
-                    { label: 'Balance Due', value: formatCurrency(Math.max(0, finalTotal - parseFloat(advancePayment || '0'))) },
-                    { label: 'Payment Method', value: paymentMethod },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="p-3 bg-charcoal-600/50 rounded-xl">
-                      <p className="text-xs text-charcoal-200">{label}</p>
-                      <p className="text-sm font-medium text-charcoal-50 mt-0.5 capitalize">{value}</p>
-                    </div>
-                  ))}
-                </div>
-                {notes && (
-                  <div className="p-3 bg-charcoal-600/50 rounded-xl">
-                    <p className="text-xs text-charcoal-200">Notes</p>
-                    <p className="text-sm text-charcoal-100 mt-0.5">{notes}</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Nav */}
-        <div className="flex justify-between mt-6 pt-5 border-t border-charcoal-500">
-          <Button variant="secondary" onClick={() => step > 0 ? setStep(step - 1) : navigate('/rentals')} disabled={createRentalMutation.isPending}>
-            {step === 0 ? 'Cancel' : 'Back'}
-          </Button>
-          {step < STEPS.length - 1 ? (
-            <Button
-              variant="primary"
-              onClick={() => setStep(step + 1)}
-              disabled={
-                (step === 0 && !customer) ||
-                (step === 1 && cartItems.length === 0) ||
-                (step === 2 && (!rentalStartDate || !rentalEndDate))
-              }
-            >
-              Next
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={handleSubmit} loading={createRentalMutation.isPending} icon={<CheckCircle size={16} />}>
-              Confirm Booking
-            </Button>
-          )}
+            </div>
+          </div>
         </div>
-        </Card>
-        </div>{/* end left column */}
 
         {/* Right: real-time summary */}
-        <div className="w-80 xl:w-96 flex-shrink-0 sticky top-6">
+        <div className="w-72 xl:w-80 flex-shrink-0 overflow-y-auto">
           <div className="bg-charcoal-700 border border-charcoal-500 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 border-b border-charcoal-600 bg-charcoal-600/40">
               <h3 className="font-display text-sm font-semibold text-charcoal-50">Booking Summary</h3>
             </div>
 
-            {/* Customer */}
             <div className="px-4 py-3 border-b border-charcoal-600">
               <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><User size={11} />Customer</p>
               {customer ? (
@@ -513,7 +599,6 @@ export default function NewRentalPage() {
               )}
             </div>
 
-            {/* Items */}
             <div className="px-4 py-3 border-b border-charcoal-600">
               <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Package size={11} />Items {cartItems.length > 0 && <span className="text-gold-500">({cartItems.length})</span>}</p>
               {cartItems.length === 0 ? (
@@ -533,7 +618,6 @@ export default function NewRentalPage() {
               )}
             </div>
 
-            {/* Dates */}
             <div className="px-4 py-3 border-b border-charcoal-600">
               <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Calendar size={11} />Dates</p>
               {rentalStartDate ? (
@@ -552,10 +636,10 @@ export default function NewRentalPage() {
                     <span className="text-charcoal-400">Duration</span>
                     <span className="text-charcoal-100 font-medium">{rentalDays} day{rentalDays !== 1 ? 's' : ''}</span>
                   </div>
-                  {eventType && (
+                  {finalEventType && (
                     <div className="flex justify-between text-xs">
                       <span className="text-charcoal-400">Event</span>
-                      <span className="text-charcoal-100">{eventType}</span>
+                      <span className="text-charcoal-100">{finalEventType}</span>
                     </div>
                   )}
                 </div>
@@ -564,7 +648,6 @@ export default function NewRentalPage() {
               )}
             </div>
 
-            {/* Payment & Total */}
             <div className="px-4 py-3">
               <p className="text-xs text-charcoal-300 uppercase tracking-wide mb-2 flex items-center gap-1.5"><CreditCard size={11} />Payment</p>
               <div className="space-y-1.5">
@@ -607,7 +690,7 @@ export default function NewRentalPage() {
           </div>
         </div>
 
-      </div>{/* end flex row */}
+      </div>
     </div>
   );
 }
