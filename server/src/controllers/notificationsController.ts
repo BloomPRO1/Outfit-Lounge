@@ -182,17 +182,14 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
         : await generateRentalInvoicePDF(referenceId);
       const pdfUrl = baseUrl ? `${baseUrl}/api/invoices/download/${token}` : null;
 
-      // WhatsApp Cloud API → send PDF as document
-      if (waMode === 'cloud_api' && cloudId && cloudToken && pdfUrl) {
-        await sendWhatsAppCloudDoc({
-          to: phone,
-          documentUrl: pdfUrl,
-          filename: type === 'pos' ? 'Receipt.pdf' : 'RentalInvoice.pdf',
-          caption: fullMessage,
-          phoneNumberId: cloudId,
-          accessToken: cloudToken,
-        });
-        // Log it
+      // QR Scan mode → send directly via connected Baileys session
+      if (waMode === 'qr_scan') {
+        if (!isConnected()) {
+          res.status(400).json({ error: 'WhatsApp is not connected. Please scan the QR code in Settings.' });
+          return;
+        }
+        const entry = getStoredInvoice(token)!;
+        await sendWADocument(phone, entry.buffer, entry.filename, fullMessage);
         if (customerId) {
           await sendNotification({
             rentalId: rentalIdForLog, customerId,
@@ -204,7 +201,28 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
         return;
       }
 
-      // wa.me mode → return link (with PDF download link appended to message)
+      // WhatsApp Cloud API → send PDF as document
+      if (waMode === 'cloud_api' && cloudId && cloudToken && pdfUrl) {
+        await sendWhatsAppCloudDoc({
+          to: phone,
+          documentUrl: pdfUrl,
+          filename: type === 'pos' ? 'Receipt.pdf' : 'RentalInvoice.pdf',
+          caption: fullMessage,
+          phoneNumberId: cloudId,
+          accessToken: cloudToken,
+        });
+        if (customerId) {
+          await sendNotification({
+            rentalId: rentalIdForLog, customerId,
+            type: `${type}_invoice`, channel: 'whatsapp',
+            recipient: phone, message: fullMessage,
+          }).catch(() => {});
+        }
+        res.json({ sent: true });
+        return;
+      }
+
+      // wa.me / fitsms mode → return link (with PDF download link appended to message)
       const msgWithPdf = pdfUrl
         ? `${fullMessage}\n\n📄 Invoice: ${pdfUrl}`
         : fullMessage;

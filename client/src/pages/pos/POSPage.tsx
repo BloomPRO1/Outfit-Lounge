@@ -176,7 +176,7 @@ export default function POSPage() {
       if (res.data.waLink) {
         window.open(res.data.waLink, '_blank');
       } else {
-        toast.success('Invoice sent via SMS!');
+        toast.success(channel === 'whatsapp' ? 'Invoice sent via WhatsApp!' : 'Invoice sent via SMS!');
       }
     } catch (e: any) {
       toast.error(e.response?.data?.error || 'Failed to send invoice');

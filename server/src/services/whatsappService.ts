@@ -129,8 +129,14 @@ export async function disconnectWhatsApp(): Promise<void> {
 }
 
 // ─── Send Helpers ─────────────────────────────────────────────────────────────
+function normalizePhone(phone: string): string {
+  let p = phone.replace(/\D/g, ''); // strip non-digits
+  if (p.startsWith('0')) p = '94' + p.slice(1); // 07xx → 947xx (Sri Lanka)
+  return p;
+}
+
 function toJID(phone: string): string {
-  return phone.replace(/\D/g, '') + '@s.whatsapp.net';
+  return normalizePhone(phone) + '@s.whatsapp.net';
 }
 
 export async function sendWAText(phone: string, message: string): Promise<void> {
