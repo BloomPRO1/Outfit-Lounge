@@ -37,6 +37,7 @@ export default function POSPage() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receipt, setReceipt] = useState<any>(null);
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
+  const [cartStep, setCartStep] = useState<'cart' | 'payment'>('cart');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [extraDiscount, setExtraDiscount] = useState('');
@@ -87,6 +88,7 @@ export default function POSPage() {
       setExtraDiscount('');
       setNotes('');
       setShowNotes(false);
+      setCartStep('cart');
       setMobileTab('products');
       qc.invalidateQueries({ queryKey: ['pos-products'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
@@ -320,257 +322,336 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* ─── Right: Cart + Inline Checkout ─── */}
+      {/* ─── Right: Cart / Payment (two-step) ─── */}
       <div className={cn(
         'w-full lg:w-[22rem] xl:w-[26rem] flex-col bg-charcoal-800 flex-shrink-0 overflow-hidden',
         mobileTab === 'cart' ? 'flex' : 'hidden lg:flex'
       )}>
-        {/* Mobile back */}
-        <div className="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-charcoal-500 bg-charcoal-900 flex-shrink-0">
+
+        {/* ── Step indicator ── */}
+        <div className="flex-shrink-0 border-b border-charcoal-500 px-4 py-2.5 flex items-center gap-0">
+          {(['cart', 'payment'] as const).map((s, i) => (
+            <div key={s} className="flex items-center flex-1">
+              <div className={cn(
+                'flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-shrink-0 transition-all',
+                cartStep === s
+                  ? 'bg-gold-600 text-charcoal-900'
+                  : i === 0 && cartStep === 'payment'
+                    ? 'bg-charcoal-500 text-charcoal-300'
+                    : 'bg-charcoal-600 border border-charcoal-500 text-charcoal-400'
+              )}>
+                {i === 0 && cartStep === 'payment' ? <CheckCircle size={12} /> : i + 1}
+              </div>
+              <span className={cn(
+                'ml-1.5 text-xs font-medium',
+                cartStep === s ? 'text-charcoal-50' : 'text-charcoal-400'
+              )}>
+                {s === 'cart' ? 'Cart' : 'Payment'}
+              </span>
+              {i === 0 && <div className={cn('flex-1 h-px mx-2', cartStep === 'payment' ? 'bg-gold-700' : 'bg-charcoal-600')} />}
+            </div>
+          ))}
+          {/* Mobile: back to products */}
           <button
-            onClick={() => setMobileTab('products')}
-            className="flex items-center gap-1.5 text-sm text-charcoal-200 hover:text-charcoal-50 transition-colors"
+            onClick={() => { setMobileTab('products'); setCartStep('cart'); }}
+            className="lg:hidden text-charcoal-300 hover:text-charcoal-50 ml-2 flex-shrink-0"
           >
-            <ChevronLeft size={16} />
-            Back to Products
+            <ChevronLeft size={18} />
           </button>
         </div>
 
-        {/* Cart header */}
-        <div className="p-4 border-b border-charcoal-500 flex-shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-charcoal-50 flex items-center gap-2">
-              <ShoppingCart size={18} className="text-gold-400" />
-              Cart
-              {cartItems.length > 0 && (
-                <span className="bg-gold-600 text-charcoal-900 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {cartItems.length}
-                </span>
-              )}
-            </h3>
-            {cartItems.length > 0 && (
-              <button onClick={clearCart} className="text-xs text-charcoal-200 hover:text-red-400 transition-colors">Clear</button>
-            )}
-          </div>
+        <AnimatePresence mode="wait">
 
-          {/* Customer */}
-          <div className="relative">
-            <Input
-              value={customerSearch || customerName || ''}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              placeholder="Customer (optional)..."
-              icon={<User size={14} />}
-              className="text-sm"
-              iconRight={customerId ? <button onClick={() => { setCustomer(null, null); setCustomerSearch(''); }}><X size={14} /></button> : undefined}
-            />
-            {customerSearch.length > 1 && customerResults && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-20 overflow-hidden">
-                {customerResults.map((c: any) => (
-                  <button key={c.id} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-charcoal-600 transition-colors"
-                    onClick={() => { setCustomer(c.id, c.name); setCustomerSearch(''); }}
-                  >
-                    <span className="text-sm text-charcoal-50">{c.name}</span>
-                    <span className="text-xs text-charcoal-200 ml-auto">{c.phone}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Cart items */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-          <AnimatePresence>
-            {cartItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-charcoal-300 py-12">
-                <ShoppingCart size={40} className="mb-3 opacity-30" />
-                <p className="text-sm">Cart is empty</p>
-                <p className="text-xs mt-1 text-charcoal-400">Add products or scan a barcode</p>
-              </div>
-            ) : (
-              cartItems.map((item) => (
-                <motion.div
-                  key={item.variantId}
-                  layout
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="bg-charcoal-700 border border-charcoal-500 rounded-xl p-3"
-                >
-                  <div className="flex items-start gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-charcoal-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <Package size={14} className="text-charcoal-300" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-charcoal-50 truncate">{item.productName}</p>
-                      {(item.size || item.color) && (
-                        <p className="text-xs text-charcoal-200">{[item.size, item.color].filter(Boolean).join(' / ')}</p>
-                      )}
-                      <p className="text-xs text-gold-500 mt-0.5">{formatCurrency(item.unitPrice)} each</p>
-                    </div>
-                    <button onClick={() => removeItem(item.variantId)} className="text-charcoal-300 hover:text-red-400 transition-colors flex-shrink-0">
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2.5">
-                    <div className="flex items-center gap-1 bg-charcoal-600 rounded-lg p-1">
-                      <button onClick={() => updateQuantity(item.variantId, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center text-charcoal-200 hover:text-charcoal-50">
-                        <Minus size={12} />
-                      </button>
-                      <span className="w-8 text-center text-sm font-medium text-charcoal-50">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.variantId, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center text-charcoal-200 hover:text-charcoal-50">
-                        <Plus size={12} />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1 flex-1">
-                      <Tag size={11} className="text-charcoal-300 flex-shrink-0" />
-                      <input
-                        type="number"
-                        value={item.discount || ''}
-                        onChange={(e) => updateDiscount(item.variantId, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="Disc."
-                        className="w-full bg-charcoal-600 border border-charcoal-400 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:ring-1 focus:ring-gold-600 focus:border-gold-600 outline-none"
-                        min="0"
-                      />
-                    </div>
-                    <span className="text-sm font-semibold text-gold-400 flex-shrink-0">
-                      {formatCurrency(item.subtotal)}
-                    </span>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ─── Inline Checkout Panel ─── */}
-        {cartItems.length > 0 && (
-          <div className="border-t border-charcoal-500 flex-shrink-0 bg-charcoal-800 p-3 space-y-3">
-
-            {/* Totals */}
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-charcoal-300">
-                <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Item Discounts</span><span>-{formatCurrency(discountAmount)}</span>
-                </div>
-              )}
-              {discount > 0 && (
-                <div className="flex justify-between text-emerald-400">
-                  <span>Cart Discount</span><span>-{formatCurrency(discount)}</span>
-                </div>
-              )}
-              {promoDiscount > 0 && selectedPromotion && (
-                <div className="flex justify-between text-emerald-400">
-                  <span className="truncate mr-2">{selectedPromotion.name}</span>
-                  <span className="flex-shrink-0">-{formatCurrency(promoDiscount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold text-base pt-1 border-t border-charcoal-600">
-                <span className="text-charcoal-50">Total</span>
-                <span className="text-gold-400">{formatCurrency(total)}</span>
-              </div>
-            </div>
-
-            {/* Cart discount + promotion */}
-            <div className="flex gap-2">
-              <Input
-                value={extraDiscount}
-                onChange={(e) => setExtraDiscount(e.target.value)}
-                onWheel={(e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur()}
-                placeholder="Cart discount (LKR)"
-                icon={<Tag size={13} />}
-                type="number"
-                min="0"
-                className="text-sm flex-1"
-              />
-            </div>
-
-            <PromotionSelector
-              scope="pos"
-              cartSubtotal={subtotal}
-              cartItems={cartItems.map(i => ({ unitPrice: i.unitPrice, quantity: i.quantity }))}
-              selectedId={selectedPromotion?.id ?? null}
-              onSelect={setSelectedPromotion}
-            />
-
-            {/* Payment Method Tiles */}
-            <div>
-              <p className="text-xs font-medium text-charcoal-300 mb-1.5">Payment Method</p>
-              <div className="grid grid-cols-4 gap-1.5">
-                {PAYMENT_METHODS.map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setPaymentMethod(value)}
-                    className={cn(
-                      'flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl border-2 transition-all',
-                      paymentMethod === value
-                        ? 'border-gold-500 bg-gold-700/20 text-gold-400'
-                        : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+          {/* ══ STEP 1: Cart ══ */}
+          {cartStep === 'cart' && (
+            <motion.div
+              key="cart"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.18 }}
+              className="flex flex-col flex-1 min-h-0"
+            >
+              {/* Customer */}
+              <div className="px-4 pt-3 pb-3 border-b border-charcoal-500 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-charcoal-50 flex items-center gap-2 text-sm">
+                    <ShoppingCart size={15} className="text-gold-400" />
+                    Cart
+                    {cartItems.length > 0 && (
+                      <span className="bg-gold-600 text-charcoal-900 text-xs font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                        {cartItems.length}
+                      </span>
                     )}
-                  >
-                    <Icon size={18} />
-                    <span className="text-[10px] font-medium text-center leading-tight">{label}</span>
-                  </button>
-                ))}
+                  </h3>
+                  {cartItems.length > 0 && (
+                    <button onClick={() => { clearCart(); setExtraDiscount(''); setSelectedPromotion(null); }} className="text-xs text-charcoal-300 hover:text-red-400 transition-colors">Clear</button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    value={customerSearch || customerName || ''}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Customer (optional)..."
+                    icon={<User size={14} />}
+                    className="text-sm"
+                    iconRight={customerId ? <button onClick={() => { setCustomer(null, null); setCustomerSearch(''); }}><X size={14} /></button> : undefined}
+                  />
+                  {customerSearch.length > 1 && customerResults && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-20 overflow-hidden">
+                      {customerResults.map((c: any) => (
+                        <button key={c.id} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-charcoal-600 transition-colors"
+                          onClick={() => { setCustomer(c.id, c.name); setCustomerSearch(''); }}
+                        >
+                          <span className="text-sm text-charcoal-50">{c.name}</span>
+                          <span className="text-xs text-charcoal-200 ml-auto">{c.phone}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Cash: amount paid + change */}
-            {isCash && (
-              <div className="space-y-2">
-                <Input
-                  label="Amount Paid (LKR)"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
-                  onWheel={(e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur()}
-                  placeholder={total.toFixed(2)}
-                />
-                {paidAmount > total && (
-                  <div className="flex justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm">
-                    <span className="text-charcoal-200">Change</span>
-                    <span className="text-emerald-400 font-semibold">{formatCurrency(change)}</span>
+              {/* Cart items */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                <AnimatePresence>
+                  {cartItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-charcoal-300 py-12">
+                      <ShoppingCart size={40} className="mb-3 opacity-30" />
+                      <p className="text-sm">Cart is empty</p>
+                      <p className="text-xs mt-1 text-charcoal-400">Add products or scan a barcode</p>
+                    </div>
+                  ) : (
+                    cartItems.map((item) => (
+                      <motion.div
+                        key={item.variantId}
+                        layout
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="bg-charcoal-700 border border-charcoal-500 rounded-xl p-3"
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="w-9 h-9 rounded-lg bg-charcoal-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {item.image ? <img src={item.image} alt="" className="w-full h-full object-cover" /> : <Package size={13} className="text-charcoal-300" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-charcoal-50 truncate">{item.productName}</p>
+                            {(item.size || item.color) && (
+                              <p className="text-xs text-charcoal-200">{[item.size, item.color].filter(Boolean).join(' / ')}</p>
+                            )}
+                            <p className="text-xs text-gold-500">{formatCurrency(item.unitPrice)} each</p>
+                          </div>
+                          <button onClick={() => removeItem(item.variantId)} className="text-charcoal-300 hover:text-red-400 transition-colors flex-shrink-0">
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-1 bg-charcoal-600 rounded-lg p-1">
+                            <button onClick={() => updateQuantity(item.variantId, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center text-charcoal-200 hover:text-charcoal-50">
+                              <Minus size={12} />
+                            </button>
+                            <span className="w-7 text-center text-sm font-medium text-charcoal-50">{item.quantity}</span>
+                            <button onClick={() => updateQuantity(item.variantId, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center text-charcoal-200 hover:text-charcoal-50">
+                              <Plus size={12} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 flex-1">
+                            <Tag size={11} className="text-charcoal-300 flex-shrink-0" />
+                            <input
+                              type="number"
+                              value={item.discount || ''}
+                              onChange={(e) => updateDiscount(item.variantId, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              placeholder="Disc."
+                              className="w-full bg-charcoal-600 border border-charcoal-400 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:ring-1 focus:ring-gold-600 focus:border-gold-600 outline-none"
+                              min="0"
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-gold-400 flex-shrink-0">{formatCurrency(item.subtotal)}</span>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Cart footer */}
+              {cartItems.length > 0 && (
+                <div className="border-t border-charcoal-500 p-3 space-y-2.5 flex-shrink-0 bg-charcoal-800">
+                  {/* Discount + promo */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={extraDiscount}
+                      onChange={(e) => setExtraDiscount(e.target.value)}
+                      onWheel={(e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur()}
+                      placeholder="Cart discount (LKR)"
+                      icon={<Tag size={13} />}
+                      type="number"
+                      min="0"
+                      className="text-sm flex-1"
+                    />
+                  </div>
+                  <PromotionSelector
+                    scope="pos"
+                    cartSubtotal={subtotal}
+                    cartItems={cartItems.map(i => ({ unitPrice: i.unitPrice, quantity: i.quantity }))}
+                    selectedId={selectedPromotion?.id ?? null}
+                    onSelect={setSelectedPromotion}
+                  />
+                  {/* Total */}
+                  <div className="flex justify-between items-center pt-1 border-t border-charcoal-600">
+                    <span className="text-sm text-charcoal-200">
+                      {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
+                    </span>
+                    <span className="text-lg font-bold text-gold-400">{formatCurrency(total)}</span>
+                  </div>
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    onClick={() => setCartStep('payment')}
+                    icon={<CreditCard size={16} />}
+                  >
+                    Proceed to Payment
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ══ STEP 2: Payment ══ */}
+          {cartStep === 'payment' && (
+            <motion.div
+              key="payment"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.18 }}
+              className="flex flex-col flex-1 min-h-0 overflow-y-auto"
+            >
+              <div className="p-4 space-y-4">
+
+                {/* Order summary */}
+                <div className="p-3 bg-charcoal-700/60 rounded-xl space-y-1.5 text-sm">
+                  <p className="text-xs font-medium text-charcoal-300 uppercase tracking-wide mb-2">Order Summary</p>
+                  {cartItems.map((item) => (
+                    <div key={item.variantId} className="flex justify-between text-charcoal-200">
+                      <span className="truncate mr-2">{item.productName} ×{item.quantity}</span>
+                      <span className="flex-shrink-0">{formatCurrency(item.subtotal)}</span>
+                    </div>
+                  ))}
+                  <div className="pt-1.5 border-t border-charcoal-600 space-y-1">
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span>Item Discounts</span><span>-{formatCurrency(discountAmount)}</span>
+                      </div>
+                    )}
+                    {discount > 0 && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span>Cart Discount</span><span>-{formatCurrency(discount)}</span>
+                      </div>
+                    )}
+                    {promoDiscount > 0 && selectedPromotion && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span className="truncate mr-2">{selectedPromotion.name}</span>
+                        <span className="flex-shrink-0">-{formatCurrency(promoDiscount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-base pt-0.5">
+                      <span className="text-charcoal-50">Total</span>
+                      <span className="text-gold-400">{formatCurrency(total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Method Tiles */}
+                <div>
+                  <p className="text-sm font-medium text-charcoal-200 mb-2">Payment Method</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {PAYMENT_METHODS.map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setPaymentMethod(value)}
+                        className={cn(
+                          'flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all',
+                          paymentMethod === value
+                            ? 'border-gold-500 bg-gold-700/20 text-gold-400'
+                            : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                        )}
+                      >
+                        <Icon size={20} />
+                        <span className="text-[10px] font-medium text-center leading-tight">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cash: amount paid + change */}
+                {isCash && (
+                  <div className="space-y-2">
+                    <Input
+                      label="Amount Paid (LKR)"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(e.target.value)}
+                      onWheel={(e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur()}
+                      placeholder={total.toFixed(2)}
+                    />
+                    {paidAmount > total && (
+                      <div className="flex justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm">
+                        <span className="text-charcoal-200">Change</span>
+                        <span className="text-emerald-400 font-bold">{formatCurrency(change)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Notes toggle */}
+                <button
+                  onClick={() => setShowNotes(!showNotes)}
+                  className="flex items-center gap-1.5 text-xs text-charcoal-300 hover:text-charcoal-100 transition-colors"
+                >
+                  <StickyNote size={12} />
+                  {showNotes ? 'Hide notes' : 'Add notes'}
+                </button>
+                {showNotes && (
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Order notes..."
+                    className="text-sm"
+                  />
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setCartStep('cart')}
+                    icon={<ChevronLeft size={15} />}
+                    className="flex-shrink-0"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="flex-1"
+                    onClick={handleCheckout}
+                    loading={checkoutMutation.isPending}
+                    icon={<CheckCircle size={16} />}
+                  >
+                    Complete Sale
+                  </Button>
+                </div>
+
               </div>
-            )}
+            </motion.div>
+          )}
 
-            {/* Notes toggle */}
-            <button
-              onClick={() => setShowNotes(!showNotes)}
-              className="flex items-center gap-1.5 text-xs text-charcoal-300 hover:text-charcoal-100 transition-colors"
-            >
-              <StickyNote size={12} />
-              {showNotes ? 'Hide notes' : 'Add notes'}
-            </button>
-            {showNotes && (
-              <Input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Order notes..."
-                className="text-sm"
-              />
-            )}
-
-            {/* Checkout button */}
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={handleCheckout}
-              loading={checkoutMutation.isPending}
-              icon={<CheckCircle size={18} />}
-            >
-              Complete Sale — {formatCurrency(total)}
-            </Button>
-          </div>
-        )}
+        </AnimatePresence>
       </div>
 
       {/* ─── Variant Picker ─── */}
