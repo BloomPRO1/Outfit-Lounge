@@ -226,29 +226,22 @@ export default function NotificationsPage() {
             placeholder="Search customer, booking..."
             className="flex-1 min-w-48"
           />
-          <Select
-            options={[
-              { value: '', label: 'All Channels' },
-              { value: 'sms', label: 'SMS' },
-              { value: 'whatsapp', label: 'WhatsApp' },
-              { value: 'email', label: 'Email' },
-              { value: 'system', label: 'System' },
-            ]}
-            value={channelFilter}
-            onChange={(e) => { setChannelFilter(e.target.value); setPage(1); }}
-            className="w-40"
-          />
-          <Select
-            options={[
-              { value: '', label: 'All Statuses' },
-              { value: 'sent', label: 'Sent' },
-              { value: 'pending', label: 'Pending' },
-              { value: 'failed', label: 'Failed' },
-            ]}
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            className="w-40"
-          />
+          <div className="flex flex-wrap gap-1.5">
+            {[{ value: '', label: 'All' }, { value: 'sms', label: 'SMS' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'email', label: 'Email' }, { value: 'system', label: 'System' }].map(o => (
+              <button key={o.value} type="button" onClick={() => { setChannelFilter(o.value); setPage(1); }}
+                className={cn('px-3 py-1.5 rounded-xl border-2 text-xs font-medium transition-all',
+                  channelFilter === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                )}>{o.label}</button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {[{ value: '', label: 'All' }, { value: 'sent', label: 'Sent' }, { value: 'pending', label: 'Pending' }, { value: 'failed', label: 'Failed' }].map(o => (
+              <button key={o.value} type="button" onClick={() => { setStatusFilter(o.value); setPage(1); }}
+                className={cn('px-3 py-1.5 rounded-xl border-2 text-xs font-medium transition-all',
+                  statusFilter === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                )}>{o.label}</button>
+            ))}
+          </div>
         </div>
       </Card>
 
@@ -303,16 +296,17 @@ export default function NotificationsPage() {
             onChange={(e) => setForm({ ...form, customerId: e.target.value })}
           />
 
-          <Select
-            label="Channel"
-            options={[
-              { value: 'sms', label: 'SMS' },
-              { value: 'whatsapp', label: 'WhatsApp' },
-              { value: 'email', label: 'Email' },
-            ]}
-            value={form.channel}
-            onChange={(e) => setForm({ ...form, channel: e.target.value })}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Channel</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[{ value: 'sms', label: 'SMS' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'email', label: 'Email' }].map(o => (
+                <button key={o.value} type="button" onClick={() => setForm({ ...form, channel: o.value })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    form.channel === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
 
           {selectedCustomer && recipientDisplay && (
             <Input
@@ -328,12 +322,17 @@ export default function NotificationsPage() {
             </p>
           )}
 
-          <Select
-            label="Notification Type"
-            options={NOTIFICATION_TYPES.map((t) => ({ value: t, label: t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) }))}
-            value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Notification Type</label>
+            <div className="grid grid-cols-2 gap-2">
+              {NOTIFICATION_TYPES.map(t => (
+                <button key={t} type="button" onClick={() => setForm({ ...form, type: t })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-xs font-medium transition-all text-center leading-snug',
+                    form.type === t ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</button>
+              ))}
+            </div>
+          </div>
 
           <Textarea
             label="Message"

@@ -503,17 +503,16 @@ export default function AnalyticsPage() {
                     onChange={(e) => setAddForm({ ...addForm, amount: e.target.value })}
                     placeholder="e.g. 50000"
                   />
-                  <div>
-                    <label className="block text-xs font-medium text-charcoal-200 mb-1.5">Category</label>
-                    <select
-                      value={addForm.category}
-                      onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
-                      className="w-full bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2.5 text-sm text-charcoal-100 focus:ring-2 focus:ring-gold-600 focus:border-gold-600 outline-none"
-                    >
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-charcoal-200">Category</label>
+                    <div className="grid grid-cols-2 gap-1.5">
                       {Object.entries(CATEGORY_LABELS).map(([val, lbl]) => (
-                        <option key={val} value={val}>{lbl}</option>
+                        <button key={val} type="button" onClick={() => setAddForm({ ...addForm, category: val })}
+                          className={cn('px-2 py-2 rounded-xl border-2 text-xs font-medium transition-all text-center',
+                            addForm.category === val ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                          )}>{lbl}</button>
                       ))}
-                    </select>
+                    </div>
                   </div>
                   <Input
                     label="Note (optional)"

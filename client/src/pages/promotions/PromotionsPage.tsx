@@ -443,32 +443,38 @@ export default function PromotionsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Type"
-              required
-              value={form.type}
-              onChange={e => { setField('type', e.target.value); setField('free_variant_id', ''); setField('free_variant_label', ''); }}
-              options={[
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Type <span className="text-red-400">*</span></label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
                 { value: 'percentage',  label: 'Percentage Off' },
                 { value: 'flat_amount', label: 'Flat Amount Off' },
-                { value: 'buy_x_get_y', label: 'Buy X Get Y Free' },
+                { value: 'buy_x_get_y', label: 'Buy X Get Y' },
                 { value: 'free_item',   label: 'Free Item / Gift' },
-              ]}
-              placeholder="Select type…"
-              disabled={!!editingId}
-            />
-            <Select
-              label="Applies To"
-              required
-              value={form.scope}
-              onChange={e => setField('scope', e.target.value as PromotionScope)}
-              options={[
+              ].map(o => (
+                <button key={o.value} type="button" disabled={!!editingId}
+                  onClick={() => { setField('type', o.value); setField('free_variant_id', ''); setField('free_variant_label', ''); }}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center disabled:opacity-40',
+                    form.type === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Applies To <span className="text-red-400">*</span></label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
                 { value: 'both',   label: 'POS & Rentals' },
                 { value: 'pos',    label: 'POS Only' },
                 { value: 'rental', label: 'Rentals Only' },
-              ]}
-            />
+              ].map(o => (
+                <button key={o.value} type="button"
+                  onClick={() => setField('scope', o.value as PromotionScope)}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    form.scope === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
           </div>
 
           {/* Type-specific fields */}

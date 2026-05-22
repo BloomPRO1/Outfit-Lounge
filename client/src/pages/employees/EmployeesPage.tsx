@@ -447,15 +447,16 @@ export default function EmployeesPage() {
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-charcoal-200 mb-1.5">Leave Type</label>
-            <select
-              value={leaveForm.leaveType}
-              onChange={e => setLeaveForm(f => ({ ...f, leaveType: e.target.value }))}
-              className="w-full bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2.5 text-sm text-charcoal-100 focus:ring-2 focus:ring-gold-600 outline-none"
-            >
-              {LEAVE_TYPES.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)} Leave</option>)}
-            </select>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-charcoal-200">Leave Type</label>
+            <div className="grid grid-cols-2 gap-2">
+              {LEAVE_TYPES.map(t => (
+                <button key={t} type="button" onClick={() => setLeaveForm(f => ({ ...f, leaveType: t }))}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center capitalize',
+                    leaveForm.leaveType === t ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{t} Leave</button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="Start Date" type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(f => ({ ...f, startDate: e.target.value }))} />

@@ -545,24 +545,37 @@ export default function RentalDetailPage() {
       >
         <div className="space-y-4">
           <Input label="Amount (LKR)" type="number" step="0.01" min="0" value={payment.amount} onChange={(e) => setPayment({ ...payment, amount: e.target.value })} placeholder="0.00" required />
-          <div className="flex flex-col gap-1.5">
+          <div className="space-y-1.5">
             <label className="text-sm font-medium text-charcoal-100">Payment Method</label>
-            <select className="input-dark w-full" value={payment.paymentMethod} onChange={(e) => setPayment({ ...payment, paymentMethod: e.target.value })}>
-              {['cash', 'card', 'mobile_payment', 'bank_transfer'].map(m => (
-                <option key={m} value={m} className="bg-charcoal-600 capitalize">{m.replace('_', ' ')}</option>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: 'cash',           label: 'Cash' },
+                { value: 'card',           label: 'Card' },
+                { value: 'mobile_payment', label: 'Mobile Pay' },
+                { value: 'bank_transfer',  label: 'Bank Transfer' },
+              ].map(o => (
+                <button key={o.value} type="button" onClick={() => setPayment({ ...payment, paymentMethod: o.value })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    payment.paymentMethod === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
               ))}
-            </select>
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="space-y-1.5">
             <label className="text-sm font-medium text-charcoal-100">Payment Type</label>
-            <select className="input-dark w-full" value={payment.paymentType} onChange={(e) => setPayment({ ...payment, paymentType: e.target.value })}>
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { value: 'balance', label: 'Balance' },
                 { value: 'advance', label: 'Advance' },
                 { value: 'fine',    label: 'Fine' },
                 { value: 'refund',  label: 'Refund' },
-              ].map(o => <option key={o.value} value={o.value} className="bg-charcoal-600">{o.label}</option>)}
-            </select>
+              ].map(o => (
+                <button key={o.value} type="button" onClick={() => setPayment({ ...payment, paymentType: o.value })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    payment.paymentType === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
           </div>
           <Input label="Notes" value={payment.notes} onChange={(e) => setPayment({ ...payment, notes: e.target.value })} placeholder="Optional notes..." />
         </div>

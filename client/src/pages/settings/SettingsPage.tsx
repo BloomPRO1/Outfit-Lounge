@@ -131,29 +131,29 @@ function ShopSettings({ settings, onSave, saving }: { settings: any; onSave: (u:
           <Input label="Shop Name" value={s('shop_name', 'The Outfit Lounge')} onChange={(e) => setForm({ ...form, shop_name: e.target.value })} placeholder="The Outfit Lounge" />
           <Input label="Phone" value={s('shop_phone')} onChange={(e) => setForm({ ...form, shop_phone: e.target.value })} placeholder="+94123456789" />
           <Input label="Email" type="email" value={s('shop_email')} onChange={(e) => setForm({ ...form, shop_email: e.target.value })} placeholder="shop@example.com" />
-          <Select
-            label="Currency"
-            options={[
-              { value: 'LKR', label: 'LKR — Sri Lankan Rupee' },
-              { value: 'USD', label: 'USD — US Dollar' },
-              { value: 'EUR', label: 'EUR — Euro' },
-              { value: 'SGD', label: 'SGD — Singapore Dollar' },
-            ]}
-            value={s('currency', 'LKR')}
-            onChange={(e) => setForm({ ...form, currency: e.target.value })}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Currency</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ value: 'LKR', label: 'LKR — Sri Lankan Rupee' }, { value: 'USD', label: 'USD — US Dollar' }, { value: 'EUR', label: 'EUR — Euro' }, { value: 'SGD', label: 'SGD — Singapore Dollar' }].map(o => (
+                <button key={o.value} type="button" onClick={() => setForm({ ...form, currency: o.value })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    s('currency','LKR') === o.value || form.currency === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
           <Input label="Currency Symbol" value={s('currency_symbol', 'LKR')} onChange={(e) => setForm({ ...form, currency_symbol: e.target.value })} placeholder="LKR" />
-          <Select
-            label="Timezone"
-            options={[
-              { value: 'Asia/Colombo', label: 'Asia/Colombo (GMT+5:30)' },
-              { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (GMT+8)' },
-              { value: 'Asia/Singapore', label: 'Asia/Singapore (GMT+8)' },
-              { value: 'UTC', label: 'UTC' },
-            ]}
-            value={s('timezone', 'Asia/Kuala_Lumpur')}
-            onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Timezone</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ value: 'Asia/Colombo', label: 'Asia/Colombo (GMT+5:30)' }, { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (GMT+8)' }, { value: 'Asia/Singapore', label: 'Asia/Singapore (GMT+8)' }, { value: 'UTC', label: 'UTC' }].map(o => (
+                <button key={o.value} type="button" onClick={() => setForm({ ...form, timezone: o.value })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    (form.timezone ?? s('timezone','Asia/Kuala_Lumpur')) === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
         </div>
         <Input label="Address" value={s('shop_address')} onChange={(e) => setForm({ ...form, shop_address: e.target.value })} placeholder="123 Main Street, Kuala Lumpur" />
         <Input label="Receipt Footer Message" value={s('receipt_footer', 'Thank you for your business!')} onChange={(e) => setForm({ ...form, receipt_footer: e.target.value })} placeholder="Thank you for your business!" />
@@ -181,16 +181,17 @@ function RentalSettings({ settings, onSave, saving }: { settings: any; onSave: (
           <Input label="Maximum Rental Days" type="number" min="1" value={get('max_rental_days', '30')} onChange={(e) => set('max_rental_days', e.target.value)} />
           <Input label="Default Advance Payment (%)" type="number" min="0" max="100" value={get('default_advance_percent', '30')} onChange={(e) => set('default_advance_percent', e.target.value)} hint="Percentage of total rental cost" />
           <Input label="Booking Number Prefix" value={get('booking_prefix', 'TS')} onChange={(e) => set('booking_prefix', e.target.value)} placeholder="TS" />
-          <Select
-            label="Booking Number Year Format"
-            options={[
-              { value: 'full', label: 'Full year (TS-2024-0001)' },
-              { value: 'short', label: 'Short year (TS-24-0001)' },
-              { value: 'none', label: 'No year (TS-0001)' },
-            ]}
-            value={get('booking_year_format', 'full')}
-            onChange={(e) => set('booking_year_format', e.target.value)}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Booking Number Year Format</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[{ value: 'full', label: 'Full year' }, { value: 'short', label: 'Short year' }, { value: 'none', label: 'No year' }].map(o => (
+                <button key={o.value} type="button" onClick={() => set('booking_year_format', o.value)}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    get('booking_year_format','full') === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="flex justify-end pt-2">
           <Button variant="primary" onClick={() => onSave({ ...form })} loading={saving}>Save Changes</Button>
@@ -237,17 +238,17 @@ function FineSettings({ settings, onSave, saving }: { settings: any; onSave: (u:
             onChange={(e) => set('max_fine_amount', e.target.value)}
             hint="0 = no cap"
           />
-          <Select
-            label="Fine Multiplier for Damage"
-            options={[
-              { value: '1', label: '1× (no multiplier)' },
-              { value: '2', label: '2× fine rate' },
-              { value: '3', label: '3× fine rate' },
-              { value: '5', label: '5× fine rate' },
-            ]}
-            value={get('damage_fine_multiplier', '2')}
-            onChange={(e) => set('damage_fine_multiplier', e.target.value)}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Fine Multiplier for Damage</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[{ value: '1', label: '1×' }, { value: '2', label: '2×' }, { value: '3', label: '3×' }, { value: '5', label: '5×' }].map(o => (
+                <button key={o.value} type="button" onClick={() => set('damage_fine_multiplier', o.value)}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    get('damage_fine_multiplier','2') === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="p-4 bg-charcoal-600/40 rounded-xl">
@@ -262,16 +263,17 @@ function FineSettings({ settings, onSave, saving }: { settings: any; onSave: (u:
         <div className="pt-2 border-t border-charcoal-500">
           <p className="text-sm font-semibold text-charcoal-100 mb-4">Damage Charges</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select
-              label="Damage Charge Type"
-              options={[
-                { value: 'none',                label: 'No charge' },
-                { value: 'flat',                label: 'Flat amount per item' },
-                { value: 'percentage_of_rental', label: '% of item rental cost' },
-              ]}
-              value={get('damage_charge_type', 'none')}
-              onChange={(e) => set('damage_charge_type', e.target.value)}
-            />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-charcoal-100">Damage Charge Type</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[{ value: 'none', label: 'No charge' }, { value: 'flat', label: 'Flat amount' }, { value: 'percentage_of_rental', label: '% of rental' }].map(o => (
+                  <button key={o.value} type="button" onClick={() => set('damage_charge_type', o.value)}
+                    className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                      get('damage_charge_type','none') === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                    )}>{o.label}</button>
+                ))}
+              </div>
+            </div>
             {get('damage_charge_type', 'none') === 'flat' && (
               <Input
                 label="Flat Charge per Damaged Item (LKR)"
@@ -573,17 +575,17 @@ function UserManagement() {
           <Input label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" required />
           <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="john@example.com" required disabled={!!editingUser} />
           <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+60123456789" />
-          <Select
-            label="Role"
-            options={[
-              { value: 'cashier', label: 'Cashier' },
-              { value: 'inventory_staff', label: 'Inventory Staff' },
-              { value: 'manager', label: 'Manager' },
-              { value: 'super_admin', label: 'Super Admin' },
-            ]}
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
-          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Role</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ value: 'cashier', label: 'Cashier' }, { value: 'inventory_staff', label: 'Inventory Staff' }, { value: 'manager', label: 'Manager' }, { value: 'super_admin', label: 'Super Admin' }].map(o => (
+                <button key={o.value} type="button" onClick={() => setForm({ ...form, role: o.value as UserRole })}
+                  className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                    form.role === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                  )}>{o.label}</button>
+              ))}
+            </div>
+          </div>
           <Input
             label={editingUser ? 'New Password (leave blank to keep)' : 'Password'}
             type="password"
