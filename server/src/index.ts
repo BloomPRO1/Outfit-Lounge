@@ -41,7 +41,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), env.UPLOAD_DIR)));
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
+  res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.1.0-wa-qr' });
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
