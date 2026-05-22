@@ -162,7 +162,13 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
     }
 
     // ── Build message text ─────────────────────────────────────────────────────
-    // Compact detail lines only (no emoji banner, no closing line)
+    // Short message for WhatsApp modes that auto-attach the PDF
+    const shortMessage =
+      `Thank you for choosing ${shopName}!\n\n` +
+      `Please find your invoice attached to this message.\n\n` +
+      `Regards,\n${shopName}`;
+
+    // Full message with details for SMS / wa.me link (no PDF auto-attached)
     const detailText = type === 'pos'
       ? await buildPOSInvoiceText(referenceId)
       : await buildRentalInvoiceText(referenceId);
@@ -189,12 +195,12 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
           return;
         }
         const entry = getStoredInvoice(token)!;
-        await sendWADocument(phone, entry.buffer, entry.filename, fullMessage);
+        await sendWADocument(phone, entry.buffer, entry.filename, shortMessage);
         if (customerId) {
           await sendNotification({
             rentalId: rentalIdForLog, customerId,
             type: `${type}_invoice`, channel: 'whatsapp',
-            recipient: phone, message: fullMessage,
+            recipient: phone, message: shortMessage,
           }).catch(() => {});
         }
         res.json({ sent: true });
@@ -207,7 +213,7 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
           to: phone,
           documentUrl: pdfUrl,
           filename: type === 'pos' ? 'Receipt.pdf' : 'RentalInvoice.pdf',
-          caption: fullMessage,
+          caption: shortMessage,
           phoneNumberId: cloudId,
           accessToken: cloudToken,
         });
@@ -215,7 +221,7 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
           await sendNotification({
             rentalId: rentalIdForLog, customerId,
             type: `${type}_invoice`, channel: 'whatsapp',
-            recipient: phone, message: fullMessage,
+            recipient: phone, message: shortMessage,
           }).catch(() => {});
         }
         res.json({ sent: true });
@@ -310,17 +316,13 @@ export async function autoSendWAInvoice(
   const entry = getStoredInvoice(token);
   if (!entry) throw new Error('PDF generation returned empty entry');
 
-  // Build message
+  // Build short caption (PDF attachment contains full details)
   const shopRes = await db.query(`SELECT value FROM settings WHERE key = 'shop_name'`);
-  const shopName = shopRes.rows[0]?.value || 'The Royale Lounge';
-  const detailText = type === 'pos'
-    ? await buildPOSInvoiceText(refId)
-    : await buildRentalInvoiceText(refId);
+  const shopName = shopRes.rows[0]?.value || 'The Outfit Lounge';
   const caption =
-    `We are pleased to have you as a valuable customer. ` +
-    `Please find the details of your transaction.\n\n` +
-    `${detailText}\n\n` +
-    `Thanks for doing business with us.\nRegards,\n${shopName}`;
+    `Thank you for choosing ${shopName}!\n\n` +
+    `Please find your invoice attached to this message.\n\n` +
+    `Regards,\n${shopName}`;
 
   // Send PDF as document
   await sendWADocument(phone, entry.buffer, entry.filename, caption);
