@@ -110,70 +110,60 @@ export default function SettingsPage() {
 
 // ─── Shop Info ──────────────────────────────────────────────────────────────
 function ShopSettings({ settings, onSave, saving }: { settings: any; onSave: (u: Record<string, string>) => void; saving: boolean }) {
-  const [form, setForm] = useState({
-    shop_name: useSetting(settings, 'shop_name', 'The Outfit Lounge'),
-    shop_phone: useSetting(settings, 'shop_phone', ''),
-    shop_email: useSetting(settings, 'shop_email', ''),
-    shop_address: useSetting(settings, 'shop_address', ''),
-    shop_logo: useSetting(settings, 'shop_logo', ''),
-    currency: useSetting(settings, 'currency', 'LKR'),
-    currency_symbol: useSetting(settings, 'currency_symbol', 'LKR'),
-    timezone: useSetting(settings, 'timezone', 'Asia/Colombo'),
-    receipt_footer: useSetting(settings, 'receipt_footer', 'Thank you for your business!'),
-  });
-
-  // Update local state when settings load
   const s = (k: string, def = '') => settings?.[k]?.value ?? def;
+  const [form, setForm] = useState<Record<string, string>>({});
+  const get = (k: string, def = '') => form[k] !== undefined ? form[k] : s(k, def);
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   return (
     <Card>
       <h4 className="text-base font-semibold text-charcoal-50 mb-5">Shop Information</h4>
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label="Shop Name" value={s('shop_name', 'The Outfit Lounge')} onChange={(e) => setForm({ ...form, shop_name: e.target.value })} placeholder="The Outfit Lounge" />
-          <Input label="Phone" value={s('shop_phone')} onChange={(e) => setForm({ ...form, shop_phone: e.target.value })} placeholder="+94123456789" />
-          <Input label="Email" type="email" value={s('shop_email')} onChange={(e) => setForm({ ...form, shop_email: e.target.value })} placeholder="shop@example.com" />
+          <Input label="Shop Name" value={get('shop_name', 'The Outfit Lounge')} onChange={(e) => set('shop_name', e.target.value)} placeholder="The Outfit Lounge" />
+          <Input label="Phone" value={get('shop_phone')} onChange={(e) => set('shop_phone', e.target.value)} placeholder="+94123456789" />
+          <Input label="Email" type="email" value={get('shop_email')} onChange={(e) => set('shop_email', e.target.value)} placeholder="shop@example.com" />
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-charcoal-100">Currency</label>
             <div className="grid grid-cols-2 gap-2">
               {[{ value: 'LKR', label: 'LKR — Sri Lankan Rupee' }, { value: 'USD', label: 'USD — US Dollar' }, { value: 'EUR', label: 'EUR — Euro' }, { value: 'SGD', label: 'SGD — Singapore Dollar' }].map(o => (
-                <button key={o.value} type="button" onClick={() => setForm({ ...form, currency: o.value })}
+                <button key={o.value} type="button" onClick={() => set('currency', o.value)}
                   className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
-                    s('currency','LKR') === o.value || form.currency === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                    get('currency', 'LKR') === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
                   )}>{o.label}</button>
               ))}
             </div>
           </div>
-          <Input label="Currency Symbol" value={s('currency_symbol', 'LKR')} onChange={(e) => setForm({ ...form, currency_symbol: e.target.value })} placeholder="LKR" />
+          <Input label="Currency Symbol" value={get('currency_symbol', 'LKR')} onChange={(e) => set('currency_symbol', e.target.value)} placeholder="LKR" />
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-charcoal-100">Timezone</label>
             <div className="grid grid-cols-2 gap-2">
               {[{ value: 'Asia/Colombo', label: 'Asia/Colombo (GMT+5:30)' }, { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (GMT+8)' }, { value: 'Asia/Singapore', label: 'Asia/Singapore (GMT+8)' }, { value: 'UTC', label: 'UTC' }].map(o => (
-                <button key={o.value} type="button" onClick={() => setForm({ ...form, timezone: o.value })}
+                <button key={o.value} type="button" onClick={() => set('timezone', o.value)}
                   className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
-                    (form.timezone ?? s('timezone','Asia/Kuala_Lumpur')) === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                    get('timezone', 'Asia/Colombo') === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
                   )}>{o.label}</button>
               ))}
             </div>
           </div>
         </div>
-        <Input label="Address" value={s('shop_address')} onChange={(e) => setForm({ ...form, shop_address: e.target.value })} placeholder="123 Main Street, Kuala Lumpur" />
+        <Input label="Address" value={get('shop_address')} onChange={(e) => set('shop_address', e.target.value)} placeholder="123 Main Street" />
         <Input
           label="Shop Logo URL"
-          value={s('shop_logo')}
-          onChange={(e) => setForm({ ...form, shop_logo: e.target.value })}
+          value={get('shop_logo')}
+          onChange={(e) => set('shop_logo', e.target.value)}
           placeholder="https://example.com/logo.png"
           hint="Used in PDF invoices sent via WhatsApp"
         />
-        {s('shop_logo') && (
+        {get('shop_logo') && (
           <div className="flex items-center gap-3 p-3 bg-charcoal-600/40 rounded-xl">
-            <img src={s('shop_logo')} alt="Logo preview" className="h-10 w-auto max-w-[120px] object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <img src={get('shop_logo')} alt="Logo preview" className="h-10 w-auto max-w-[120px] object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <p className="text-xs text-charcoal-300">Logo preview</p>
           </div>
         )}
-        <Input label="Receipt Footer Message" value={s('receipt_footer', 'Thank you for your business!')} onChange={(e) => setForm({ ...form, receipt_footer: e.target.value })} placeholder="Thank you for your business!" />
+        <Input label="Receipt Footer Message" value={get('receipt_footer', 'Thank you for your business!')} onChange={(e) => set('receipt_footer', e.target.value)} placeholder="Thank you for your business!" />
         <div className="flex justify-end pt-2">
-          <Button variant="primary" onClick={() => onSave(form)} loading={saving}>Save Changes</Button>
+          <Button variant="primary" onClick={() => onSave({ ...form })} loading={saving}>Save Changes</Button>
         </div>
       </div>
     </Card>
