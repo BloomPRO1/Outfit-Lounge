@@ -209,15 +209,22 @@ export default function InventoryPage() {
             <Button variant="secondary" onClick={() => setShowMovementModal(false)}>Cancel</Button>
             <Button
               variant="primary"
-              onClick={() => recordMutation.mutate({
-                variantId: selectedVariant?.id,
-                type: movement.type,
-                stockType: movement.stockType,
-                quantity: parseInt(movement.quantity),
-                reason: movement.reason,
-              })}
+              onClick={() => {
+                const qty = parseInt(movement.quantity);
+                if (!selectedVariant?.id) { toast.error('No variant selected'); return; }
+                if (isNaN(qty) || (movement.type !== 'adjustment' && qty <= 0)) {
+                  toast.error('Enter a valid quantity'); return;
+                }
+                recordMutation.mutate({
+                  variantId: selectedVariant.id,
+                  type: movement.type,
+                  stockType: movement.stockType,
+                  quantity: qty,
+                  reason: movement.reason,
+                });
+              }}
               loading={recordMutation.isPending}
-              disabled={!movement.quantity}
+              disabled={movement.quantity === '' || isNaN(parseInt(movement.quantity))}
             >
               Record Movement
             </Button>
@@ -307,7 +314,7 @@ export default function InventoryPage() {
           <Input
             label={getQuantityLabel(movement.type, movement.stockType)}
             type="number"
-            min="0"
+            min={movement.type === 'adjustment' ? '0' : '1'}
             value={movement.quantity}
             onChange={(e) => setMovement({ ...movement, quantity: e.target.value })}
             placeholder="0"

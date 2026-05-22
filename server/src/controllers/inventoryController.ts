@@ -74,8 +74,12 @@ export async function recordMovement(req: AuthRequest, res: Response): Promise<v
   // For 'adjustment': determines whether stock_quantity or available_for_rent is set
   const { variantId, type, quantity, reason, stockType = 'sale' } = req.body;
 
-  if (!variantId || !type || !quantity) {
+  if (!variantId || !type || quantity === undefined || quantity === null || isNaN(Number(quantity))) {
     res.status(400).json({ error: 'variantId, type, and quantity are required' });
+    return;
+  }
+  if (type !== 'adjustment' && Number(quantity) <= 0) {
+    res.status(400).json({ error: 'Quantity must be greater than 0' });
     return;
   }
 
