@@ -119,46 +119,62 @@ export default function POSPage() {
   // ── Customer display ───────────────────────────────────────────────────────
   const displayWinRef = useRef<Window | null>(null);
 
-  // Open (or focus) the customer display window, placed on the second screen
-  // when the Window Management API is available (Chrome/Edge ≥ 100).
+  // Reposition an already-open window onto the second screen using the
+  // Window Management API (Chrome/Edge ≥ 100, requires "window-management" permission).
+  const repositionToSecondScreen = async (w: Window) => {
+    try {
+      if (!('getScreenDetails' in window)) return;
+      const sd = await (window as any).getScreenDetails();
+      const screens: any[] = sd.screens;
+      const target = screens.find((s: any) => !s.isPrimary) ?? screens[screens.length - 1];
+      w.moveTo(target.availLeft, target.availTop);
+      w.resizeTo(target.availWidth, target.availHeight);
+    } catch { /* API unavailable or permission denied */ }
+  };
+
+  // Open (or focus/reposition) the customer display window.
+  // Must be called from a user-gesture context so the browser allows the popup.
   const openCustomerDisplay = async () => {
-    // Re-use existing window if still open
     if (displayWinRef.current && !displayWinRef.current.closed) {
       displayWinRef.current.focus();
+      await repositionToSecondScreen(displayWinRef.current);
       return;
     }
-
-    let features = 'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0';
-
-    try {
-      // Window Management API — positions window on the second screen automatically
-      if ('getScreenDetails' in window) {
-        const screenDetails = await (window as any).getScreenDetails();
-        const screens: any[] = screenDetails.screens;
-        // Prefer the non-primary screen; fall back to last screen
-        const target = screens.find((s: any) => !s.isPrimary) ?? screens[screens.length - 1];
-        features = [
-          'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0',
-          `left=${target.availLeft}`,
-          `top=${target.availTop}`,
-          `width=${target.availWidth}`,
-          `height=${target.availHeight}`,
-        ].join(',');
-      }
-    } catch {
-      // API unavailable or permission denied — open without explicit positioning
-    }
-
-    const w = window.open('/customer-display', 'customer-display', features);
+    const w = window.open('/customer-display', 'customer-display',
+      'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0');
     displayWinRef.current = w;
-
-    if (!w) {
-      toast.error('Popup blocked. Allow popups for this site, then click the monitor icon.');
+    if (w) {
+      await repositionToSecondScreen(w);
     }
   };
 
-  // Auto-open on mount; browsers allow this when the site is trusted / popups are whitelisted
-  useEffect(() => { openCustomerDisplay(); }, []);
+  // Auto-open strategy:
+  //   1. Try immediately on mount — works when the site is already in the
+  //      browser's popup allow-list (e.g. after the user clicked "Allow" once).
+  //   2. If blocked (returns null), silently wait for the operator's first
+  //      interaction (keydown / pointerdown).  The very first barcode scan or
+  //      tap is enough — the customer display then opens automatically.
+  useEffect(() => {
+    // Attempt 1 — synchronous, no user gesture needed if site is trusted
+    const w = window.open('/customer-display', 'customer-display',
+      'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0');
+
+    if (w) {
+      displayWinRef.current = w;
+      repositionToSecondScreen(w);
+      return;
+    }
+
+    // Attempt 2 — popup was blocked; open on first operator interaction
+    const openOnFirstGesture = () => { openCustomerDisplay(); };
+    document.addEventListener('keydown',     openOnFirstGesture, { once: true, capture: true });
+    document.addEventListener('pointerdown', openOnFirstGesture, { once: true, capture: true });
+    return () => {
+      document.removeEventListener('keydown',     openOnFirstGesture, true);
+      document.removeEventListener('pointerdown', openOnFirstGesture, true);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Broadcast shop info when settings load
   const { data: shopSettings } = useQuery({
