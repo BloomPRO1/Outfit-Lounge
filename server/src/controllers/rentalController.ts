@@ -291,12 +291,12 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
     // Send booking confirmation notification
     const customerRes = await db.query(`SELECT * FROM customers WHERE id = $1`, [customerId]);
     const customer = customerRes.rows[0];
-    if (customer?.phone) {
+    if (customer?.phone || customer?.whatsapp) {
       const message = buildBookingConfirmationMessage({
         customerName: customer.name,
         bookingNumber,
-        startDate: rentalStartDate,
-        endDate: rentalEndDate,
+        startDate: fmtDate(rentalStartDate),
+        endDate: fmtDate(rentalEndDate),
         totalCost,
         advancePaid: advancePayment || 0,
       });
@@ -319,9 +319,27 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
   }
 }
 
+/** Format a pg DATE value (Date object or "YYYY-MM-DD" string) without timezone artefacts */
+function fmtDate(d: Date | string | null | undefined): string {
+  if (!d) return '';
+  const iso = d instanceof Date ? d.toISOString().split('T')[0] : String(d).split('T')[0];
+  const [y, m, day] = iso.split('-').map(Number);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${String(day).padStart(2,'0')} ${months[m - 1]} ${y}`;
+}
+
+/** Convert 24h "HH:MM" to "H:MM AM/PM" */
+function fmtTime(t: string): string {
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${mStr} ${ampm}`;
+}
+
 export async function updateRentalStatus(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params;
-  const { status, notes } = req.body;
+  const { status, notes, pickupTime } = req.body;
 
   const validStatuses = ['reserved', 'ready_for_pickup', 'picked_up', 'returned', 'late_return', 'completed', 'cancelled'];
   if (!validStatuses.includes(status)) {
@@ -372,25 +390,32 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
       );
       const customer = customerRes.rows[0];
 
-      if (customer?.phone) {
+      if (customer?.phone || customer?.whatsapp) {
         const isReady = status === 'ready_for_pickup';
         const totalCost = parseFloat(rental.total_rental_cost || '0');
         const discountAmt = parseFloat(rental.discount_amount || '0');
         const advance = parseFloat(rental.advance_payment || '0');
         const balance = totalCost - discountAmt - advance;
+
+        const pickupDateStr = fmtDate(rental.rental_start_date);
+        const returnDateStr = fmtDate(rental.rental_end_date);
+        const pickupDateWithTime = pickupTime
+          ? `${pickupDateStr} at ${fmtTime(pickupTime)}`
+          : pickupDateStr;
+
         const message = isReady
           ? buildReadyForPickupMessage({
               customerName: customer.name,
               bookingNumber: rental.booking_number,
-              pickupDate: rental.rental_start_date,
-              returnDate: rental.rental_end_date,
+              pickupDate: pickupDateWithTime,
+              returnDate: returnDateStr,
               advancePaid: advance,
               balanceAmount: balance,
             })
           : buildPickedUpMessage({
               customerName: customer.name,
               bookingNumber: rental.booking_number,
-              returnDate: rental.rental_end_date,
+              returnDate: returnDateStr,
             });
 
         await sendSmsAndWhatsapp({

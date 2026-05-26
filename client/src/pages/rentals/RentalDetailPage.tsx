@@ -102,6 +102,7 @@ export default function RentalDetailPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
   const [statusNotes, setStatusNotes] = useState('');
+  const [pickupTime, setPickupTime] = useState('');
   const [payment, setPayment] = useState({ amount: '', paymentMethod: 'cash', paymentType: 'balance', notes: '' });
 
   const { data: rental, isLoading } = useQuery({
@@ -111,12 +112,13 @@ export default function RentalDetailPage() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ status, notes }: { status: string; notes?: string }) =>
-      rentalService.updateStatus(id!, status, notes),
+    mutationFn: ({ status, notes, pickupTime: pt }: { status: string; notes?: string; pickupTime?: string }) =>
+      rentalService.updateStatus(id!, status, notes, pt),
     onSuccess: () => {
       toast.success('Status updated!');
       setConfirmStatus(null);
       setStatusNotes('');
+      setPickupTime('');
       qc.invalidateQueries({ queryKey: ['rental', id] });
       qc.invalidateQueries({ queryKey: ['rentals'] });
     },
@@ -499,16 +501,16 @@ export default function RentalDetailPage() {
       {/* ── Confirm Status Modal ─────────────────────────────────────────────── */}
       <Modal
         open={!!confirmStatus}
-        onClose={() => { setConfirmStatus(null); setStatusNotes(''); }}
+        onClose={() => { setConfirmStatus(null); setStatusNotes(''); setPickupTime(''); }}
         title={confirmStatus ? (NEXT_ACTION_LABELS[confirmStatus] ?? 'Update Status') : ''}
         variant="dialog"
         footer={
           <>
-            <Button variant="ghost" onClick={() => { setConfirmStatus(null); setStatusNotes(''); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setConfirmStatus(null); setStatusNotes(''); setPickupTime(''); }}>Cancel</Button>
             <Button
               variant={confirmStatus === 'cancelled' ? 'secondary' : 'primary'}
               className={confirmStatus === 'cancelled' ? 'border-red-500/40 text-red-400 hover:bg-red-900/20' : ''}
-              onClick={() => updateStatusMutation.mutate({ status: confirmStatus!, notes: statusNotes })}
+              onClick={() => updateStatusMutation.mutate({ status: confirmStatus!, notes: statusNotes, pickupTime })}
               loading={updateStatusMutation.isPending}
             >
               Confirm
@@ -528,6 +530,15 @@ export default function RentalDetailPage() {
             <ArrowRight size={14} className="text-charcoal-400" />
             {confirmStatus && <Badge status={confirmStatus as any} />}
           </div>
+          {confirmStatus === 'ready_for_pickup' && (
+            <Input
+              label="Pickup Time (optional)"
+              type="time"
+              value={pickupTime}
+              onChange={(e) => setPickupTime(e.target.value)}
+              hint="This time will be included in the notification sent to the customer"
+            />
+          )}
           <Input
             label="Notes (optional)"
             value={statusNotes}

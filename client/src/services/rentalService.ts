@@ -34,8 +34,8 @@ export const rentalService = {
     const { data } = await api.post('/rentals', payload);
     return data as Rental;
   },
-  updateStatus: async (id: string, status: string, notes?: string) => {
-    const { data } = await api.patch(`/rentals/${id}/status`, { status, notes });
+  updateStatus: async (id: string, status: string, notes?: string, pickupTime?: string) => {
+    const { data } = await api.patch(`/rentals/${id}/status`, { status, notes, pickupTime });
     return data as Rental;
   },
   addPayment: async (id: string, payload: any) => {
