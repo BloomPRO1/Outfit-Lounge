@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { rentalService } from '@/services/rentalService';
+import { customerDisplay } from '@/services/customerDisplayChannel';
 import { customerService } from '@/services/customerService';
 import { productService } from '@/services/productService';
 import { settingsService } from '@/services/settingsService';
@@ -103,6 +104,7 @@ export default function NewRentalPage() {
   const createRentalMutation = useMutation({
     mutationFn: rentalService.create,
     onSuccess: (data: any) => {
+      customerDisplay.sendIdle();
       toast.success(`Booking ${data.booking_number} created!`);
       qc.invalidateQueries({ queryKey: ['rentals'] });
       navigate(`/rentals/${data.id}`);
@@ -127,6 +129,25 @@ export default function NewRentalPage() {
     : 0;
   const manualDiscountAmt = parseFloat(manualDiscount || '0');
   const finalTotal = Math.max(0, totalCost - manualDiscountAmt - promoDiscount);
+
+  // Broadcast rental items to customer display in real-time
+  useEffect(() => {
+    if (cartItems.length === 0) return;
+    customerDisplay.sendRental(
+      cartItems.map(item => ({
+        productName: item.productName,
+        variantSku: item.sku,
+        variantLabel: item.variantInfo,
+        quantity: item.quantity,
+        unitPrice: item.rentalPricePerDay,
+        subtotal: item.rentalPricePerDay * item.quantity * rentalDays,
+      })),
+      finalTotal,
+      customer?.name || '',
+      rentalStartDate || '',
+      rentalEndDate   || ''
+    );
+  }, [cartItems, finalTotal, customer, rentalStartDate, rentalEndDate, rentalDays]);
 
   const addToCart = (variant: any, productName: string, lateFinePerDay = 0) => {
     const existing = cartItems.find((i) => i.variantId === variant.id);

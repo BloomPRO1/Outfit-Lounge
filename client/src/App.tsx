@@ -25,6 +25,7 @@ import ExpensesPage from './pages/expenses/ExpensesPage';
 import EmployeesPage from './pages/employees/EmployeesPage';
 import PayrollPage from './pages/payroll/PayrollPage';
 import PromotionsPage from './pages/promotions/PromotionsPage';
+import CustomerDisplayPage from './pages/pos/CustomerDisplayPage';
 
 // Redirects to the role's default home page
 function HomeRedirect() {
@@ -88,6 +89,9 @@ export default function App() {
           <Route path="/settings"     element={<ModuleRoute module="settings"      element={<SettingsPage />} />} />
         </Route>
       </Route>
+
+      {/* Public route — no auth, no layout, shown on the customer-facing screen */}
+      <Route path="/customer-display" element={<CustomerDisplayPage />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

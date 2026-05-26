@@ -14,6 +14,8 @@ import { productService } from '@/services/productService';
 import { posService } from '@/services/posService';
 import { customerService } from '@/services/customerService';
 import { calculatePromoDiscount } from '@/services/promotionService';
+import { settingsService } from '@/services/settingsService';
+import { customerDisplay } from '@/services/customerDisplayChannel';
 import { useCartStore } from '@/store/cartStore';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
@@ -114,6 +116,30 @@ export default function POSPage() {
     customerId, customerName, setCustomer,
   } = useCartStore();
 
+  // ── Customer display ───────────────────────────────────────────────────────
+  // Auto-open the customer display window on the second screen
+  useEffect(() => {
+    window.open('/customer-display', 'customer-display',
+      'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0');
+  }, []);
+
+  // Broadcast shop info when settings load
+  const { data: shopSettings } = useQuery({
+    queryKey: ['settings-shop-pos'],
+    queryFn: () => settingsService.getAll('shop'),
+    staleTime: 5 * 60 * 1000,
+  });
+  useEffect(() => {
+    if (!shopSettings) return;
+    customerDisplay.sendShopInfo(
+      shopSettings.shop_name?.value || 'THE OUTFIT LOUNGE',
+      shopSettings.shop_logo?.value  || ''
+    );
+  }, [shopSettings]);
+
+  // Ref to capture checkout values inside mutation callback
+  const checkoutSnapshotRef = useRef({ total: 0, amountPaid: 0, change: 0, customerName: null as string | null });
+
   const { data: categories } = useQuery({
     queryKey: ['product-categories'],
     queryFn: productService.getCategories,
@@ -139,6 +165,10 @@ export default function POSPage() {
   const checkoutMutation = useMutation({
     mutationFn: posService.checkout,
     onSuccess: (data) => {
+      // Broadcast to customer display before clearing state
+      const snap = checkoutSnapshotRef.current;
+      customerDisplay.sendCheckout(snap.total, snap.amountPaid, snap.change, snap.customerName);
+
       setReceipt(data.receipt);
       setShowReceipt(true);
       clearCart();
@@ -227,6 +257,26 @@ export default function POSPage() {
   const paidAmount = isCash ? parseFloat(amountPaid || String(total)) : total;
   const change = Math.max(0, paidAmount - total);
 
+  // Broadcast cart state to customer display on every change
+  useEffect(() => {
+    customerDisplay.sendCart(
+      cartItems.map(item => ({
+        productName: item.productName,
+        variantSku: item.variantSku,
+        variantLabel: [item.size, item.color].filter(Boolean).join(' / '),
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        subtotal: item.subtotal,
+        image: (item as any).image ?? null,
+      })),
+      subtotal,
+      discount + discountAmount + promoDiscount,
+      total,
+      customerName
+    );
+  }, [cartItems, subtotal, discount, discountAmount, promoDiscount, total, customerName]);
+
   const handleSendInvoice = async (channel: 'whatsapp' | 'sms') => {
     if (!receipt?.saleId) return;
     setSendingInvoice(channel);
@@ -247,6 +297,8 @@ export default function POSPage() {
   };
 
   const handleCheckout = () => {
+    // Snapshot current totals so onSuccess can broadcast them after state is cleared
+    checkoutSnapshotRef.current = { total, amountPaid: paidAmount, change, customerName };
     checkoutMutation.mutate({
       customerId: customerId || undefined,
       items: cartItems.map((item) => ({
