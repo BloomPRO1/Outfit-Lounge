@@ -10,7 +10,7 @@ export interface NotificationPayload {
   message: string;
 }
 
-/** Always sends SMS; also sends WhatsApp if the customer has one set. */
+/** Sends ONE message per customer: WhatsApp if they have it, otherwise SMS. */
 export async function sendSmsAndWhatsapp(params: {
   rentalId?: string;
   customerId: string;
@@ -20,11 +20,10 @@ export async function sendSmsAndWhatsapp(params: {
   message: string;
 }): Promise<void> {
   const { rentalId, customerId, type, phone, whatsapp, message } = params;
-  if (phone) {
-    await sendNotification({ rentalId, customerId, type, channel: 'sms', recipient: phone, message });
-  }
   if (whatsapp) {
     await sendNotification({ rentalId, customerId, type, channel: 'whatsapp', recipient: whatsapp, message });
+  } else if (phone) {
+    await sendNotification({ rentalId, customerId, type, channel: 'sms', recipient: phone, message });
   }
 }
 
