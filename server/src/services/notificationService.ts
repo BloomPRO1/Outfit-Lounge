@@ -10,7 +10,11 @@ export interface NotificationPayload {
   message: string;
 }
 
-/** Sends ONE message per customer: WhatsApp if they have it, otherwise SMS. */
+/**
+ * Sends ONE automated notification per customer.
+ * Routes to WhatsApp only when whatsapp_enabled=true AND customer has a WhatsApp number.
+ * Falls back to SMS (enabled by default) using phone or whatsapp as the recipient number.
+ */
 export async function sendSmsAndWhatsapp(params: {
   rentalId?: string;
   customerId: string;
@@ -20,10 +24,15 @@ export async function sendSmsAndWhatsapp(params: {
   message: string;
 }): Promise<void> {
   const { rentalId, customerId, type, phone, whatsapp, message } = params;
-  if (whatsapp) {
+  const cfg = await getFitSMSConfig();
+
+  if (cfg.whatsappEnabled && whatsapp) {
     await sendNotification({ rentalId, customerId, type, channel: 'whatsapp', recipient: whatsapp, message });
-  } else if (phone) {
-    await sendNotification({ rentalId, customerId, type, channel: 'sms', recipient: phone, message });
+  } else {
+    const smsRecipient = phone || whatsapp;
+    if (smsRecipient) {
+      await sendNotification({ rentalId, customerId, type, channel: 'sms', recipient: smsRecipient, message });
+    }
   }
 }
 
