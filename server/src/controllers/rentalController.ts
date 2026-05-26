@@ -8,6 +8,7 @@ import {
   buildBookingConfirmationMessage,
   buildReadyForPickupMessage,
   buildPickedUpMessage,
+  buildReturnReminderMessage,
 } from '../services/notificationService';
 
 export async function getRentals(req: Request, res: Response): Promise<void> {
@@ -410,6 +411,50 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
   } finally {
     client.release();
   }
+}
+
+export async function sendReturnReminder(req: AuthRequest, res: Response): Promise<void> {
+  const { id } = req.params;
+
+  const result = await db.query(`
+    SELECT r.booking_number, r.rental_end_date, r.customer_id,
+           c.name AS customer_name, c.phone, c.whatsapp
+    FROM rentals r
+    JOIN customers c ON c.id = r.customer_id
+    WHERE r.id = $1
+  `, [id]);
+
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Rental not found' });
+    return;
+  }
+
+  const row = result.rows[0];
+  if (!row.phone && !row.whatsapp) {
+    res.status(400).json({ error: 'Customer has no phone number on file' });
+    return;
+  }
+
+  const returnDate = new Date(row.rental_end_date).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
+
+  const message = buildReturnReminderMessage({
+    customerName: row.customer_name,
+    bookingNumber: row.booking_number,
+    returnDate,
+  });
+
+  await sendSmsAndWhatsapp({
+    rentalId: id,
+    customerId: row.customer_id,
+    type: 'return_reminder',
+    phone: row.phone,
+    whatsapp: row.whatsapp,
+    message,
+  });
+
+  res.json({ sent: true });
 }
 
 export async function addPayment(req: AuthRequest, res: Response): Promise<void> {

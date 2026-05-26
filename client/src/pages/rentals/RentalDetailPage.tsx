@@ -8,6 +8,7 @@ import {
   CheckCircle2, XCircle, Clock, AlertTriangle, ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import api from '@/services/api';
 import { rentalService } from '@/services/rentalService';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
@@ -131,6 +132,12 @@ export default function RentalDetailPage() {
       qc.invalidateQueries({ queryKey: ['rental', id] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to record payment'),
+  });
+
+  const sendReminderMutation = useMutation({
+    mutationFn: () => api.post(`/rentals/${id}/send-reminder`),
+    onSuccess: () => toast.success('Return reminder sent!'),
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to send reminder'),
   });
 
   if (isLoading) {
@@ -467,7 +474,13 @@ export default function RentalDetailPage() {
                   Process Return
                 </Button>
               )}
-              <Button variant="ghost" className="w-full" icon={<Bell size={14} />}>
+              <Button
+                variant="ghost"
+                className="w-full"
+                icon={<Bell size={14} />}
+                loading={sendReminderMutation.isPending}
+                onClick={() => sendReminderMutation.mutate()}
+              >
                 Send Reminder
               </Button>
             </div>
