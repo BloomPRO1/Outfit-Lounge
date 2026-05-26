@@ -344,14 +344,17 @@ export function buildBookingConfirmationMessage(data: {
   totalCost: number;
   advancePaid: number;
 }): string {
+  const balance = data.totalCost - data.advancePaid;
   return (
-    `Dear ${data.customerName},\n\n` +
-    `Your rental booking #${data.bookingNumber} is confirmed!\n\n` +
-    `Pickup : ${data.startDate}\n` +
-    `Return : ${data.endDate}\n` +
-    `Total  : LKR ${data.totalCost.toFixed(2)}\n` +
-    `Advance: LKR ${data.advancePaid.toFixed(2)}\n\n` +
-    `Thank you for choosing ${SHOP}!`
+    `Dear ${data.customerName},\n` +
+    `Your full suit rental booking #${data.bookingNumber} has been successfully confirmed.\n\n` +
+    `📅 Pickup Date: ${data.startDate}\n` +
+    `📅 Return Date: ${data.endDate}\n` +
+    `💰 Total Amount: LKR ${data.totalCost.toFixed(2)}\n` +
+    `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
+    `💰 Balance Payment: LKR ${balance.toFixed(2)}\n\n` +
+    `Thank you for choosing THE OUTFIT LOUNGE\n` +
+    `We look forward to serving you.`
   );
 }
 
@@ -359,12 +362,19 @@ export function buildReadyForPickupMessage(data: {
   customerName: string;
   bookingNumber: string;
   pickupDate: string;
+  returnDate: string;
+  advancePaid: number;
+  balanceAmount: number;
 }): string {
   return (
-    `Dear ${data.customerName},\n\n` +
-    `Great news! Your rental items for booking #${data.bookingNumber} are ready for pickup.\n\n` +
-    `Pickup date: ${data.pickupDate}\n\n` +
-    `Please visit us at your convenience.\n\n${SHOP}`
+    `Dear ${data.customerName},\n` +
+    `Your full suit rental booking #${data.bookingNumber} is now ready for pickup.\n\n` +
+    `🕒 Pickup Date & Time: ${data.pickupDate}\n` +
+    `📅 Return Date: ${data.returnDate}\n` +
+    `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
+    `💰 Remaining Balance: LKR ${data.balanceAmount.toFixed(2)}\n\n` +
+    `Please visit THE OUTFIT LOUNGE at your convenience.\n` +
+    `Thank you for choosing us.`
   );
 }
 
@@ -397,11 +407,16 @@ export function buildReturnReminderMessage(data: {
   customerName: string;
   bookingNumber: string;
   returnDate: string;
+  returnTime?: string;
 }): string {
   return (
-    `Dear ${data.customerName},\n\n` +
-    `Reminder: Your rental (#${data.bookingNumber}) is due for return tomorrow, ${data.returnDate}.\n\n` +
-    `Please return items on time to avoid late fees.\n\n${SHOP}`
+    `Dear ${data.customerName},\n` +
+    `This is a friendly reminder to return your rented full suit for booking #${data.bookingNumber}.\n\n` +
+    `📅 Return Date: ${data.returnDate}\n` +
+    (data.returnTime ? `🕒 Return Time: ${data.returnTime}\n` : '') +
+    `\nKindly ensure the suit is returned on time to avoid additional rental charges.\n` +
+    `Thank you,\n` +
+    `THE OUTFIT LOUNGE`
   );
 }
 

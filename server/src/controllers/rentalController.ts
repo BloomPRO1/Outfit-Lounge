@@ -373,11 +373,18 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
 
       if (customer?.phone) {
         const isReady = status === 'ready_for_pickup';
+        const totalCost = parseFloat(rental.total_rental_cost || '0');
+        const discountAmt = parseFloat(rental.discount_amount || '0');
+        const advance = parseFloat(rental.advance_payment || '0');
+        const balance = totalCost - discountAmt - advance;
         const message = isReady
           ? buildReadyForPickupMessage({
               customerName: customer.name,
               bookingNumber: rental.booking_number,
               pickupDate: rental.rental_start_date,
+              returnDate: rental.rental_end_date,
+              advancePaid: advance,
+              balanceAmount: balance,
             })
           : buildPickedUpMessage({
               customerName: customer.name,
