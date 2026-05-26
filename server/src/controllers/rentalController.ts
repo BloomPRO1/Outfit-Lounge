@@ -424,6 +424,64 @@ export async function addPayment(req: AuthRequest, res: Response): Promise<void>
   res.status(201).json(result.rows[0]);
 }
 
+export async function getAvailability(req: AuthRequest, res: Response): Promise<void> {
+  const { date, search } = req.query as { date?: string; search?: string };
+
+  if (!date) {
+    res.status(400).json({ error: 'date query parameter is required (YYYY-MM-DD)' });
+    return;
+  }
+
+  const params: any[] = [date, date];
+  let searchClause = '';
+  if (search?.trim()) {
+    params.push(`%${search.trim()}%`);
+    const pi = params.length;
+    searchClause = `AND (p.name ILIKE $${pi} OR pv.size ILIKE $${pi} OR pv.color ILIKE $${pi} OR pv.sku ILIKE $${pi})`;
+  }
+
+  const result = await db.query<any>(`
+    SELECT
+      p.id           AS product_id,
+      p.name         AS product_name,
+      pc.name        AS category_name,
+      pi_img.image_url AS product_image,
+      pv.id          AS variant_id,
+      pv.sku,
+      pv.size,
+      pv.color,
+      pv.material,
+      COALESCE(pv.rental_price_per_day, p.rental_price_per_day, 0) AS price_per_day,
+      pv.stock_quantity AS total_stock,
+      COALESCE(booked.booked_qty, 0)::int AS booked_qty,
+      GREATEST(0, pv.stock_quantity - COALESCE(booked.booked_qty, 0))::int AS available_qty
+    FROM products p
+    JOIN product_variants pv ON pv.product_id = p.id
+    LEFT JOIN product_categories pc ON pc.id = p.category_id
+    LEFT JOIN LATERAL (
+      SELECT image_url FROM product_images
+      WHERE product_id = p.id AND is_primary = true
+      LIMIT 1
+    ) pi_img ON true
+    LEFT JOIN (
+      SELECT ri.product_variant_id, SUM(ri.quantity) AS booked_qty
+      FROM rental_items ri
+      JOIN rentals r ON r.id = ri.rental_id
+      WHERE r.rental_start_date <= $1
+        AND r.rental_end_date >= $2
+        AND r.status NOT IN ('returned', 'completed', 'cancelled')
+        AND ri.is_returned = false
+      GROUP BY ri.product_variant_id
+    ) booked ON booked.product_variant_id = pv.id
+    WHERE p.type IN ('rental', 'both')
+      AND p.is_active = true
+      ${searchClause}
+    ORDER BY p.name, pv.size NULLS LAST, pv.color NULLS LAST
+  `, params);
+
+  res.json(result.rows);
+}
+
 export async function getUpcomingReturns(_req: Request, res: Response): Promise<void> {
   const result = await db.query(`
     SELECT r.*, c.name as customer_name, c.phone as customer_phone,

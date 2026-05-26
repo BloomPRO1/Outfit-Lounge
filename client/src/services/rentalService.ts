@@ -1,6 +1,22 @@
 import api from './api';
 import type { Rental, PaginatedResponse } from '../types';
 
+export interface AvailabilityItem {
+  product_id: string;
+  product_name: string;
+  category_name: string | null;
+  product_image: string | null;
+  variant_id: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  material: string | null;
+  price_per_day: number;
+  total_stock: number;
+  booked_qty: number;
+  available_qty: number;
+}
+
 export const rentalService = {
   getAll: async (params?: Record<string, any>) => {
     const { data } = await api.get('/rentals', { params });
@@ -25,5 +41,9 @@ export const rentalService = {
   addPayment: async (id: string, payload: any) => {
     const { data } = await api.post(`/rentals/${id}/payments`, payload);
     return data;
+  },
+  getAvailability: async (date: string, search?: string) => {
+    const { data } = await api.get('/rentals/availability', { params: { date, search: search || undefined } });
+    return data as AvailabilityItem[];
   },
 };

@@ -13,6 +13,7 @@ import CustomerDetailPage from './pages/customers/CustomerDetailPage';
 import RentalsPage from './pages/rentals/RentalsPage';
 import NewRentalPage from './pages/rentals/NewRentalPage';
 import RentalDetailPage from './pages/rentals/RentalDetailPage';
+import AvailabilityPage from './pages/rentals/AvailabilityPage';
 import POSPage from './pages/pos/POSPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 import ReturnsPage from './pages/returns/ReturnsPage';
@@ -69,9 +70,10 @@ export default function App() {
           <Route path="/customers"    element={<ModuleRoute module="customers"     element={<CustomersPage />} />} />
           <Route path="/customers/:id" element={<ModuleRoute module="customers"    element={<CustomerDetailPage />} />} />
 
-          <Route path="/rentals"      element={<ModuleRoute module="rentals"       element={<RentalsPage />} />} />
-          <Route path="/rentals/new"  element={<ModuleRoute module="rentals"       element={<NewRentalPage />} />} />
-          <Route path="/rentals/:id"  element={<ModuleRoute module="rentals"       element={<RentalDetailPage />} />} />
+          <Route path="/rentals"            element={<ModuleRoute module="rentals" element={<RentalsPage />} />} />
+          <Route path="/rentals/new"        element={<ModuleRoute module="rentals" element={<NewRentalPage />} />} />
+          <Route path="/rentals/:id"        element={<ModuleRoute module="rentals" element={<RentalDetailPage />} />} />
+          <Route path="/availability"       element={<ModuleRoute module="rentals" element={<AvailabilityPage />} />} />
 
           <Route path="/pos"          element={<ModuleRoute module="pos"           element={<POSPage />} />} />
           <Route path="/inventory"    element={<ModuleRoute module="inventory"     element={<InventoryPage />} />} />
