@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -49,6 +49,65 @@ export default function POSPage() {
   const [sendingInvoice, setSendingInvoice] = useState<'whatsapp' | 'sms' | null>(null);
 
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const productListRef = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Stable refs for escape handler (avoids re-registering listener on every state change)
+  const variantPickerRef = useRef(variantPickerProduct);
+  variantPickerRef.current = variantPickerProduct;
+  const showReceiptRef = useRef(showReceipt);
+  showReceiptRef.current = showReceipt;
+
+  // Auto-focus barcode on mount
+  useEffect(() => { barcodeRef.current?.focus(); }, []);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+      const inInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+      if (e.key === 'Escape') {
+        if (variantPickerRef.current) { setVariantPickerProduct(null); return; }
+        if (showReceiptRef.current) { setShowReceipt(false); return; }
+        barcodeRef.current?.focus();
+        return;
+      }
+
+      // Any printable character while not in an input → jump to barcode field
+      if (!inInput && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        barcodeRef.current?.focus();
+        // Don't preventDefault — the keystroke is forwarded into the focused input naturally
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Arrow-key navigation columns (matches the CSS grid breakpoints)
+  const getGridCols = () => {
+    const w = window.innerWidth;
+    if (w >= 1280) return 4; // xl:grid-cols-4
+    if (w >= 640)  return 3; // sm:grid-cols-3
+    return 2;                // grid-cols-2
+  };
+
+  const handleProductKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    idx: number,
+    total: number
+  ) => {
+    const cols = getGridCols();
+    let next = idx;
+    if      (e.key === 'ArrowRight') next = Math.min(idx + 1, total - 1);
+    else if (e.key === 'ArrowLeft')  next = Math.max(idx - 1, 0);
+    else if (e.key === 'ArrowDown')  next = Math.min(idx + cols, total - 1);
+    else if (e.key === 'ArrowUp')    next = Math.max(idx - cols, 0);
+    else if (e.key === 'Escape')     { barcodeRef.current?.focus(); return; }
+    else return;
+    e.preventDefault();
+    productListRef.current[next]?.focus();
+  };
+
   const {
     items: cartItems, addItem, removeItem, updateQuantity, updateDiscount,
     clearCart, getSubtotal, discountAmount, setCartDiscount,
@@ -92,6 +151,7 @@ export default function POSPage() {
       setShowNotes(false);
       setCartStep('cart');
       setMobileTab('products');
+      setTimeout(() => barcodeRef.current?.focus(), 50);
       qc.invalidateQueries({ queryKey: ['pos-products'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
       qc.invalidateQueries({ queryKey: ['revenue-chart'] });
@@ -143,6 +203,7 @@ export default function POSPage() {
       subtotal: parseFloat(variant.selling_price || product.selling_price || 0),
     });
     setVariantPickerProduct(null);
+    barcodeRef.current?.focus();
   };
 
   const handleProductCardClick = (product: any) => {
@@ -264,7 +325,7 @@ export default function POSPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-              {products.data.map((product: any) => {
+              {products.data.map((product: any, idx: number) => {
                 const variants: any[] = product.variants || [];
                 if (variants.length === 0) return null;
                 const saleQty = (v: any) => Math.max(0, (v.stock_quantity || 0) - (v.available_for_rent || 0));
@@ -273,12 +334,15 @@ export default function POSPage() {
                 const saleVariants = variants.filter((v: any) => saleQty(v) > 0);
                 const lowestPrice = Math.min(...(saleVariants.length ? saleVariants : variants).map((v: any) => parseFloat(v.selling_price || product.selling_price || 0)));
                 const multipleVariants = variants.length > 1;
+                const total = products.data.length;
                 return (
                   <motion.button
                     key={product.id}
+                    ref={el => { productListRef.current[idx] = el; }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => inStock && handleProductCardClick(product)}
+                    onKeyDown={e => handleProductKeyDown(e, idx, total)}
                     disabled={!inStock}
                     className={cn(
                       'relative bg-charcoal-700 border border-charcoal-500 rounded-xl overflow-hidden text-left transition-all duration-200',
