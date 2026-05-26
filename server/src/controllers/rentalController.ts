@@ -453,9 +453,10 @@ export async function getAvailability(req: AuthRequest, res: Response): Promise<
         pv.color,
         pv.material,
         COALESCE(pv.rental_price_per_day, p.rental_price_per_day, 0) AS price_per_day,
-        pv.stock_quantity AS total_stock,
+        -- rental_stock = what is currently free + all actively booked (= true total rental capacity)
+        (pv.available_for_rent + COALESCE(all_active.total_booked, 0))::int AS rental_stock,
         COALESCE(booked.booked_qty, 0)::int AS booked_qty,
-        GREATEST(0, pv.stock_quantity - COALESCE(booked.booked_qty, 0))::int AS available_qty
+        GREATEST(0, pv.available_for_rent + COALESCE(all_active.total_booked, 0) - COALESCE(booked.booked_qty, 0))::int AS available_qty
       FROM products p
       JOIN product_variants pv ON pv.product_id = p.id
       LEFT JOIN product_categories pc ON pc.id = p.category_id
@@ -464,6 +465,16 @@ export async function getAvailability(req: AuthRequest, res: Response): Promise<
         WHERE product_id = p.id AND is_primary = true
         LIMIT 1
       ) pi_img ON true
+      -- all units currently out on ANY active rental (not date-filtered)
+      LEFT JOIN (
+        SELECT ri.product_variant_id, SUM(ri.quantity) AS total_booked
+        FROM rental_items ri
+        JOIN rentals r ON r.id = ri.rental_id
+        WHERE r.status NOT IN ('returned', 'completed', 'cancelled')
+          AND ri.is_returned = false
+        GROUP BY ri.product_variant_id
+      ) all_active ON all_active.product_variant_id = pv.id
+      -- units booked on the requested date specifically
       LEFT JOIN (
         SELECT ri.product_variant_id, SUM(ri.quantity) AS booked_qty
         FROM rental_items ri

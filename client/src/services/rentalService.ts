@@ -12,7 +12,7 @@ export interface AvailabilityItem {
   color: string | null;
   material: string | null;
   price_per_day: number;
-  total_stock: number;
+  rental_stock: number;
   booked_qty: number;
   available_qty: number;
 }
