@@ -121,6 +121,9 @@ export interface Rental {
   discount_amount: number;
   notes?: string;
   event_type?: string;
+  security_type?: 'deposit' | 'id_card';
+  security_deposit?: number;
+  security_id_number?: string;
   item_count?: number;
   created_by_name?: string;
   items?: RentalItem[];
