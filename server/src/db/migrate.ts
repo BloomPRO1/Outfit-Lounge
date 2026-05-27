@@ -37,9 +37,16 @@ async function migrate() {
         continue;
       }
       const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-      await client.query(sql);
-      await client.query('INSERT INTO _migrations (filename) VALUES ($1)', [file]);
-      console.log(`  ✅ Applied ${file}`);
+      try {
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query('INSERT INTO _migrations (filename) VALUES ($1)', [file]);
+        await client.query('COMMIT');
+        console.log(`  ✅ Applied ${file}`);
+      } catch (migErr) {
+        await client.query('ROLLBACK');
+        throw new Error(`Migration ${file} failed and was rolled back:\n${migErr}`);
+      }
     }
     console.log('Migrations completed successfully!');
   } catch (err) {
