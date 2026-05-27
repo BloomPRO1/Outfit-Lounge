@@ -23,7 +23,6 @@ import hrRoutes from './routes/hr';
 import promotionsRoutes from './routes/promotions';
 import invoiceRoutes from './routes/invoices';
 import whatsappRoutes from './routes/whatsapp';
-import qzRoutes from './routes/qz';
 
 const app = express();
 
@@ -63,7 +62,6 @@ app.use('/api/hr', hrRoutes);
 app.use('/api/promotions', promotionsRoutes);
 app.use('/api/invoices', invoiceRoutes);  // Public PDF download (no auth)
 app.use('/api/whatsapp', whatsappRoutes);
-app.use('/api/qz', qzRoutes);             // Public QZ Tray signing endpoint
 
 // ─── Serve React client in production ────────────────────────────────────────
 if (env.NODE_ENV === 'production') {
