@@ -297,7 +297,7 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
         bookingNumber,
         startDate: fmtDate(rentalStartDate),
         endDate: fmtDate(rentalEndDate),
-        totalCost,
+        totalCost: totalCost - totalDiscountAmount,
         advancePaid: advancePayment || 0,
       });
       await sendSmsAndWhatsapp({

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import JsBarcode from 'jsbarcode';
-import { Printer } from 'lucide-react';
+import { Printer, Usb } from 'lucide-react';
+import { toast } from 'sonner';
 import Button from './Button';
 import Drawer from './Drawer';
+import { connectLabelPrinter, isLabelConnected, getLabelPrinterName, tsplPrint } from '@/services/labelPrinterService';
 
 export interface BarcodeItem {
   sku: string;
@@ -22,6 +24,19 @@ interface Props {
 export default function BarcodePrintModal({ open, onClose, item }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [copies, setCopies] = useState(1);
+  const [labelConnected, setLabelConnected] = useState(isLabelConnected());
+  const [labelPrinterName, setLabelPrinterName] = useState(getLabelPrinterName());
+
+  const handleConnectLabel = async () => {
+    try {
+      const name = await connectLabelPrinter();
+      setLabelConnected(true);
+      setLabelPrinterName(name);
+      toast.success(`Label printer connected: ${name}`);
+    } catch {
+      toast.error('Could not connect label printer');
+    }
+  };
 
   // Render preview barcode
   useEffect(() => {
@@ -47,10 +62,23 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     if (open && item) setCopies(Math.max(1, item.stockQty || 1));
   }, [open, item]);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!item) return;
 
-    // Render barcode into a detached SVG for print
+    // ── Silent TSPL print if label printer is connected ──────────────────────
+    if (isLabelConnected()) {
+      try {
+        await tsplPrint(item, copies);
+        toast.success(`Printed ${copies} label${copies !== 1 ? 's' : ''}`);
+        onClose();
+        return;
+      } catch (err) {
+        console.error('TSPL print failed:', err);
+        toast.error('Label printer error — falling back to print dialog');
+      }
+    }
+
+    // ── Fallback: open browser print dialog ──────────────────────────────────
     const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     try {
       JsBarcode(tempSvg, item.sku, {
@@ -116,7 +144,6 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     w.document.write(html);
     w.document.close();
     w.focus();
-    // Give images time to render then print
     setTimeout(() => { w.print(); w.close(); }, 400);
   };
 
@@ -139,6 +166,28 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       }
     >
       <div className="space-y-5">
+        {/* Printer status */}
+        <div className={`flex items-center justify-between p-3 rounded-xl border ${
+          labelConnected
+            ? 'border-emerald-500/40 bg-emerald-500/10'
+            : 'border-charcoal-400 bg-charcoal-600/40'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Usb size={14} className={labelConnected ? 'text-emerald-400' : 'text-charcoal-300'} />
+            <span className="text-xs text-charcoal-100">
+              {labelConnected ? labelPrinterName || 'Label Printer' : 'No label printer connected'}
+            </span>
+            {labelConnected && (
+              <span className="text-[10px] text-emerald-400 font-medium">● SILENT PRINT</span>
+            )}
+          </div>
+          {!labelConnected && (
+            <Button variant="secondary" size="sm" onClick={handleConnectLabel}>
+              Connect
+            </Button>
+          )}
+        </div>
+
         {/* Preview */}
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>

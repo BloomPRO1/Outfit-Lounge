@@ -35,6 +35,10 @@ export function isUsbConnected(): boolean {
   return dev !== null;
 }
 
+export function getReceiptPrinterName(): string {
+  return dev?.productName || '';
+}
+
 export async function usbPrint(receipt: ThermalReceiptData, shop: ShopInfo): Promise<void> {
   if (!dev) throw new Error('No USB printer connected');
   const data = buildESCPOS(receipt, shop);

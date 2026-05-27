@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw, Check, Minus, MessageCircle, Zap, Cloud, Smartphone } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw, Check, Minus, MessageCircle, Zap, Cloud, Smartphone, Printer, Usb } from 'lucide-react';
+import { connectUsbPrinter, isUsbConnected, getReceiptPrinterName } from '@/services/usbPrinterService';
+import { connectLabelPrinter, isLabelConnected, getLabelPrinterName } from '@/services/labelPrinterService';
 import { toast } from 'sonner';
 import { settingsService } from '@/services/settingsService';
 import { permissionsService } from '@/services/permissionsService';
@@ -21,6 +23,7 @@ const TABS = [
   { key: 'rental', label: 'Rental Rules', icon: SettingsIcon },
   { key: 'fines', label: 'Fine Rules', icon: DollarSign },
   { key: 'notifications', label: 'Notifications', icon: Bell },
+  { key: 'printers', label: 'Printers', icon: Printer },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'permissions', label: 'Permissions', icon: Shield },
 ] as const;
@@ -31,6 +34,117 @@ type TabKey = typeof TABS[number]['key'];
 function useSetting(settings: Record<string, any> | undefined, key: string, defaultValue = '') {
   return settings?.[key]?.value ?? defaultValue;
 }
+
+// ─── Printer Settings ────────────────────────────────────────────────────────
+
+function PrinterSettings() {
+  const [receiptConnected, setReceiptConnected] = useState(isUsbConnected());
+  const [receiptName, setReceiptName]           = useState(getReceiptPrinterName());
+  const [labelConnected, setLabelConnected]     = useState(isLabelConnected());
+  const [labelName, setLabelName]               = useState(getLabelPrinterName());
+
+  const handleConnectReceipt = async () => {
+    try {
+      const name = await connectUsbPrinter();
+      setReceiptConnected(true);
+      setReceiptName(name);
+      toast.success(`Receipt printer connected: ${name}`);
+    } catch {
+      toast.error('Could not connect receipt printer');
+    }
+  };
+
+  const handleConnectLabel = async () => {
+    try {
+      const name = await connectLabelPrinter();
+      setLabelConnected(true);
+      setLabelName(name);
+      toast.success(`Label printer connected: ${name}`);
+    } catch {
+      toast.error('Could not connect label printer');
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-lg">
+      <div>
+        <h2 className="text-lg font-semibold text-charcoal-50 mb-1">USB Printers</h2>
+        <p className="text-sm text-charcoal-300">
+          Connect your USB printers once — Chrome remembers the pairing.
+          Prints will go directly to the selected device with no dialog.
+        </p>
+      </div>
+
+      {/* Receipt printer */}
+      <div className="p-4 rounded-xl border border-charcoal-500 bg-charcoal-700/40 space-y-3">
+        <div className="flex items-center gap-2">
+          <Printer size={16} className="text-gold-400" />
+          <span className="text-sm font-medium text-charcoal-50">Receipt Printer</span>
+          <span className="text-xs text-charcoal-300">(POS sales)</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Usb size={13} className={receiptConnected ? 'text-emerald-400' : 'text-charcoal-400'} />
+            <span className="text-sm text-charcoal-200">
+              {receiptConnected ? receiptName || 'Connected' : 'Not connected'}
+            </span>
+            {receiptConnected && (
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">
+                ACTIVE
+              </span>
+            )}
+          </div>
+          <Button variant={receiptConnected ? 'secondary' : 'primary'} size="sm" onClick={handleConnectReceipt}>
+            {receiptConnected ? 'Reconnect' : 'Connect'}
+          </Button>
+        </div>
+        <p className="text-xs text-charcoal-400">
+          ESC/POS — 80 mm thermal receipt printer (e.g. POSPrinter POS-80)
+        </p>
+      </div>
+
+      {/* Label printer */}
+      <div className="p-4 rounded-xl border border-charcoal-500 bg-charcoal-700/40 space-y-3">
+        <div className="flex items-center gap-2">
+          <Printer size={16} className="text-gold-400" />
+          <span className="text-sm font-medium text-charcoal-50">Label Printer</span>
+          <span className="text-xs text-charcoal-300">(barcodes)</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Usb size={13} className={labelConnected ? 'text-emerald-400' : 'text-charcoal-400'} />
+            <span className="text-sm text-charcoal-200">
+              {labelConnected ? labelName || 'Connected' : 'Not connected'}
+            </span>
+            {labelConnected && (
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">
+                ACTIVE
+              </span>
+            )}
+          </div>
+          <Button variant={labelConnected ? 'secondary' : 'primary'} size="sm" onClick={handleConnectLabel}>
+            {labelConnected ? 'Reconnect' : 'Connect'}
+          </Button>
+        </div>
+        <p className="text-xs text-charcoal-400">
+          TSPL — 45 × 30 mm thermal label printer (generic USB thermal)
+        </p>
+      </div>
+
+      <div className="p-3 rounded-xl bg-charcoal-600/30 border border-charcoal-500/40 space-y-1">
+        <p className="text-xs font-medium text-charcoal-200">How it works</p>
+        <ul className="text-xs text-charcoal-300 space-y-0.5 list-disc list-inside">
+          <li>Click <strong className="text-charcoal-100">Connect</strong> and select the printer from the browser popup (one-time)</li>
+          <li>Chrome remembers the USB permission — no re-pairing needed after restart</li>
+          <li>POS receipts and barcode labels print silently to their respective printers</li>
+          <li>If a printer is disconnected, printing falls back to the browser dialog</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('shop');
@@ -98,6 +212,7 @@ export default function SettingsPage() {
               {activeTab === 'rental' && <RentalSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
               {activeTab === 'fines' && <FineSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
               {activeTab === 'notifications' && <NotificationSettings settings={settings} onSave={(u) => updateMutation.mutate(u)} saving={updateMutation.isPending} />}
+              {activeTab === 'printers' && <PrinterSettings />}
               {activeTab === 'users' && <UserManagement />}
               {activeTab === 'permissions' && <RolePermissionsMatrix />}
             </>

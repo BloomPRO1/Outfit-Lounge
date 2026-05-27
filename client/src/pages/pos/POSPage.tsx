@@ -24,6 +24,7 @@ import PromotionSelector from '@/components/common/PromotionSelector';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
 import { buildReceiptHTML, printViaIframe } from '@/utils/thermalPrint';
+import { isUsbConnected, usbPrint } from '@/services/usbPrinterService';
 import type { ProductCategory, Promotion } from '@/types';
 
 const PAYMENT_METHODS = [
@@ -1039,13 +1040,22 @@ export default function POSPage() {
                 variant="secondary"
                 className="flex-1"
                 icon={<Printer size={14} />}
-                onClick={() => {
-                  printViaIframe(buildReceiptHTML(receipt, {
+                onClick={async () => {
+                  const shopInfo = {
                     name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
                     address: shopSettings?.shop_address?.value || undefined,
                     phone:   shopSettings?.shop_phone?.value   || undefined,
                     logoUrl: shopSettings?.shop_logo?.value    || undefined,
-                  }));
+                  };
+                  if (isUsbConnected()) {
+                    try {
+                      await usbPrint(receipt, shopInfo);
+                      return;
+                    } catch (err) {
+                      console.error('USB receipt print failed:', err);
+                    }
+                  }
+                  printViaIframe(buildReceiptHTML(receipt, shopInfo));
                 }}
               >Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>

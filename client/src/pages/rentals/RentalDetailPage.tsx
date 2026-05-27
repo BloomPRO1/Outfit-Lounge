@@ -155,7 +155,8 @@ export default function RentalDetailPage() {
   const totalPaid = (rental.payments || []).reduce((sum: number, p: any) => {
     return p.payment_type !== 'refund' ? sum + parseFloat(p.amount) : sum - parseFloat(p.amount);
   }, 0);
-  const balanceDue = Math.max(0, Number(rental.total_rental_cost) - totalPaid + Number(rental.total_fine || 0));
+  const netCost = Number(rental.total_rental_cost) - Number(rental.discount_amount || 0);
+  const balanceDue = Math.max(0, netCost - totalPaid + Number(rental.total_fine || 0));
 
   function handleAction(status: string) {
     if (status === 'returned' || status === 'late_return') {
