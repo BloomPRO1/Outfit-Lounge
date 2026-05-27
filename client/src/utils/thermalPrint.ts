@@ -146,6 +146,9 @@ export interface RentalReceiptData {
   balanceDue: number;
   totalFine: number;
   notes?: string;
+  securityType?: 'deposit' | 'id_card';
+  securityDeposit?: number;
+  securityIdNumber?: string;
 }
 
 export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo): string {
@@ -223,6 +226,8 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
   <div class="row"><span class="sm">Customer</span><span class="b" style="font-size:9pt;">${data.customerName}</span></div>
   ${data.customerPhone ? `<div class="row"><span class="sm">Phone</span><span class="sm">${data.customerPhone}</span></div>` : ''}
   ${data.eventType     ? `<div class="row"><span class="sm">Event</span><span class="sm">${data.eventType}</span></div>` : ''}
+  ${data.securityType === 'deposit' && data.securityDeposit ? `<div class="row"><span class="sm">Security Deposit</span><span class="b">${fmt(data.securityDeposit)}</span></div>` : ''}
+  ${data.securityType === 'id_card' && data.securityIdNumber ? `<div class="row"><span class="sm">ID Card Held</span><span class="b">${data.securityIdNumber}</span></div>` : ''}
 
   <div class="dash"></div>
 

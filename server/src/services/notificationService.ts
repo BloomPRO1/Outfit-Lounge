@@ -386,8 +386,17 @@ export function buildBookingConfirmationMessage(data: {
   endDate: string;
   totalCost: number;
   advancePaid: number;
+  securityType?: string | null;
+  securityDeposit?: number;
+  securityIdNumber?: string | null;
 }): string {
   const balance = data.totalCost - data.advancePaid;
+  let securityLine = '';
+  if (data.securityType === 'deposit' && data.securityDeposit) {
+    securityLine = `🔒 Security Deposit: LKR ${data.securityDeposit.toFixed(2)}\n`;
+  } else if (data.securityType === 'id_card' && data.securityIdNumber) {
+    securityLine = `🪪 ID Card Held: ${data.securityIdNumber}\n`;
+  }
   return (
     `Dear ${data.customerName},\n` +
     `Your full suit rental booking #${data.bookingNumber} has been successfully confirmed.\n\n` +
@@ -395,8 +404,9 @@ export function buildBookingConfirmationMessage(data: {
     `📅 Return Date: ${data.endDate}\n` +
     `💰 Total Amount: LKR ${data.totalCost.toFixed(2)}\n` +
     `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
-    `💰 Balance Payment: LKR ${balance.toFixed(2)}\n\n` +
-    `Thank you for choosing THE OUTFIT LOUNGE\n` +
+    `💰 Balance Payment: LKR ${balance.toFixed(2)}\n` +
+    securityLine +
+    `\nThank you for choosing THE OUTFIT LOUNGE\n` +
     `We look forward to serving you.`
   );
 }

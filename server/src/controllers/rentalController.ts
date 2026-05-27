@@ -131,6 +131,7 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
     items, advancePayment,
     discountAmount, notes, eventType, paymentMethod,
     promotionId,
+    securityType, securityDeposit, securityIdNumber,
   } = req.body;
 
   if (!customerId || !rentalStartDate || !rentalEndDate || !items?.length) {
@@ -229,13 +230,15 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
       INSERT INTO rentals (
         booking_number, customer_id, status, rental_start_date, rental_end_date,
         advance_payment, total_rental_cost, discount_amount,
-        notes, event_type, created_by
-      ) VALUES ($1,$2,'reserved',$3,$4,$5,$6,$7,$8,$9,$10)
+        notes, event_type, created_by,
+        security_type, security_deposit, security_id_number
+      ) VALUES ($1,$2,'reserved',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *
     `, [
       bookingNumber, customerId, rentalStartDate, rentalEndDate,
       advancePayment || 0, totalCost,
       totalDiscountAmount, notes || null, eventType || null, req.user?.id,
+      securityType || null, securityDeposit || 0, securityIdNumber || null,
     ]);
 
     const rental = rentalRes.rows[0];
@@ -299,6 +302,9 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
         endDate: fmtDate(rentalEndDate),
         totalCost: totalCost - totalDiscountAmount,
         advancePaid: advancePayment || 0,
+        securityType: securityType || null,
+        securityDeposit: securityDeposit || 0,
+        securityIdNumber: securityIdNumber || null,
       });
       await sendSmsAndWhatsapp({
         rentalId: rental.id,
