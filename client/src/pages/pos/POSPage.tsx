@@ -1034,6 +1034,7 @@ export default function POSPage() {
                 name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
                 address: shopSettings?.shop_address?.value || undefined,
                 phone:   shopSettings?.shop_phone?.value   || undefined,
+                logoUrl: shopSettings?.shop_logo?.value    || undefined,
               })}>Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>
             </div>

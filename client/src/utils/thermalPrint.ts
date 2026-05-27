@@ -13,6 +13,7 @@ export interface ShopInfo {
   name: string;
   address?: string;
   phone?: string;
+  logoUrl?: string;
 }
 
 function fmt(n: number): string {
@@ -20,52 +21,62 @@ function fmt(n: number): string {
 }
 
 function row(label: string, value: string, bold = false): string {
-  const s = bold ? 'font-weight:bold;font-size:10.5pt;' : '';
+  const s = bold ? 'font-weight:bold;font-size:11pt;' : '';
   return `<div style="display:flex;justify-content:space-between;align-items:baseline;${s}">
-    <span>${label}</span><span style="text-align:right;">${value}</span>
-  </div>`;
+            <span>${label}</span><span>${value}</span>
+          </div>`;
 }
 
-const DASH  = `<div style="border-top:1px dashed #000;margin:3mm 0;"></div>`;
-const SOLID = `<div style="border-top:1.5px solid #000;margin:3mm 0;"></div>`;
+const DASH  = `<div style="border-top:1px dashed #000;margin:2.5mm 0;"></div>`;
+const SOLID = `<div style="border-top:1.5px solid #000;margin:2.5mm 0;"></div>`;
 
-export function printThermalReceipt(receipt: ThermalReceiptData, shop: ShopInfo): void {
+function buildHTML(receipt: ThermalReceiptData, shop: ShopInfo): string {
   const now     = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
+  // Always try /logo.jpg from the same origin if no custom logo configured
+  const logoSrc = shop.logoUrl || `${window.location.origin}/logo.jpg`;
+
   const itemsHTML = (receipt.items || []).map(item => `
     <div style="margin-top:1.5mm;">
       <div style="font-weight:bold;">${item.productName}</div>
-      ${row(`&nbsp;&nbsp;&nbsp;x${item.quantity}`, fmt(item.itemSubtotal))}
+      ${row(`&nbsp;&nbsp;x${item.quantity}`, fmt(item.itemSubtotal))}
     </div>
   `).join('');
 
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Receipt ${receipt.saleNumber}</title>
+<title>Receipt</title>
 <style>
-  @page { size: 80mm auto; margin: 0mm 2mm; }
+  @page { size: 80mm auto; margin: 3mm 2mm; }
   * { box-sizing: border-box; }
   body {
     font-family: 'Courier New', Courier, monospace;
     font-size: 9pt;
     width: 72mm;
     margin: 0 auto;
-    padding: 3mm 0;
     color: #000;
     background: #fff;
     line-height: 1.55;
   }
-  .center { text-align: center; }
+  .c { text-align: center; }
 </style>
 </head>
 <body>
-  <div class="center" style="font-weight:bold;font-size:13pt;letter-spacing:0.5px;">${shop.name}</div>
-  ${shop.address ? `<div class="center" style="font-size:8pt;">${shop.address}</div>` : ''}
-  ${shop.phone   ? `<div class="center" style="font-size:8pt;">${shop.phone}</div>` : ''}
+  <!-- Logo -->
+  <div class="c" style="margin-bottom:2mm;">
+    <img src="${logoSrc}"
+         style="max-width:28mm;max-height:18mm;object-fit:contain;"
+         onerror="this.style.display='none'" />
+  </div>
+
+  <!-- Shop header -->
+  <div class="c" style="font-weight:bold;font-size:12pt;letter-spacing:0.3px;">${shop.name}</div>
+  ${shop.address ? `<div class="c" style="font-size:8pt;">${shop.address}</div>` : ''}
+  ${shop.phone   ? `<div class="c" style="font-size:8pt;">${shop.phone}</div>`   : ''}
 
   ${DASH}
 
@@ -93,22 +104,38 @@ export function printThermalReceipt(receipt: ThermalReceiptData, shop: ShopInfo)
 
   ${DASH}
 
-  <div class="center" style="font-size:8pt;margin-top:2mm;">Thank you for your business!</div>
-  <div class="center" style="font-weight:bold;margin-top:1mm;">${shop.name}</div>
-  <div style="height:12mm;"></div>
+  <div class="c" style="font-size:8pt;margin-top:2mm;">Thank you for your business!</div>
+  <div class="c" style="font-weight:bold;margin-top:1mm;">${shop.name}</div>
+  <div style="height:10mm;"></div>
 </body>
 </html>`;
+}
 
-  const win = window.open('', '_blank', 'width=360,height=520');
-  if (!win) {
-    alert('Please allow pop-ups to print receipts.');
+export function printThermalReceipt(receipt: ThermalReceiptData, shop: ShopInfo): void {
+  const html = buildHTML(receipt, shop);
+
+  // Use a hidden iframe — no popup, no blocker, prints via system dialog immediately
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) {
+    document.body.removeChild(iframe);
     return;
   }
-  win.document.write(html);
-  win.document.close();
-  win.focus();
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  // Wait for iframe content + any images to load, then print
   setTimeout(() => {
-    win.print();
-    win.close();
-  }, 300);
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    // Remove iframe after print dialog closes
+    setTimeout(() => {
+      if (document.body.contains(iframe)) document.body.removeChild(iframe);
+    }, 2000);
+  }, 400);
 }
