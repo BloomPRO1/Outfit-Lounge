@@ -69,6 +69,8 @@ export default function POSPage() {
   variantPickerRef.current = variantPickerProduct;
   const showReceiptRef = useRef(showReceipt);
   showReceiptRef.current = showReceipt;
+  // Ref so the ESC handler can call handleCloseReceipt without stale closure
+  const handleCloseReceiptRef = useRef<() => void>(() => {});
 
   // Auto-focus barcode on mount
   useEffect(() => { barcodeRef.current?.focus(); }, []);
@@ -81,7 +83,7 @@ export default function POSPage() {
 
       if (e.key === 'Escape') {
         if (variantPickerRef.current) { setVariantPickerProduct(null); return; }
-        if (showReceiptRef.current) { setShowReceipt(false); return; }
+        if (showReceiptRef.current) { handleCloseReceiptRef.current(); return; }
         barcodeRef.current?.focus();
         return;
       }
@@ -398,6 +400,7 @@ export default function POSPage() {
     setWaInvoiceSent(false);
     setShowWaInput(false);
   };
+  handleCloseReceiptRef.current = handleCloseReceipt;
 
   const handleCheckout = () => {
     // Snapshot current totals so onSuccess can broadcast them after state is cleared
