@@ -23,7 +23,8 @@ import Drawer from '@/components/common/Drawer';
 import PromotionSelector from '@/components/common/PromotionSelector';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
-import { printThermalReceipt } from '@/utils/thermalPrint';
+import { buildReceiptHTML, printViaIframe } from '@/utils/thermalPrint';
+import { qzConnect, qzIsConnected, qzGetPrinters, qzPrintHTML } from '@/services/qzTrayService';
 import type { ProductCategory, Promotion } from '@/types';
 
 const PAYMENT_METHODS = [
@@ -55,10 +56,12 @@ export default function POSPage() {
   const [showWaInput, setShowWaInput] = useState(false);
   const [waPhoneInput, setWaPhoneInput] = useState('');
 
-  // Printer preference (persisted in localStorage)
+  // Printer — real list from QZ Tray, falls back to stored preference
   const [selectedPrinter, setSelectedPrinter] = useState(
-    () => localStorage.getItem('receipt_printer') || 'POS-80'
+    () => localStorage.getItem('receipt_printer') || ''
   );
+  const [printers, setPrinters]       = useState<string[]>([]);
+  const [qzConnected, setQzConnected] = useState(false);
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const productListRef = useRef<(HTMLButtonElement | null)[]>([]);
@@ -183,6 +186,22 @@ export default function POSPage() {
       document.removeEventListener('keydown',     openOnFirstGesture, true);
       document.removeEventListener('pointerdown', openOnFirstGesture, true);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Connect to QZ Tray and load real printer list on mount
+  useEffect(() => {
+    qzConnect().then(ok => {
+      setQzConnected(ok);
+      if (ok) {
+        qzGetPrinters().then(list => {
+          setPrinters(list);
+          // Auto-select saved printer if still present, else pick first
+          const saved = localStorage.getItem('receipt_printer');
+          setSelectedPrinter(prev => (list.includes(prev) ? prev : saved && list.includes(saved) ? saved : list[0] || prev));
+        });
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1036,33 +1055,60 @@ export default function POSPage() {
             </div>
             {/* Printer selector */}
             <div className="pt-2 border-t border-charcoal-600">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Printer size={13} className="text-charcoal-300" />
-                <span className="text-xs text-charcoal-300 font-medium">Receipt Printer</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <Printer size={13} className="text-charcoal-300" />
+                  <span className="text-xs text-charcoal-300 font-medium">Receipt Printer</span>
+                </div>
+                <span className={`text-xs font-medium ${qzConnected ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {qzConnected ? '● Connected' : '○ QZ Tray offline'}
+                </span>
               </div>
-              <select
-                className="input-dark w-full text-sm py-2"
-                value={selectedPrinter}
-                onChange={e => {
-                  setSelectedPrinter(e.target.value);
-                  localStorage.setItem('receipt_printer', e.target.value);
-                }}
-              >
-                <option value="POS-80">POS-80</option>
-                <option value="Epson TM-T20">Epson TM-T20</option>
-                <option value="Epson TM-T88">Epson TM-T88</option>
-                <option value="Star TSP100">Star TSP100</option>
-                <option value="Generic / Text Only">Generic / Text Only</option>
-              </select>
+
+              {qzConnected && printers.length > 0 ? (
+                <select
+                  className="input-dark w-full text-sm py-2"
+                  value={selectedPrinter}
+                  onChange={e => {
+                    setSelectedPrinter(e.target.value);
+                    localStorage.setItem('receipt_printer', e.target.value);
+                  }}
+                >
+                  {printers.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              ) : (
+                <div className="text-xs text-charcoal-300 bg-charcoal-600 rounded-xl px-3 py-2">
+                  {qzConnected
+                    ? 'No printers found'
+                    : <>QZ Tray not running — <a href="https://qz.io/download" target="_blank" rel="noreferrer" className="text-gold-400 underline">download here</a>. Print will use system dialog.</>
+                  }
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" icon={<Printer size={14} />} onClick={() => printThermalReceipt(receipt, {
-                name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
-                address: shopSettings?.shop_address?.value || undefined,
-                phone:   shopSettings?.shop_phone?.value   || undefined,
-                logoUrl: shopSettings?.shop_logo?.value    || undefined,
-              })}>Print</Button>
+              <Button
+                variant="secondary"
+                className="flex-1"
+                icon={<Printer size={14} />}
+                onClick={async () => {
+                  const html = buildReceiptHTML(receipt, {
+                    name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
+                    address: shopSettings?.shop_address?.value || undefined,
+                    phone:   shopSettings?.shop_phone?.value   || undefined,
+                    logoUrl: shopSettings?.shop_logo?.value    || undefined,
+                  });
+                  if (qzIsConnected() && selectedPrinter) {
+                    try {
+                      await qzPrintHTML(selectedPrinter, html);
+                    } catch {
+                      printViaIframe(html);
+                    }
+                  } else {
+                    printViaIframe(html);
+                  }
+                }}
+              >Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>
             </div>
           </div>

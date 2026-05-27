@@ -30,12 +30,11 @@ function row(label: string, value: string, bold = false): string {
 const DASH  = `<div style="border-top:1px dashed #000;margin:2.5mm 0;"></div>`;
 const SOLID = `<div style="border-top:1.5px solid #000;margin:2.5mm 0;"></div>`;
 
-function buildHTML(receipt: ThermalReceiptData, shop: ShopInfo): string {
+/** Builds the receipt as a standalone HTML string (used by both QZ Tray and iframe fallback). */
+export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): string {
   const now     = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-  // Always try /logo.jpg from the same origin if no custom logo configured
   const logoSrc = shop.logoUrl || `${window.location.origin}/logo.jpg`;
 
   const itemsHTML = (receipt.items || []).map(item => `
@@ -49,7 +48,6 @@ function buildHTML(receipt: ThermalReceiptData, shop: ShopInfo): string {
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Receipt</title>
 <style>
   @page { size: 80mm auto; margin: 3mm 2mm; }
   * { box-sizing: border-box; }
@@ -66,44 +64,28 @@ function buildHTML(receipt: ThermalReceiptData, shop: ShopInfo): string {
 </style>
 </head>
 <body>
-  <!-- Logo -->
   <div class="c" style="margin-bottom:2mm;">
-    <img src="${logoSrc}"
-         style="max-width:28mm;max-height:18mm;object-fit:contain;"
+    <img src="${logoSrc}" style="max-width:28mm;max-height:18mm;object-fit:contain;"
          onerror="this.style.display='none'" />
   </div>
-
-  <!-- Shop header -->
   <div class="c" style="font-weight:bold;font-size:12pt;letter-spacing:0.3px;">${shop.name}</div>
   ${shop.address ? `<div class="c" style="font-size:8pt;">${shop.address}</div>` : ''}
   ${shop.phone   ? `<div class="c" style="font-size:8pt;">${shop.phone}</div>`   : ''}
-
   ${DASH}
-
   ${row('Sale #:', receipt.saleNumber)}
   ${row('Date:',   `${dateStr} ${timeStr}`)}
-
   ${DASH}
-
   ${itemsHTML}
-
   ${DASH}
-
   ${row('Subtotal', fmt(receipt.subtotal))}
   ${receipt.promotionDiscount > 0 ? row('Promotion', '- ' + fmt(receipt.promotionDiscount)) : ''}
   ${receipt.discountAmount     > 0 ? row('Discount',  '- ' + fmt(receipt.discountAmount))     : ''}
-
   ${SOLID}
-
   ${row('TOTAL', fmt(receipt.totalAmount), true)}
-
   ${SOLID}
-
   ${row('Paid',   fmt(receipt.amountPaid))}
   ${receipt.changeAmount > 0 ? row('Change', fmt(receipt.changeAmount)) : ''}
-
   ${DASH}
-
   <div class="c" style="font-size:8pt;margin-top:2mm;">Thank you for your business!</div>
   <div class="c" style="font-weight:bold;margin-top:1mm;">${shop.name}</div>
   <div style="height:10mm;"></div>
@@ -111,31 +93,17 @@ function buildHTML(receipt: ThermalReceiptData, shop: ShopInfo): string {
 </html>`;
 }
 
-export function printThermalReceipt(receipt: ThermalReceiptData, shop: ShopInfo): void {
-  const html = buildHTML(receipt, shop);
-
-  // Use a hidden iframe — no popup, no blocker, prints via system dialog immediately
+/** Fallback: prints using a hidden iframe (shows system print dialog). */
+export function printViaIframe(html: string): void {
   const iframe = document.createElement('iframe');
   iframe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;border:none;visibility:hidden;';
   document.body.appendChild(iframe);
-
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) {
-    document.body.removeChild(iframe);
-    return;
-  }
-
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  // Wait for iframe content + any images to load, then print
+  if (!doc) { document.body.removeChild(iframe); return; }
+  doc.open(); doc.write(html); doc.close();
   setTimeout(() => {
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
-    // Remove iframe after print dialog closes
-    setTimeout(() => {
-      if (document.body.contains(iframe)) document.body.removeChild(iframe);
-    }, 2000);
+    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 2000);
   }, 400);
 }
