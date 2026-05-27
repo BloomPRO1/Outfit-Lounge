@@ -83,11 +83,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(tempSvg, item.sku, {
         format: 'CODE128',
-        width: 1.4,
-        height: 38,
+        width: 1.2,
+        height: 28,
         displayValue: true,
-        fontSize: 9,
-        margin: 4,
+        fontSize: 8,
+        margin: 2,
         background: '#ffffff',
         lineColor: '#000000',
       });
@@ -117,19 +117,19 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;background:#fff}
-    .grid{display:flex;flex-wrap:wrap;gap:3mm;padding:6mm}
+    .grid{display:flex;flex-wrap:wrap;gap:0;padding:0}
     .label{
-      width:45mm;border:0.4pt solid #bbb;
-      padding:2mm;display:flex;flex-direction:column;
-      align-items:center;page-break-inside:avoid
+      width:76mm;height:25mm;border:0.4pt solid #bbb;
+      padding:1mm 1.5mm;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden
     }
     .pname{font-size:7pt;font-weight:700;text-align:center;
-      max-width:41mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      margin-bottom:1mm}
-    .variant{font-size:6pt;color:#555;margin-bottom:1mm;text-align:center}
-    .barcode svg{max-width:100%}
-    .price{font-size:8pt;font-weight:700;margin-top:1mm}
-    @media print{@page{margin:5mm}body{margin:0}}
+      width:72mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      margin-bottom:0.5mm;line-height:1.1}
+    .variant{font-size:6pt;color:#555;margin-bottom:0.5mm;text-align:center}
+    .barcode svg{max-width:72mm;max-height:10mm}
+    .price{font-size:7pt;font-weight:700;margin-top:0.5mm}
+    @media print{@page{size:3in 1in;margin:0}body{margin:0}.grid{padding:0}.label{border:none}}
   </style>
 </head>
 <body>
