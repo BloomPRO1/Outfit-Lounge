@@ -56,10 +56,8 @@ export default function POSPage() {
   const [showWaInput, setShowWaInput] = useState(false);
   const [waPhoneInput, setWaPhoneInput] = useState('');
 
-  // Printer — real list from QZ Tray, falls back to stored preference
-  const [selectedPrinter, setSelectedPrinter] = useState(
-    () => localStorage.getItem('receipt_printer') || ''
-  );
+  // Printer — QZ Tray gives real list on dedicated terminals; falls back to system dialog
+  const [selectedPrinter, setSelectedPrinter] = useState('');
   const [printers, setPrinters]       = useState<string[]>([]);
   const [qzConnected, setQzConnected] = useState(false);
 
@@ -189,14 +187,13 @@ export default function POSPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Connect to QZ Tray and load real printer list on mount
+  // Try QZ Tray (optional — only works on dedicated POS terminals with QZ installed)
   useEffect(() => {
     qzConnect().then(ok => {
       setQzConnected(ok);
       if (ok) {
         qzGetPrinters().then(list => {
           setPrinters(list);
-          // Auto-select saved printer if still present, else pick first
           const saved = localStorage.getItem('receipt_printer');
           setSelectedPrinter(prev => (list.includes(prev) ? prev : saved && list.includes(saved) ? saved : list[0] || prev));
         });
@@ -1053,19 +1050,16 @@ export default function POSPage() {
                 </Button>
               )}
             </div>
-            {/* Printer selector */}
-            <div className="pt-2 border-t border-charcoal-600">
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Printer size={13} className="text-charcoal-300" />
-                  <span className="text-xs text-charcoal-300 font-medium">Receipt Printer</span>
+            {/* Printer — QZ Tray (dedicated terminal) or system dialog (universal) */}
+            {qzConnected && printers.length > 0 && (
+              <div className="pt-2 border-t border-charcoal-600">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Printer size={13} className="text-charcoal-300" />
+                    <span className="text-xs text-charcoal-300 font-medium">Receipt Printer</span>
+                  </div>
+                  <span className="text-xs font-medium text-emerald-400">● Direct print</span>
                 </div>
-                <span className={`text-xs font-medium ${qzConnected ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {qzConnected ? '● Connected' : '○ QZ Tray offline'}
-                </span>
-              </div>
-
-              {qzConnected && printers.length > 0 ? (
                 <select
                   className="input-dark w-full text-sm py-2"
                   value={selectedPrinter}
@@ -1076,17 +1070,10 @@ export default function POSPage() {
                 >
                   {printers.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
-              ) : (
-                <div className="text-xs text-charcoal-300 bg-charcoal-600 rounded-xl px-3 py-2">
-                  {qzConnected
-                    ? 'No printers found'
-                    : <>QZ Tray not running — <a href="https://qz.io/download" target="_blank" rel="noreferrer" className="text-gold-400 underline">download here</a>. Print will use system dialog.</>
-                  }
-                </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <Button
                 variant="secondary"
                 className="flex-1"
@@ -1099,14 +1086,9 @@ export default function POSPage() {
                     logoUrl: shopSettings?.shop_logo?.value    || undefined,
                   });
                   if (qzIsConnected() && selectedPrinter) {
-                    try {
-                      await qzPrintHTML(selectedPrinter, html);
-                    } catch {
-                      printViaIframe(html);
-                    }
-                  } else {
-                    printViaIframe(html);
+                    try { await qzPrintHTML(selectedPrinter, html); return; } catch { /* fall through */ }
                   }
+                  printViaIframe(html);
                 }}
               >Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>
