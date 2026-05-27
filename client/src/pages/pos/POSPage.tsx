@@ -55,6 +55,11 @@ export default function POSPage() {
   const [showWaInput, setShowWaInput] = useState(false);
   const [waPhoneInput, setWaPhoneInput] = useState('');
 
+  // Printer preference (persisted in localStorage)
+  const [selectedPrinter, setSelectedPrinter] = useState(
+    () => localStorage.getItem('receipt_printer') || 'POS-80'
+  );
+
   const barcodeRef = useRef<HTMLInputElement>(null);
   const productListRef = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -1029,7 +1034,29 @@ export default function POSPage() {
                 </Button>
               )}
             </div>
-            <div className="flex gap-2 pt-2">
+            {/* Printer selector */}
+            <div className="pt-2 border-t border-charcoal-600">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Printer size={13} className="text-charcoal-300" />
+                <span className="text-xs text-charcoal-300 font-medium">Receipt Printer</span>
+              </div>
+              <select
+                className="input-dark w-full text-sm py-2"
+                value={selectedPrinter}
+                onChange={e => {
+                  setSelectedPrinter(e.target.value);
+                  localStorage.setItem('receipt_printer', e.target.value);
+                }}
+              >
+                <option value="POS-80">POS-80</option>
+                <option value="Epson TM-T20">Epson TM-T20</option>
+                <option value="Epson TM-T88">Epson TM-T88</option>
+                <option value="Star TSP100">Star TSP100</option>
+                <option value="Generic / Text Only">Generic / Text Only</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
               <Button variant="secondary" className="flex-1" icon={<Printer size={14} />} onClick={() => printThermalReceipt(receipt, {
                 name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
                 address: shopSettings?.shop_address?.value || undefined,

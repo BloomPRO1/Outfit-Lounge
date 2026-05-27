@@ -152,8 +152,8 @@ async function seed() {
     // ─── DEFAULT SETTINGS ─────────────────────
     const defaultSettings = [
       { key: 'shop_name', value: 'The Outfit Lounge', category: 'shop', label: 'Shop Name' },
-      { key: 'shop_address', value: 'No 1, Jalan Bukit Bintang, 55100 Kuala Lumpur', category: 'shop', label: 'Shop Address' },
-      { key: 'shop_phone', value: '+60312345678', category: 'shop', label: 'Shop Phone' },
+      { key: 'shop_address', value: '2nd Floor, 6 Station Road, Homagama.', category: 'shop', label: 'Shop Address' },
+      { key: 'shop_phone', value: '+94 77 845 1180', category: 'shop', label: 'Shop Phone' },
       { key: 'shop_email', value: 'hello@theoutfitlounge.com', category: 'shop', label: 'Shop Email' },
       { key: 'currency', value: 'LKR', category: 'shop', label: 'Currency' },
       { key: 'currency_symbol', value: 'LKR', category: 'shop', label: 'Currency Symbol' },
