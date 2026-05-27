@@ -54,11 +54,10 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 <head>
 <meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@500;700;900&display=swap');
   @page { size: 80mm auto; margin: 2mm 3mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Roboto', Arial, sans-serif;
+    font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 9.5pt;
     font-weight: 500;
     width: 72mm;
@@ -122,17 +121,47 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 </html>`;
 }
 
-/** Prints receipt via a hidden iframe. With --kiosk-printing goes straight to default printer. */
+/**
+ * Prints receipt using the main window's window.print() — the only method
+ * that works reliably with Chrome's --kiosk-printing flag.
+ * Temporarily injects receipt content + styles into the page, hides everything
+ * else via @media print CSS, prints, then cleans up.
+ */
 export function printViaIframe(html: string): void {
-  const iframe = document.createElement('iframe');
-  // Must be full-size (even if off-screen) so the browser renders content before printing
-  iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:80mm;height:297mm;border:none;';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) { document.body.removeChild(iframe); return; }
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => {
-    iframe.contentWindow?.print();
-    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 2000);
-  }, 600);
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(html, 'text/html');
+
+  // Pull the receipt's CSS (strip @import to avoid network delays)
+  const receiptCSS = Array.from(parsed.querySelectorAll('style'))
+    .map(s => s.textContent ?? '')
+    .join('\n')
+    .replace(/@import[^;]+;/g, '');
+
+  // Style: during print, hide all app content; show only the receipt div
+  const printStyle = document.createElement('style');
+  printStyle.textContent = `
+    @media print {
+      body > *:not(#__receipt_print) { display: none !important; }
+      #__receipt_print { display: block !important; }
+    }
+    #__receipt_print { display: none; }
+    ${receiptCSS}
+  `;
+
+  const container = document.createElement('div');
+  container.id = '__receipt_print';
+  container.innerHTML = parsed.body.innerHTML;
+
+  document.head.appendChild(printStyle);
+  document.body.appendChild(container);
+
+  const cleanup = () => {
+    printStyle.remove();
+    container.remove();
+  };
+
+  window.addEventListener('afterprint', cleanup, { once: true });
+  setTimeout(cleanup, 10_000); // safety net
+
+  setTimeout(() => window.print(), 100);
 }
