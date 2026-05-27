@@ -1,3 +1,5 @@
+import logoDataUri from '@/assets/logoBase64';
+
 export interface ThermalReceiptData {
   saleNumber: string;
   items: Array<{ productName: string; quantity: number; itemSubtotal: number }>;
@@ -35,7 +37,8 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
   const now     = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const logoSrc = shop.logoUrl || `${window.location.origin}/logo.jpg`;
+  // Use embedded base64 logo (works in print iframe without any network request)
+  const logoSrc = shop.logoUrl || logoDataUri;
 
   const itemsHTML = (receipt.items || []).map(item => `
     <div style="margin-top:1.5mm;">
