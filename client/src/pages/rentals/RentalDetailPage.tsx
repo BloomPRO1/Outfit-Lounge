@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Package, CreditCard, Bell, RotateCcw, CheckCircle,
   ChevronRight, CalendarCheck, PackageCheck, PackageOpen,
-  CheckCircle2, XCircle, Clock, AlertTriangle, ArrowRight,
+  CheckCircle2, XCircle, Clock, AlertTriangle, ArrowRight, Printer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/services/api';
 import { rentalService } from '@/services/rentalService';
+import { settingsService } from '@/services/settingsService';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
@@ -18,6 +19,7 @@ import Input from '@/components/common/Input';
 import Modal from '@/components/common/Modal';
 import { formatCurrency, formatDate, formatDateTime, STATUS_LABELS } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
+import { buildRentalReceiptHTML, printViaIframe } from '@/utils/thermalPrint';
 
 // ─── Workflow Definition ──────────────────────────────────────────────────────
 const WORKFLOW_STEPS = [
@@ -104,6 +106,13 @@ export default function RentalDetailPage() {
   const [statusNotes, setStatusNotes] = useState('');
   const [pickupTime, setPickupTime] = useState('');
   const [payment, setPayment] = useState({ amount: '', paymentMethod: 'cash', paymentType: 'balance', notes: '' });
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+
+  const { data: shopSettings } = useQuery({
+    queryKey: ['settings-shop'],
+    queryFn: () => settingsService.getAll('shop'),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data: rental, isLoading } = useQuery({
     queryKey: ['rental', id],
@@ -155,8 +164,42 @@ export default function RentalDetailPage() {
   const totalPaid = (rental.payments || []).reduce((sum: number, p: any) => {
     return p.payment_type !== 'refund' ? sum + parseFloat(p.amount) : sum - parseFloat(p.amount);
   }, 0);
-  const netCost = Number(rental.total_rental_cost) - Number(rental.discount_amount || 0);
+  const netCost   = Number(rental.total_rental_cost) - Number(rental.discount_amount || 0);
   const balanceDue = Math.max(0, netCost - totalPaid + Number(rental.total_fine || 0));
+
+  const shopInfo = {
+    name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
+    address: shopSettings?.shop_address?.value || undefined,
+    phone:   shopSettings?.shop_phone?.value   || undefined,
+    logoUrl: shopSettings?.shop_logo?.value    || undefined,
+  };
+
+  const receiptData = {
+    bookingNumber:   rental.booking_number,
+    customerName:    rental.customer_name,
+    customerPhone:   rental.customer_phone || undefined,
+    eventType:       rental.event_type     || undefined,
+    rentalStartDate: rental.rental_start_date,
+    rentalEndDate:   rental.rental_end_date,
+    items: (rental.items || []).map((item: any) => ({
+      productName: item.product_name,
+      variant:     [item.size, item.color].filter(Boolean).join(' / ') || undefined,
+      quantity:    item.quantity,
+      pricePerDay: parseFloat(item.rental_price_per_day),
+    })),
+    totalRentalCost: Number(rental.total_rental_cost),
+    discountAmount:  Number(rental.discount_amount || 0),
+    totalPaid,
+    balanceDue,
+    totalFine:       Number(rental.total_fine || 0),
+    notes:           rental.notes || undefined,
+  };
+
+  const receiptHTML = buildRentalReceiptHTML(receiptData, shopInfo);
+
+  function handlePrintReceipt() {
+    printViaIframe(receiptHTML);
+  }
 
   function handleAction(status: string) {
     if (status === 'returned' || status === 'late_return') {
@@ -188,6 +231,9 @@ export default function RentalDetailPage() {
           </div>
           <p className="text-sm text-charcoal-300 mt-0.5">{rental.customer_name} · {formatDate(rental.rental_start_date)} → {formatDate(rental.rental_end_date)}</p>
         </div>
+        <Button variant="secondary" icon={<Printer size={15} />} onClick={() => setShowReceiptPreview(true)}>
+          Print Receipt
+        </Button>
         <Button variant="primary" icon={<CreditCard size={15} />} onClick={() => setShowPaymentModal(true)}>
           Add Payment
         </Button>
@@ -547,6 +593,35 @@ export default function RentalDetailPage() {
             placeholder="Any notes about this status change..."
           />
         </div>
+      </Modal>
+
+      {/* ── Receipt Preview Modal ────────────────────────────────────────────── */}
+      <Modal
+        open={showReceiptPreview}
+        onClose={() => setShowReceiptPreview(false)}
+        title="Receipt Preview"
+        variant="dialog"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowReceiptPreview(false)}>Cancel</Button>
+            <Button variant="primary" icon={<Printer size={14} />} onClick={() => { handlePrintReceipt(); setShowReceiptPreview(false); }}>
+              Print
+            </Button>
+          </>
+        }
+      >
+        <div className="flex justify-center">
+          <div className="bg-white rounded-xl overflow-hidden shadow-lg" style={{ width: '290px' }}>
+            <iframe
+              srcDoc={receiptHTML}
+              style={{ width: '290px', height: '520px', border: 'none', display: 'block' }}
+              title="Receipt Preview"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-charcoal-300 text-center mt-3">
+          80 mm thermal receipt · {rental.booking_number}
+        </p>
       </Modal>
 
       {/* ── Payment Modal ────────────────────────────────────────────────────── */}
