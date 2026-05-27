@@ -128,60 +128,66 @@ export default function POSPage() {
   // ── Customer display ───────────────────────────────────────────────────────
   const displayWinRef = useRef<Window | null>(null);
 
-  // Reposition an already-open window onto the second screen using the
-  // Window Management API (Chrome/Edge ≥ 100, requires "window-management" permission).
-  const repositionToSecondScreen = async (w: Window) => {
+  // Resolve the secondary screen's position/size using the Window Management API.
+  // Returns null if the API is unavailable or permission is denied.
+  const getSecondaryScreen = async (): Promise<{ left: number; top: number; width: number; height: number } | null> => {
     try {
-      if (!('getScreenDetails' in window)) return;
+      if (!('getScreenDetails' in window)) return null;
       const sd = await (window as any).getScreenDetails();
       const screens: any[] = sd.screens;
-      const target = screens.find((s: any) => !s.isPrimary) ?? screens[screens.length - 1];
-      w.moveTo(target.availLeft, target.availTop);
-      w.resizeTo(target.availWidth, target.availHeight);
-    } catch { /* API unavailable or permission denied */ }
+      const target = screens.find((s: any) => !s.isPrimary);
+      if (!target) return null;
+      return { left: target.availLeft, top: target.availTop, width: target.availWidth, height: target.availHeight };
+    } catch { return null; }
   };
 
-  // Open (or focus/reposition) the customer display window.
-  // Must be called from a user-gesture context so the browser allows the popup.
+  // Build a window.open features string, optionally positioned on the secondary screen.
+  const buildFeatures = (screen: { left: number; top: number; width: number; height: number } | null) => {
+    const base = 'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0';
+    if (!screen) return base;
+    return `${base},left=${screen.left},top=${screen.top},width=${screen.width},height=${screen.height}`;
+  };
+
+  // Open (or focus/move) the customer display window.
+  // Called from a user-gesture context so Chrome grants the window-management permission.
   const openCustomerDisplay = async () => {
+    const screen = await getSecondaryScreen();
     if (displayWinRef.current && !displayWinRef.current.closed) {
       displayWinRef.current.focus();
-      await repositionToSecondScreen(displayWinRef.current);
+      if (screen) {
+        displayWinRef.current.moveTo(screen.left, screen.top);
+        displayWinRef.current.resizeTo(screen.width, screen.height);
+      }
       return;
     }
-    const w = window.open('/customer-display', 'customer-display',
-      'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0');
+    // Pass coordinates directly so the window lands on the secondary screen immediately.
+    const w = window.open('/customer-display', 'customer-display', buildFeatures(screen));
     displayWinRef.current = w;
-    if (w) {
-      await repositionToSecondScreen(w);
-    }
   };
 
   // Auto-open strategy:
-  //   1. Try immediately on mount — works when the site is already in the
-  //      browser's popup allow-list (e.g. after the user clicked "Allow" once).
-  //   2. If blocked (returns null), silently wait for the operator's first
-  //      interaction (keydown / pointerdown).  The very first barcode scan or
-  //      tap is enough — the customer display then opens automatically.
+  //   1. Try immediately on mount. If window-management permission was already
+  //      granted (user clicked Allow before), getSecondaryScreen() resolves
+  //      instantly and the popup opens on the correct screen.
+  //   2. If blocked (popup returns null), wait for the operator's first
+  //      interaction — barcode scan or tap — then open via openCustomerDisplay()
+  //      which will prompt for permission and position correctly.
   useEffect(() => {
-    // Attempt 1 — synchronous, no user gesture needed if site is trusted
-    const w = window.open('/customer-display', 'customer-display',
-      'toolbar=0,menubar=0,scrollbars=0,resizable=1,status=0');
+    let cancelled = false;
+    const tryAutoOpen = async () => {
+      // Permission already granted → resolve coords silently, no prompt.
+      const screen = await getSecondaryScreen().catch(() => null);
+      if (cancelled) return;
+      const w = window.open('/customer-display', 'customer-display', buildFeatures(screen));
+      if (w) { displayWinRef.current = w; return; }
 
-    if (w) {
-      displayWinRef.current = w;
-      repositionToSecondScreen(w);
-      return;
-    }
-
-    // Attempt 2 — popup was blocked; open on first operator interaction
-    const openOnFirstGesture = () => { openCustomerDisplay(); };
-    document.addEventListener('keydown',     openOnFirstGesture, { once: true, capture: true });
-    document.addEventListener('pointerdown', openOnFirstGesture, { once: true, capture: true });
-    return () => {
-      document.removeEventListener('keydown',     openOnFirstGesture, true);
-      document.removeEventListener('pointerdown', openOnFirstGesture, true);
+      // Popup was blocked — open on first operator interaction (which grants gesture context).
+      const openOnFirstGesture = () => { openCustomerDisplay(); };
+      document.addEventListener('keydown',     openOnFirstGesture, { once: true, capture: true });
+      document.addEventListener('pointerdown', openOnFirstGesture, { once: true, capture: true });
     };
+    tryAutoOpen();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
