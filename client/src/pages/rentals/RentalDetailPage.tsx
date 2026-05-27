@@ -492,8 +492,8 @@ export default function RentalDetailPage() {
                 { label: 'Total Paid', value: formatCurrency(totalPaid), color: 'text-emerald-400' },
                 ...(Number(rental.total_fine) > 0 ? [{ label: 'Fine', value: formatCurrency(rental.total_fine), color: 'text-red-400' }] : []),
                 { label: 'Balance Due', value: formatCurrency(balanceDue), color: balanceDue > 0 ? 'text-amber-400 font-bold' : 'text-emerald-400' },
-              ...(rental.security_type === 'deposit' && rental.security_deposit > 0
-                ? [{ label: 'Security Deposit', value: formatCurrency(rental.security_deposit), color: 'text-blue-400' }]
+              ...(rental.security_type === 'deposit' && (rental.security_deposit ?? 0) > 0
+                ? [{ label: 'Security Deposit', value: formatCurrency(rental.security_deposit!), color: 'text-blue-400' }]
                 : []),
               ...(rental.security_type === 'id_card' && rental.security_id_number
                 ? [{ label: 'ID Card Held', value: rental.security_id_number, color: 'text-blue-400' }]
