@@ -115,6 +115,10 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 
   <div class="c sm" style="margin-top:1.5mm;">Thank you for your business!</div>
   <div class="c b" style="font-size:8.5pt;margin-top:1mm;">${shop.name}</div>
+
+  <div class="dash" style="margin-top:3mm;"></div>
+  <div class="c" style="font-size:7.5pt;color:#666;margin-top:1mm;">Powered by <span style="font-weight:700;color:#444;">Bloomtech.lk</span></div>
+  <div class="c" style="font-size:7.5pt;color:#666;">0779 160 704</div>
   <div style="height:8mm;"></div>
 
 </body>
@@ -256,6 +260,10 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
   <div class="dash" style="margin-top:3mm;"></div>
   <div class="c sm">Thank you for choosing</div>
   <div class="c b" style="font-size:9pt;">${shop.name}</div>
+
+  <div class="dash" style="margin-top:3mm;"></div>
+  <div class="c" style="font-size:7.5pt;color:#666;margin-top:1mm;">Powered by <span style="font-weight:700;color:#444;">Bloomtech.lk</span></div>
+  <div class="c" style="font-size:7.5pt;color:#666;">0779 160 704</div>
   <div style="height:8mm;"></div>
 
 </body>

@@ -295,7 +295,7 @@ async function buildPDF(d: PDFData): Promise<Buffer> {
       // Powered by Bloomtech.lk
       doc.rect(0, FTR_Y + 46, PGW, 0.5).fillColor('#2a2a40').fill();
       doc.font('Helvetica').fontSize(7).fillColor('#5a5a7a')
-        .text('Powered by Bloomtech.lk', ML, FTR_Y + 50, { width: W, align: 'center' });
+        .text('Powered by Bloomtech.lk  ·  0779 160 704', ML, FTR_Y + 50, { width: W, align: 'center' });
 
       doc.end();
     } catch (err) { reject(err); }
