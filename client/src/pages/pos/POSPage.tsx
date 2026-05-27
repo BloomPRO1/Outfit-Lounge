@@ -23,6 +23,7 @@ import Drawer from '@/components/common/Drawer';
 import PromotionSelector from '@/components/common/PromotionSelector';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
+import { printThermalReceipt } from '@/utils/thermalPrint';
 import type { ProductCategory, Promotion } from '@/types';
 
 const PAYMENT_METHODS = [
@@ -1029,7 +1030,11 @@ export default function POSPage() {
               )}
             </div>
             <div className="flex gap-2 pt-2">
-              <Button variant="secondary" className="flex-1" icon={<Printer size={14} />} onClick={() => window.print()}>Print</Button>
+              <Button variant="secondary" className="flex-1" icon={<Printer size={14} />} onClick={() => printThermalReceipt(receipt, {
+                name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
+                address: shopSettings?.shop_address?.value || undefined,
+                phone:   shopSettings?.shop_phone?.value   || undefined,
+              })}>Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>
             </div>
           </div>
