@@ -42,8 +42,8 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 
   const itemsHTML = (receipt.items || []).map(item => `
     <div style="margin-bottom:2mm;">
-      <div style="font-weight:500;">${item.productName}</div>
-      <div style="display:flex;justify-content:space-between;color:#444;font-size:8pt;">
+      <div style="font-weight:700;">${item.productName}</div>
+      <div style="display:flex;justify-content:space-between;color:#333;font-size:9pt;">
         <span>x${item.quantity}</span><span style="color:#111;font-weight:600;">${fmt(item.itemSubtotal)}</span>
       </div>
     </div>
@@ -54,21 +54,22 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 <head>
 <meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@500;700;900&display=swap');
   @page { size: 80mm auto; margin: 2mm 3mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Roboto', Arial, sans-serif;
-    font-size: 8.5pt;
+    font-size: 9.5pt;
+    font-weight: 500;
     width: 72mm;
     margin: 0 auto;
     color: #111;
     background: #fff;
-    line-height: 1.5;
+    line-height: 1.6;
   }
   .c  { text-align: center; }
   .b  { font-weight: 700; }
-  .sm { font-size: 7.5pt; color: #444; }
+  .sm { font-size: 8.5pt; color: #333; }
   .row { display: flex; justify-content: space-between; align-items: baseline; }
   .dash  { border-top: 1px dashed #999; margin: 2.5mm 0; }
   .solid { border-top: 1.5px solid #111; margin: 2.5mm 0; }
