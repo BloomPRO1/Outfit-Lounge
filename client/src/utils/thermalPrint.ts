@@ -41,9 +41,11 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
   const logoSrc = shop.logoUrl || logoDataUri;
 
   const itemsHTML = (receipt.items || []).map(item => `
-    <div style="margin-top:1.5mm;">
-      <div style="font-weight:bold;">${item.productName}</div>
-      ${row(`&nbsp;&nbsp;x${item.quantity}`, fmt(item.itemSubtotal))}
+    <div style="margin-bottom:2mm;">
+      <div style="font-weight:500;">${item.productName}</div>
+      <div style="display:flex;justify-content:space-between;color:#444;font-size:8pt;">
+        <span>x${item.quantity}</span><span style="color:#111;font-weight:600;">${fmt(item.itemSubtotal)}</span>
+      </div>
     </div>
   `).join('');
 
@@ -52,46 +54,69 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 <head>
 <meta charset="UTF-8">
 <style>
-  @page { size: 80mm auto; margin: 3mm 2mm; }
-  * { box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+  @page { size: 80mm auto; margin: 2mm 3mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 9pt;
+    font-family: 'Roboto', Arial, sans-serif;
+    font-size: 8.5pt;
     width: 72mm;
     margin: 0 auto;
-    color: #000;
+    color: #111;
     background: #fff;
-    line-height: 1.55;
+    line-height: 1.5;
   }
-  .c { text-align: center; }
+  .c  { text-align: center; }
+  .b  { font-weight: 700; }
+  .sm { font-size: 7.5pt; color: #444; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .dash  { border-top: 1px dashed #999; margin: 2.5mm 0; }
+  .solid { border-top: 1.5px solid #111; margin: 2.5mm 0; }
+  .total-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11pt; font-weight: 700; letter-spacing: 0.2px;
+    padding: 1mm 0;
+  }
 </style>
 </head>
 <body>
-  <div class="c" style="margin-bottom:2mm;">
-    <img src="${logoSrc}" style="max-width:28mm;max-height:18mm;object-fit:contain;"
+
+  <div class="c" style="margin-bottom:2.5mm;">
+    <img src="${logoSrc}" style="max-width:22mm;max-height:22mm;object-fit:contain;"
          onerror="this.style.display='none'" />
   </div>
-  <div class="c" style="font-weight:bold;font-size:12pt;letter-spacing:0.3px;">${shop.name}</div>
-  ${shop.address ? `<div class="c" style="font-size:8pt;">${shop.address}</div>` : ''}
-  ${shop.phone   ? `<div class="c" style="font-size:8pt;">${shop.phone}</div>`   : ''}
-  ${DASH}
-  ${row('Sale #:', receipt.saleNumber)}
-  ${row('Date:',   `${dateStr} ${timeStr}`)}
-  ${DASH}
+  <div class="c b" style="font-size:11pt;letter-spacing:0.5px;">${shop.name}</div>
+  ${shop.address ? `<div class="c sm" style="margin-top:0.5mm;">${shop.address}</div>` : ''}
+  ${shop.phone   ? `<div class="c sm">${shop.phone}</div>` : ''}
+
+  <div class="dash" style="margin-top:3mm;"></div>
+
+  <div class="row"><span class="sm">Sale #</span><span class="b" style="font-size:8pt;">${receipt.saleNumber}</span></div>
+  <div class="row"><span class="sm">Date</span><span class="sm">${dateStr} &nbsp; ${timeStr}</span></div>
+
+  <div class="dash"></div>
+
   ${itemsHTML}
-  ${DASH}
-  ${row('Subtotal', fmt(receipt.subtotal))}
-  ${receipt.promotionDiscount > 0 ? row('Promotion', '- ' + fmt(receipt.promotionDiscount)) : ''}
-  ${receipt.discountAmount     > 0 ? row('Discount',  '- ' + fmt(receipt.discountAmount))     : ''}
-  ${SOLID}
-  ${row('TOTAL', fmt(receipt.totalAmount), true)}
-  ${SOLID}
-  ${row('Paid',   fmt(receipt.amountPaid))}
-  ${receipt.changeAmount > 0 ? row('Change', fmt(receipt.changeAmount)) : ''}
-  ${DASH}
-  <div class="c" style="font-size:8pt;margin-top:2mm;">Thank you for your business!</div>
-  <div class="c" style="font-weight:bold;margin-top:1mm;">${shop.name}</div>
-  <div style="height:10mm;"></div>
+
+  <div class="dash"></div>
+
+  <div class="row"><span class="sm">Subtotal</span><span>${fmt(receipt.subtotal)}</span></div>
+  ${receipt.promotionDiscount > 0 ? `<div class="row"><span class="sm">Promotion</span><span>- ${fmt(receipt.promotionDiscount)}</span></div>` : ''}
+  ${receipt.discountAmount     > 0 ? `<div class="row"><span class="sm">Discount</span><span>- ${fmt(receipt.discountAmount)}</span></div>`     : ''}
+
+  <div class="solid"></div>
+  <div class="total-row"><span>TOTAL</span><span>${fmt(receipt.totalAmount)}</span></div>
+  <div class="solid"></div>
+
+  <div class="row"><span class="sm">Paid</span><span>${fmt(receipt.amountPaid)}</span></div>
+  ${receipt.changeAmount > 0 ? `<div class="row"><span class="sm">Change</span><span>${fmt(receipt.changeAmount)}</span></div>` : ''}
+
+  <div class="dash"></div>
+
+  <div class="c sm" style="margin-top:1.5mm;">Thank you for your business!</div>
+  <div class="c b" style="font-size:8.5pt;margin-top:1mm;">${shop.name}</div>
+  <div style="height:8mm;"></div>
+
 </body>
 </html>`;
 }
