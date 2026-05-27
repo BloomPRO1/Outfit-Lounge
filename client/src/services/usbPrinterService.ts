@@ -2,7 +2,8 @@ import type { ThermalReceiptData, ShopInfo } from '@/utils/thermalPrint';
 
 const COLS = 32; // characters per line on 80mm paper
 
-let dev: USBDevice | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let dev: any = null;
 let outEp = 1; // bulk-OUT endpoint number
 
 /** Ask the user to pick a USB printer (one-time). Chrome remembers the permission. */
