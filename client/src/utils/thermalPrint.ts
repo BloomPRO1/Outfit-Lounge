@@ -155,13 +155,9 @@ export function printViaIframe(html: string): void {
   document.head.appendChild(printStyle);
   document.body.appendChild(container);
 
-  const cleanup = () => {
-    printStyle.remove();
-    container.remove();
-  };
-
-  window.addEventListener('afterprint', cleanup, { once: true });
-  setTimeout(cleanup, 10_000); // safety net
-
+  // Delay cleanup well past when the user finishes with the print dialog.
+  // Do NOT use afterprint — it fires immediately on some Chrome versions
+  // (before the dialog appears), which removes the content and cancels the print.
   setTimeout(() => window.print(), 100);
+  setTimeout(() => { printStyle.remove(); container.remove(); }, 30_000);
 }
