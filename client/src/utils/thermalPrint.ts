@@ -122,17 +122,17 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 </html>`;
 }
 
-/** Fallback: prints using a hidden iframe (shows system print dialog). */
+/** Prints receipt via a hidden iframe. With --kiosk-printing goes straight to default printer. */
 export function printViaIframe(html: string): void {
   const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;border:none;visibility:hidden;';
+  // Must be full-size (even if off-screen) so the browser renders content before printing
+  iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:80mm;height:297mm;border:none;';
   document.body.appendChild(iframe);
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
   if (!doc) { document.body.removeChild(iframe); return; }
   doc.open(); doc.write(html); doc.close();
   setTimeout(() => {
-    iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
     setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 2000);
-  }, 400);
+  }, 600);
 }
