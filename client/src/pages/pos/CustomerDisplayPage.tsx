@@ -91,22 +91,19 @@ function IdleScreen({ shopName, shopLogo }: { shopName: string; shopLogo: string
         />
       </div>
 
-      {/* Footer */}
-      <div className="absolute bottom-8 inset-x-0 text-center">
-        <p className="text-charcoal-600 text-xs tracking-[0.3em] uppercase">{shopName}</p>
-      </div>
     </motion.div>
   );
 }
 
 // ─── Cart Screen ──────────────────────────────────────────────────────────────
-function CartScreen({ items, subtotal, discount, total, customerName, shopName }: {
+function CartScreen({ items, subtotal, discount, total, customerName, shopName, shopLogo }: {
   items: DisplayCartItem[];
   subtotal: number;
   discount: number;
   total: number;
   customerName: string | null;
   shopName: string;
+  shopLogo: string;
 }) {
   return (
     <motion.div
@@ -117,8 +114,13 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName }
       className="flex-1 flex flex-col overflow-hidden"
     >
       {/* Top bar */}
-      <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-4 flex items-center justify-between">
-        <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
+      <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {shopLogo && (
+            <img src={shopLogo} alt={shopName} className="h-9 w-auto object-contain" />
+          )}
+          <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
+        </div>
         {customerName && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-charcoal-400">Customer:</span>
@@ -293,13 +295,14 @@ function CheckoutScreen({ total, amountPaid, change, customerName }: {
 }
 
 // ─── Rental Screen ────────────────────────────────────────────────────────────
-function RentalScreen({ items, total, customerName, startDate, endDate, shopName }: {
+function RentalScreen({ items, total, customerName, startDate, endDate, shopName, shopLogo }: {
   items: DisplayRentalItem[];
   total: number;
   customerName: string;
   startDate: string;
   endDate: string;
   shopName: string;
+  shopLogo: string;
 }) {
   return (
     <motion.div
@@ -310,8 +313,13 @@ function RentalScreen({ items, total, customerName, startDate, endDate, shopName
       className="flex-1 flex flex-col overflow-hidden"
     >
       {/* Top bar */}
-      <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-4 flex items-center justify-between">
-        <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
+      <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {shopLogo && (
+            <img src={shopLogo} alt={shopName} className="h-9 w-auto object-contain" />
+          )}
+          <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
+        </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
             <p className="text-charcoal-100 font-medium text-sm">{customerName}</p>
@@ -488,20 +496,29 @@ export default function CustomerDisplayPage() {
       {/* Fullscreen activation overlay — shown until fullscreen is entered */}
       {!isFullscreen && <FullscreenOverlay />}
 
-      <AnimatePresence mode="wait">
-        {screen.type === 'idle' && (
-          <IdleScreen key="idle" shopName={shopName} shopLogo={shopLogo} />
-        )}
-        {screen.type === 'pos_cart' && (
-          <CartScreen key="cart" {...screen} shopName={shopName} />
-        )}
-        {screen.type === 'pos_checkout' && (
-          <CheckoutScreen key="checkout" {...screen} />
-        )}
-        {screen.type === 'rental' && (
-          <RentalScreen key="rental" {...screen} shopName={shopName} />
-        )}
-      </AnimatePresence>
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        <AnimatePresence mode="wait">
+          {screen.type === 'idle' && (
+            <IdleScreen key="idle" shopName={shopName} shopLogo={shopLogo} />
+          )}
+          {screen.type === 'pos_cart' && (
+            <CartScreen key="cart" {...screen} shopName={shopName} shopLogo={shopLogo} />
+          )}
+          {screen.type === 'pos_checkout' && (
+            <CheckoutScreen key="checkout" {...screen} />
+          )}
+          {screen.type === 'rental' && (
+            <RentalScreen key="rental" {...screen} shopName={shopName} shopLogo={shopLogo} />
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Global footer */}
+      <div className="flex-shrink-0 bg-charcoal-900/80 border-t border-charcoal-700/30 py-1.5 text-center">
+        <p className="text-charcoal-600 text-[10px] tracking-[0.25em] uppercase">
+          Powered by <span className="text-gold-700/70">Bloomtech.lk</span>
+        </p>
+      </div>
     </div>
   );
 }
