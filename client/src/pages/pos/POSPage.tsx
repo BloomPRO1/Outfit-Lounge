@@ -24,7 +24,6 @@ import PromotionSelector from '@/components/common/PromotionSelector';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
 import { buildReceiptHTML, printViaIframe } from '@/utils/thermalPrint';
-import { connectUsbPrinter, isUsbConnected, usbPrint } from '@/services/usbPrinterService';
 import type { ProductCategory, Promotion } from '@/types';
 
 const PAYMENT_METHODS = [
@@ -55,8 +54,6 @@ export default function POSPage() {
   const [waInvoiceSent, setWaInvoiceSent] = useState(false);
   const [showWaInput, setShowWaInput] = useState(false);
   const [waPhoneInput, setWaPhoneInput] = useState('');
-  // USB printer state
-  const [usbPrinterName, setUsbPrinterName] = useState<string | null>(null);
 
 
   const barcodeRef = useRef<HTMLInputElement>(null);
@@ -1037,52 +1034,18 @@ export default function POSPage() {
                 </Button>
               )}
             </div>
-            {/* USB printer binding */}
-            <div className="pt-2 border-t border-charcoal-600">
-              {usbPrinterName ? (
-                <div className="flex items-center gap-2 text-emerald-400 text-xs py-1">
-                  <Printer size={13} />
-                  <span>● {usbPrinterName}</span>
-                </div>
-              ) : (
-                <button
-                  className="text-xs text-gold-400 underline underline-offset-2 hover:text-gold-300"
-                  onClick={async () => {
-                    try {
-                      const name = await connectUsbPrinter();
-                      setUsbPrinterName(name);
-                      toast.success(`Connected: ${name}`);
-                    } catch (e: any) {
-                      toast.error(e.message || 'Could not connect printer');
-                    }
-                  }}
-                >
-                  Connect USB Printer (no-dialog printing)
-                </button>
-              )}
-            </div>
-
             <div className="flex gap-2 pt-2">
               <Button
                 variant="secondary"
                 className="flex-1"
                 icon={<Printer size={14} />}
-                onClick={async () => {
-                  const shopInfo = {
+                onClick={() => {
+                  printViaIframe(buildReceiptHTML(receipt, {
                     name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
                     address: shopSettings?.shop_address?.value || undefined,
                     phone:   shopSettings?.shop_phone?.value   || undefined,
                     logoUrl: shopSettings?.shop_logo?.value    || undefined,
-                  };
-                  if (isUsbConnected()) {
-                    try {
-                      await usbPrint(receipt, shopInfo);
-                      return;
-                    } catch (e: any) {
-                      toast.error('USB print failed: ' + e.message);
-                    }
-                  }
-                  printViaIframe(buildReceiptHTML(receipt, shopInfo));
+                  }));
                 }}
               >Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>

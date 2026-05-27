@@ -122,30 +122,47 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 }
 
 /**
- * Prints receipt using the main window's window.print() — the only method
- * that works reliably with Chrome's --kiosk-printing flag.
- * Temporarily injects receipt content + styles into the page, hides everything
- * else via @media print CSS, prints, then cleans up.
+ * Prints receipt by injecting it off-screen into the main page then calling
+ * window.print(). Styles are fully scoped to #__receipt_print so they don't
+ * pollute the main app (which would make Chrome think the page is empty).
  */
 export function printViaIframe(html: string): void {
   const parser = new DOMParser();
   const parsed = parser.parseFromString(html, 'text/html');
 
-  // Pull the receipt's CSS (strip @import to avoid network delays)
-  const receiptCSS = Array.from(parsed.querySelectorAll('style'))
-    .map(s => s.textContent ?? '')
-    .join('\n')
-    .replace(/@import[^;]+;/g, '');
-
-  // Style: during print, hide all app content; show only the receipt div
+  // Scoped styles — ONLY apply inside #__receipt_print, never to main page
   const printStyle = document.createElement('style');
   printStyle.textContent = `
     @media print {
+      @page { size: 80mm auto; margin: 2mm 3mm; }
       body > *:not(#__receipt_print) { display: none !important; }
-      #__receipt_print { display: block !important; }
+      #__receipt_print {
+        position: static !important;
+        left: auto !important;
+        display: block !important;
+        width: 72mm !important;
+        margin: 0 auto !important;
+      }
     }
-    #__receipt_print { display: none; }
-    ${receiptCSS}
+    /* Off-screen but rendered — Chrome sees content and won't auto-cancel */
+    #__receipt_print {
+      position: fixed; left: -9999px; top: 0;
+      width: 72mm; background: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 9.5pt; font-weight: 500;
+      color: #111; line-height: 1.6;
+    }
+    #__receipt_print * { box-sizing: border-box; margin: 0; padding: 0; }
+    #__receipt_print .c  { text-align: center; }
+    #__receipt_print .b  { font-weight: 700; }
+    #__receipt_print .sm { font-size: 8.5pt; color: #333; }
+    #__receipt_print .row { display: flex; justify-content: space-between; align-items: baseline; }
+    #__receipt_print .dash  { border-top: 1px dashed #999; margin: 2.5mm 0; }
+    #__receipt_print .solid { border-top: 1.5px solid #111; margin: 2.5mm 0; }
+    #__receipt_print .total-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 11pt; font-weight: 700; padding: 1mm 0;
+    }
   `;
 
   const container = document.createElement('div');
@@ -155,9 +172,6 @@ export function printViaIframe(html: string): void {
   document.head.appendChild(printStyle);
   document.body.appendChild(container);
 
-  // Delay cleanup well past when the user finishes with the print dialog.
-  // Do NOT use afterprint — it fires immediately on some Chrome versions
-  // (before the dialog appears), which removes the content and cancels the print.
-  setTimeout(() => window.print(), 100);
+  setTimeout(() => window.print(), 150);
   setTimeout(() => { printStyle.remove(); container.remove(); }, 30_000);
 }
