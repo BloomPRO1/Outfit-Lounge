@@ -57,7 +57,7 @@ export default function POSPage() {
   const [waPhoneInput, setWaPhoneInput] = useState('');
 
   // Printer — QZ Tray gives real list on dedicated terminals; falls back to system dialog
-  const [selectedPrinter, setSelectedPrinter] = useState('');
+  const [selectedPrinter, setSelectedPrinter] = useState('POSPrinter POS-80');
   const [printers, setPrinters]       = useState<string[]>([]);
   const [qzConnected, setQzConnected] = useState(false);
 
@@ -195,7 +195,13 @@ export default function POSPage() {
         qzGetPrinters().then(list => {
           setPrinters(list);
           const saved = localStorage.getItem('receipt_printer');
-          setSelectedPrinter(prev => (list.includes(prev) ? prev : saved && list.includes(saved) ? saved : list[0] || prev));
+          const DEFAULT = 'POSPrinter POS-80';
+          setSelectedPrinter(prev =>
+            list.includes(prev) ? prev
+            : saved && list.includes(saved) ? saved
+            : list.includes(DEFAULT) ? DEFAULT
+            : list[0] || prev
+          );
         });
       }
     });
