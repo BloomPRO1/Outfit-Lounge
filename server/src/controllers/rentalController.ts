@@ -116,11 +116,18 @@ export async function getRentalById(req: Request, res: Response): Promise<void> 
     [id]
   );
 
-  // Auto-complete: if rental is stuck in 'returned' and all fines are settled, upgrade to 'completed'
+  // Auto-complete: if rental is stuck in 'returned' and all fines + balance are settled, upgrade
   let rental = rentalRes.rows[0];
   if (rental.status === 'returned') {
     const unpaidFines = finesRes.rows.filter((f: any) => !f.is_paid).length;
-    if (unpaidFines === 0) {
+    const paidTowardRentalRes = await db.query(
+      `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental')`,
+      [id]
+    );
+    const paidTowardRental = parseFloat(paidTowardRentalRes.rows[0].paid);
+    const netCost = parseFloat(rental.total_rental_cost) - parseFloat(rental.discount_amount || '0');
+    const balanceCleared = paidTowardRental >= netCost - 0.005;
+    if (unpaidFines === 0 && balanceCleared) {
       await db.query(
         `UPDATE rentals SET status = 'completed', updated_at = NOW() WHERE id = $1`,
         [id]

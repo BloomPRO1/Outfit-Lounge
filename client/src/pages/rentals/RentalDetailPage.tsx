@@ -141,6 +141,7 @@ export default function RentalDetailPage() {
       setShowPaymentModal(false);
       setPayment({ amount: '', paymentMethod: 'cash', paymentType: 'balance', notes: '' });
       qc.invalidateQueries({ queryKey: ['rental', id] });
+      qc.invalidateQueries({ queryKey: ['rentals'] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to record payment'),
   });
@@ -161,11 +162,20 @@ export default function RentalDetailPage() {
   const isTerminal = rental.status === 'completed' || isCancelled;
   const currentStepIdx = getStepIndex(rental.status);
 
+  // Only advance/balance/rental payments count toward rental balance
+  const rentalPayments = (rental.payments || []).reduce((sum: number, p: any) => {
+    if (['advance', 'balance', 'rental'].includes(p.payment_type)) return sum + parseFloat(p.amount);
+    if (p.payment_type === 'refund') return sum - parseFloat(p.amount);
+    return sum;
+  }, 0);
   const totalPaid = (rental.payments || []).reduce((sum: number, p: any) => {
     return p.payment_type !== 'refund' ? sum + parseFloat(p.amount) : sum - parseFloat(p.amount);
   }, 0);
+  const totalDamageCharge = (rental.payments || []).reduce((sum: number, p: any) => {
+    return p.payment_type === 'damage_charge' ? sum + parseFloat(p.amount) : sum;
+  }, 0);
   const netCost   = Number(rental.total_rental_cost) - Number(rental.discount_amount || 0);
-  const balanceDue = Math.max(0, netCost - totalPaid + Number(rental.total_fine || 0));
+  const balanceDue = Math.max(0, netCost - rentalPayments);
 
   const shopInfo = {
     name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
@@ -489,9 +499,10 @@ export default function RentalDetailPage() {
               {[
                 { label: 'Total Rental Cost', value: formatCurrency(rental.total_rental_cost), color: 'text-charcoal-50' },
                 { label: 'Discount', value: rental.discount_amount > 0 ? `-${formatCurrency(rental.discount_amount)}` : '—', color: 'text-emerald-400' },
-                { label: 'Total Paid', value: formatCurrency(totalPaid), color: 'text-emerald-400' },
+                { label: 'Paid (Rental)', value: formatCurrency(rentalPayments), color: 'text-emerald-400' },
+                ...(totalDamageCharge > 0 ? [{ label: 'Damage / Lost', value: formatCurrency(totalDamageCharge), color: 'text-amber-300' }] : []),
                 ...(Number(rental.total_fine) > 0 ? [{ label: 'Fine', value: formatCurrency(rental.total_fine), color: 'text-red-400' }] : []),
-                { label: 'Balance Due', value: formatCurrency(balanceDue), color: balanceDue > 0 ? 'text-amber-400 font-bold' : 'text-emerald-400' },
+                { label: 'Balance Due', value: formatCurrency(balanceDue), color: balanceDue > 0.005 ? 'text-amber-400 font-bold' : 'text-emerald-400' },
               ...(rental.security_type === 'deposit' && (rental.security_deposit ?? 0) > 0
                 ? [{ label: 'Security Deposit', value: formatCurrency(rental.security_deposit!), color: 'text-blue-400' }]
                 : []),
@@ -505,6 +516,17 @@ export default function RentalDetailPage() {
                 </div>
               ))}
             </div>
+            {balanceDue > 0.005 && (
+              <button
+                className="mt-3 w-full py-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-sm font-medium hover:bg-amber-500/25 transition-colors"
+                onClick={() => {
+                  setPayment({ amount: balanceDue.toFixed(2), paymentMethod: 'cash', paymentType: 'balance', notes: 'Rental balance' });
+                  setShowPaymentModal(true);
+                }}
+              >
+                Collect Balance — {formatCurrency(balanceDue)}
+              </button>
+            )}
           </Card>
 
           {/* Fines */}

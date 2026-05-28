@@ -27,7 +27,7 @@ export async function getPendingReturns(_req: Request, res: Response): Promise<v
 
 export async function processReturn(req: AuthRequest, res: Response): Promise<void> {
   const { rentalId } = req.params;
-  const { items, returnDate, paymentMethod = 'cash', collectFine = true } = req.body;
+  const { items, returnDate, paymentMethod = 'cash', collectFine = true, collectBalance = true } = req.body;
 
   const rentalRes = await db.query(`
     SELECT r.*, c.name as customer_name, c.whatsapp, c.phone, c.id as customer_id
@@ -188,21 +188,47 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
       }
     }
 
+    // Record rental balance payment if collecting now
+    if (collectBalance) {
+      const paidTowardRentalRes = await client.query(
+        `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental')`,
+        [rentalId]
+      );
+      const paidTowardRental = parseFloat(paidTowardRentalRes.rows[0].paid);
+      const netRentalCost = parseFloat(rental.total_rental_cost) - parseFloat(rental.discount_amount || '0');
+      const remainingBalance = Math.max(0, netRentalCost - paidTowardRental);
+      if (remainingBalance > 0.005) {
+        await client.query(`
+          INSERT INTO payments (rental_id, amount, payment_method, payment_type, notes, created_by)
+          VALUES ($1, $2, $3, 'balance', 'Rental balance collected on return', $4)
+        `, [rentalId, remainingBalance, paymentMethod, req.user?.id]);
+      }
+    }
+
     // Update rental status
-    // - All returned, fine paid (or no fine) → completed
-    // - All returned, fine exists but not collected now → returned (still owes fine)
+    // - All returned, balance+fine paid (or waived) → completed
+    // - All returned, fine or balance still owed → returned
     // - Partial return, overdue → late_return
     // - Partial return, on time → keep current
     let newStatus: string;
     if (allReturned) {
       const fineStillOwed = fineCalc.totalFine > 0 && !collectFine;
-      if (fineStillOwed) {
-        // Fine exists but not collected now — check if it was already paid previously
+      // Check if any rental balance remains unpaid after this transaction
+      const paidAfterRes = await client.query(
+        `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental')`,
+        [rentalId]
+      );
+      const paidAfter = parseFloat(paidAfterRes.rows[0].paid);
+      const netCost = parseFloat(rental.total_rental_cost) - parseFloat(rental.discount_amount || '0');
+      const balanceStillOwed = paidAfter < netCost - 0.005;
+
+      if (fineStillOwed || balanceStillOwed) {
+        // Check if fine was already paid previously
         const prevPaid = await client.query(
           `SELECT COUNT(*) FROM fine_transactions WHERE rental_id = $1 AND is_paid = true`,
           [rentalId]
         );
-        newStatus = parseInt(prevPaid.rows[0].count) > 0 ? 'completed' : 'returned';
+        newStatus = (parseInt(prevPaid.rows[0].count) > 0 && !balanceStillOwed) ? 'completed' : 'returned';
       } else {
         newStatus = 'completed';
       }

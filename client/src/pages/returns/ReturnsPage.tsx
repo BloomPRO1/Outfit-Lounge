@@ -64,6 +64,7 @@ export default function ReturnsPage() {
   const [itemRemarks, setItemRemarks] = useState<Record<string, string>>({});
   const [fineCalc, setFineCalc] = useState<any>(null);
   const [collectFine, setCollectFine] = useState(true);
+  const [collectBalance, setCollectBalance] = useState(true);
   const [sendInvoiceRentalId, setSendInvoiceRentalId] = useState<string | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState<'whatsapp' | 'sms' | null>(null);
 
@@ -149,6 +150,7 @@ export default function ReturnsPage() {
     setItemCustomCharges({});
     setItemRemarks({});
     setCollectFine(true);
+    setCollectBalance(true);
     try {
       const fine = await returnService.getFineCalc(rental.id, returnDate);
       setFineCalc(fine);
@@ -168,7 +170,7 @@ export default function ReturnsPage() {
     });
     processReturnMutation.mutate({
       rentalId: selectedRental.id,
-      payload: { items, returnDate, paymentMethod, collectFine },
+      payload: { items, returnDate, paymentMethod, collectFine, collectBalance },
     });
   };
 
@@ -177,12 +179,11 @@ export default function ReturnsPage() {
     if (!selectedRental) return 0;
     const total    = parseFloat(selectedRental.total_rental_cost || 0);
     const discount = parseFloat(selectedRental.discount_amount   || 0);
-    const advance  = parseFloat(selectedRental.advance_payment   || 0);
-    // any extra 'rental' payments made after the advance
-    const extraPaid = (selectedRental.payments || [])
-      .filter((p: any) => p.payment_type === 'rental')
+    // sum all rental-type payments (advance, balance, rental)
+    const paidTowardRental = (selectedRental.payments || [])
+      .filter((p: any) => ['advance', 'balance', 'rental'].includes(p.payment_type))
       .reduce((s: number, p: any) => s + parseFloat(p.amount || 0), 0);
-    return Math.max(0, total - discount - advance - extraPaid);
+    return Math.max(0, total - discount - paidTowardRental);
   }, [selectedRental]);
 
   // ── total charge preview ──────────────────────────────────────────────────
@@ -540,10 +541,23 @@ export default function ReturnsPage() {
 
           {/* Rental balance due */}
           {balanceDue > 0 && (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
-              <p className="font-semibold text-amber-300 flex items-center gap-2">
-                <Banknote size={15} /> Rental Balance Due
-              </p>
+            <div className={cn('p-4 rounded-xl space-y-2', collectBalance ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-charcoal-600/40 border border-charcoal-500/30')}>
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-semibold text-amber-300 flex items-center gap-2">
+                  <Banknote size={15} /> Rental Balance Due
+                </p>
+                <button
+                  onClick={() => setCollectBalance(!collectBalance)}
+                  className={cn(
+                    'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-all flex-shrink-0',
+                    collectBalance
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-charcoal-600 hover:border-charcoal-400 hover:text-charcoal-200'
+                      : 'bg-charcoal-600 border-charcoal-400 text-charcoal-300 hover:bg-amber-500/15 hover:border-amber-500/40 hover:text-amber-300'
+                  )}
+                >
+                  {collectBalance ? <><Banknote size={11} /> Collect balance</> : <><XCircle size={11} /> Balance waived</>}
+                </button>
+              </div>
               <div className="space-y-1 text-sm text-charcoal-200">
                 <div className="flex justify-between">
                   <span>Total rental cost</span>
@@ -555,20 +569,19 @@ export default function ReturnsPage() {
                     <span className="text-emerald-400">− {formatCurrency(parseFloat(selectedRental.discount_amount))}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>Advance paid</span>
-                  <span className="text-emerald-400">− {formatCurrency(parseFloat(selectedRental?.advance_payment || 0))}</span>
+                {(selectedRental?.payments || [])
+                  .filter((p: any) => ['advance', 'balance', 'rental'].includes(p.payment_type))
+                  .map((p: any) => (
+                    <div key={p.id} className="flex justify-between">
+                      <span>{p.payment_type === 'advance' ? 'Advance paid' : `Payment (${formatDate(p.created_at)})`}</span>
+                      <span className="text-emerald-400">− {formatCurrency(parseFloat(p.amount))}</span>
+                    </div>
+                  ))}
+                <div className={cn('flex justify-between font-semibold border-t border-amber-500/20 pt-1.5 mt-1', !collectBalance && 'line-through text-charcoal-400')}>
+                  <span className={collectBalance ? 'text-amber-300' : ''}>Balance due</span>
+                  <span className={collectBalance ? 'text-amber-300' : ''}>{formatCurrency(balanceDue)}</span>
                 </div>
-                {(selectedRental?.payments || []).filter((p: any) => p.payment_type === 'rental').map((p: any) => (
-                  <div key={p.id} className="flex justify-between">
-                    <span>Payment ({formatDate(p.created_at)})</span>
-                    <span className="text-emerald-400">− {formatCurrency(parseFloat(p.amount))}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between font-semibold border-t border-amber-500/20 pt-1.5 mt-1">
-                  <span className="text-amber-300">Balance due</span>
-                  <span className="text-amber-300">{formatCurrency(balanceDue)}</span>
-                </div>
+                {!collectBalance && <p className="text-xs text-charcoal-400 italic">Balance will not be collected now</p>}
               </div>
             </div>
           )}
@@ -613,10 +626,10 @@ export default function ReturnsPage() {
           )}
 
           {/* Charges summary */}
-          {(balanceDue > 0 || totalDamageCharge > 0 || (collectFine && (fineCalc?.totalFine ?? 0) > 0)) && (
+          {((collectBalance && balanceDue > 0) || totalDamageCharge > 0 || (collectFine && (fineCalc?.totalFine ?? 0) > 0)) && (
             <div className="p-4 bg-charcoal-600/40 rounded-xl space-y-2">
               <p className="text-sm font-semibold text-charcoal-100 mb-1">Total to Collect</p>
-              {balanceDue > 0 && (
+              {collectBalance && balanceDue > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-charcoal-200">Rental balance due</span>
                   <span className="text-amber-400">{formatCurrency(balanceDue)}</span>
@@ -637,7 +650,7 @@ export default function ReturnsPage() {
               <div className="flex justify-between text-sm font-semibold border-t border-charcoal-500 pt-2 mt-1">
                 <span className="text-charcoal-100">Grand total</span>
                 <span className="text-amber-400">
-                  {formatCurrency(balanceDue + (collectFine ? (fineCalc?.totalFine ?? 0) : 0) + totalDamageCharge)}
+                  {formatCurrency((collectBalance ? balanceDue : 0) + (collectFine ? (fineCalc?.totalFine ?? 0) : 0) + totalDamageCharge)}
                 </span>
               </div>
             </div>
