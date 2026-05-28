@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { getPagination, paginatedResponse } from '../utils/pagination';
@@ -155,7 +155,7 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
   res.json({ type: 'product', ...res2.rows[0], variants: variantsRes.rows });
 }
 
-export async function createProduct(req: AuthRequest, res: Response): Promise<void> {
+export async function createProduct(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const {
     name, description, categoryId, type,
     sellingPrice, rentalPricePerDay, lateFinePerDay,
@@ -211,14 +211,14 @@ export async function createProduct(req: AuthRequest, res: Response): Promise<vo
     if (err.code === '23505') {
       res.status(409).json({ error: 'SKU already exists' });
     } else {
-      throw err;
+      next(err);
     }
   } finally {
     client.release();
   }
 }
 
-export async function updateProduct(req: AuthRequest, res: Response): Promise<void> {
+export async function updateProduct(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { id } = req.params;
   const {
     name, description, categoryId, type,
@@ -293,7 +293,7 @@ export async function updateProduct(req: AuthRequest, res: Response): Promise<vo
     res.json(result.rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }

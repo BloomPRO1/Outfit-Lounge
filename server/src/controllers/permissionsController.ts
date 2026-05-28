@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 
@@ -14,7 +14,7 @@ export async function getPermissions(_req: Request, res: Response): Promise<void
   res.json(out);
 }
 
-export async function updatePermissions(req: AuthRequest, res: Response): Promise<void> {
+export async function updatePermissions(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const updates: { role: string; module: string; can_read: boolean; can_write: boolean }[] = req.body;
 
   if (!Array.isArray(updates) || updates.length === 0) {
@@ -40,7 +40,7 @@ export async function updatePermissions(req: AuthRequest, res: Response): Promis
     res.json({ message: 'Permissions updated' });
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }

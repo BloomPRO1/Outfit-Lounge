@@ -35,10 +35,13 @@ export const useCartStore = create<CartState>((set, get) => ({
     set((state) => {
       const existing = state.items.find((i) => i.variantId === newItem.variantId);
       if (existing) {
+        const max = existing.stockQty ?? Infinity;
+        if (existing.quantity >= max) return state; // already at stock limit
+        const next = existing.quantity + 1;
         return {
           items: state.items.map((i) =>
             i.variantId === newItem.variantId
-              ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * (i.unitPrice - i.discount) }
+              ? { ...i, quantity: next, subtotal: next * (i.unitPrice - i.discount) }
               : i
           ),
         };
@@ -56,13 +59,17 @@ export const useCartStore = create<CartState>((set, get) => ({
       get().removeItem(variantId);
       return;
     }
-    set((state) => ({
-      items: state.items.map((i) =>
-        i.variantId === variantId
-          ? { ...i, quantity, subtotal: quantity * (i.unitPrice - i.discount) }
-          : i
-      ),
-    }));
+    set((state) => {
+      const item = state.items.find((i) => i.variantId === variantId);
+      const capped = item?.stockQty !== undefined ? Math.min(quantity, item.stockQty) : quantity;
+      return {
+        items: state.items.map((i) =>
+          i.variantId === variantId
+            ? { ...i, quantity: capped, subtotal: capped * (i.unitPrice - i.discount) }
+            : i
+        ),
+      };
+    });
   },
 
   updateDiscount: (variantId, discount) => {

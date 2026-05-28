@@ -24,6 +24,14 @@ import promotionsRoutes from './routes/promotions';
 import invoiceRoutes from './routes/invoices';
 import whatsappRoutes from './routes/whatsapp';
 
+// Prevent unhandled async rejections from crashing the process.
+// Express 4 does not auto-catch rejected async handler promises, so any
+// controller that does `throw err` instead of `next(err)` would otherwise
+// kill the Node.js 15+ process.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
@@ -71,10 +79,11 @@ if (env.NODE_ENV === 'production') {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 } else {
-  // ─── Error Handling ───────────────────────────────────────────────────────────
   app.use(notFound);
-  app.use(errorHandler);
 }
+
+// ─── Error Handling (always registered) ──────────────────────────────────────
+app.use(errorHandler);
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
 app.listen(env.PORT, () => {

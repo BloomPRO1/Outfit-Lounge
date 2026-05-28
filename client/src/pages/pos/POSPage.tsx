@@ -269,22 +269,26 @@ export default function POSPage() {
     try {
       const result = await productService.getByBarcode(barcode);
       if (result.type === 'variant') {
+        const saleStock = Math.max(0, (result.stock_quantity || 0) - (result.available_for_rent || 0));
         addItem({
           variantId: result.id, productId: result.product_id,
           productName: result.product_name, variantSku: result.sku,
           size: result.size, color: result.color,
           unitPrice: parseFloat(result.selling_price || 0),
           quantity: 1, discount: 0, subtotal: parseFloat(result.selling_price || 0),
+          stockQty: saleStock,
         });
         toast.success(`Added: ${result.product_name} ${result.size || ''}`);
       } else if (result.variants?.length === 1) {
         const v = result.variants[0];
+        const saleStock = Math.max(0, (v.stock_quantity || 0) - (v.available_for_rent || 0));
         addItem({
           variantId: v.id, productId: result.id,
           productName: result.name, variantSku: v.sku,
           size: v.size, color: v.color,
           unitPrice: parseFloat(v.selling_price || result.selling_price || 0),
           quantity: 1, discount: 0, subtotal: parseFloat(v.selling_price || result.selling_price || 0),
+          stockQty: saleStock,
         });
         toast.success(`Added: ${result.name}`);
       }
@@ -295,6 +299,7 @@ export default function POSPage() {
   };
 
   const handleAddProduct = (product: any, variant: any) => {
+    const saleStock = Math.max(0, (variant.stock_quantity || 0) - (variant.available_for_rent || 0));
     addItem({
       variantId: variant.id, productId: product.id,
       productName: product.name, variantSku: variant.sku,
@@ -303,6 +308,7 @@ export default function POSPage() {
       unitPrice: parseFloat(variant.selling_price || product.selling_price || 0),
       quantity: 1, discount: 0,
       subtotal: parseFloat(variant.selling_price || product.selling_price || 0),
+      stockQty: saleStock,
     });
     setVariantPickerProduct(null);
     barcodeRef.current?.focus();
@@ -685,7 +691,17 @@ export default function POSPage() {
                               <Minus size={12} />
                             </button>
                             <span className="w-7 text-center text-sm font-medium text-charcoal-50">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.variantId, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center text-charcoal-200 hover:text-charcoal-50">
+                            <button
+                              onClick={() => {
+                                if (item.stockQty !== undefined && item.quantity >= item.stockQty) {
+                                  toast.error(`Only ${item.stockQty} in stock`);
+                                  return;
+                                }
+                                updateQuantity(item.variantId, item.quantity + 1);
+                              }}
+                              disabled={item.stockQty !== undefined && item.quantity >= item.stockQty}
+                              className="w-6 h-6 flex items-center justify-center text-charcoal-200 hover:text-charcoal-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
                               <Plus size={12} />
                             </button>
                           </div>

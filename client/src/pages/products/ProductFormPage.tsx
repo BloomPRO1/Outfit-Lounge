@@ -130,6 +130,8 @@ export default function ProductFormPage() {
       toast.success('Product updated successfully!');
       qc.invalidateQueries({ queryKey: ['products'] });
       qc.invalidateQueries({ queryKey: ['product', id] });
+      qc.invalidateQueries({ queryKey: ['pos-products'] });
+      qc.invalidateQueries({ queryKey: ['product-search-rental'] });
       navigate(`/products/${id}`);
     },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to update product'),

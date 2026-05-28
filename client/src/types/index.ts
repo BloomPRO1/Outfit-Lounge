@@ -182,6 +182,7 @@ export interface CartItem {
   subtotal: number;
   isRental?: boolean;
   rentalPricePerDay?: number;
+  stockQty?: number; // sale-available stock (stock_quantity - available_for_rent)
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────

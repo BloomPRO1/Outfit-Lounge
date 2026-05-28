@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { getPagination, paginatedResponse } from '../utils/pagination';
@@ -274,7 +274,7 @@ export async function getPayroll(req: Request, res: Response): Promise<void> {
   res.json({ data: rows, summary, period: periodDate });
 }
 
-export async function generatePayroll(req: AuthRequest, res: Response): Promise<void> {
+export async function generatePayroll(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { period } = req.params; // YYYY-MM
   const periodDate = `${period}-01`;
 
@@ -303,13 +303,13 @@ export async function generatePayroll(req: AuthRequest, res: Response): Promise<
     res.json({ message: `Generated ${created} payroll records`, created });
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }
 }
 
-export async function updatePayrollRecord(req: AuthRequest, res: Response): Promise<void> {
+export async function updatePayrollRecord(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { id } = req.params;
   const { baseSalary, deductions, notes } = req.body;
 
@@ -346,13 +346,13 @@ export async function updatePayrollRecord(req: AuthRequest, res: Response): Prom
     res.json(result.rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }
 }
 
-export async function addAllowance(req: AuthRequest, res: Response): Promise<void> {
+export async function addAllowance(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { id } = req.params;
   const { label, amount } = req.body;
 
@@ -385,13 +385,13 @@ export async function addAllowance(req: AuthRequest, res: Response): Promise<voi
     res.status(201).json(ins.rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }
 }
 
-export async function deleteAllowance(req: AuthRequest, res: Response): Promise<void> {
+export async function deleteAllowance(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { id, allowanceId } = req.params;
 
   const client = await db.getClient();
@@ -418,13 +418,13 @@ export async function deleteAllowance(req: AuthRequest, res: Response): Promise<
     res.status(204).send();
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }
 }
 
-export async function markPaid(req: AuthRequest, res: Response): Promise<void> {
+export async function markPaid(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { id } = req.params;
 
   const client = await db.getClient();
@@ -455,7 +455,7 @@ export async function markPaid(req: AuthRequest, res: Response): Promise<void> {
       INSERT INTO capital_investments
         (amount, category, note, invested_at, created_by, payroll_record_id)
       VALUES ($1, 'salaries', $2, CURRENT_DATE, $3, $4)
-      ON CONFLICT (payroll_record_id) DO NOTHING
+      ON CONFLICT (payroll_record_id) WHERE payroll_record_id IS NOT NULL DO NOTHING
     `, [
       rec.net_pay,
       `Salary: ${rec.employee_name} (${rec.period_label})`,
@@ -467,13 +467,13 @@ export async function markPaid(req: AuthRequest, res: Response): Promise<void> {
     res.json(rec);
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }
 }
 
-export async function bulkMarkPaid(req: AuthRequest, res: Response): Promise<void> {
+export async function bulkMarkPaid(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const { period } = req.params;
   const periodDate = `${period}-01`;
 
@@ -499,7 +499,7 @@ export async function bulkMarkPaid(req: AuthRequest, res: Response): Promise<voi
         INSERT INTO capital_investments
           (amount, category, note, invested_at, created_by, payroll_record_id)
         VALUES ($1, 'salaries', $2, CURRENT_DATE, $3, $4)
-        ON CONFLICT (payroll_record_id) DO NOTHING
+        ON CONFLICT (payroll_record_id) WHERE payroll_record_id IS NOT NULL DO NOTHING
       `, [
         rec.net_pay,
         `Salary: ${rec.employee_name} (${rec.period_label})`,
@@ -512,7 +512,7 @@ export async function bulkMarkPaid(req: AuthRequest, res: Response): Promise<voi
     res.json({ message: `Marked ${result.rowCount} records as paid`, count: result.rowCount });
   } catch (err) {
     await client.query('ROLLBACK');
-    throw err;
+    next(err);
   } finally {
     client.release();
   }
