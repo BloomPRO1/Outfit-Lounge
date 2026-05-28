@@ -116,8 +116,21 @@ export async function getRentalById(req: Request, res: Response): Promise<void> 
     [id]
   );
 
+  // Auto-complete: if rental is stuck in 'returned' and all fines are settled, upgrade to 'completed'
+  let rental = rentalRes.rows[0];
+  if (rental.status === 'returned') {
+    const unpaidFines = finesRes.rows.filter((f: any) => !f.is_paid).length;
+    if (unpaidFines === 0) {
+      await db.query(
+        `UPDATE rentals SET status = 'completed', updated_at = NOW() WHERE id = $1`,
+        [id]
+      );
+      rental = { ...rental, status: 'completed' };
+    }
+  }
+
   res.json({
-    ...rentalRes.rows[0],
+    ...rental,
     items: itemsRes.rows,
     payments: paymentsRes.rows,
     fines: finesRes.rows,

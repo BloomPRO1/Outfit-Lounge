@@ -106,6 +106,7 @@ export default function ReturnsPage() {
       setSelectedRental(null);
       qc.invalidateQueries({ queryKey: ['pending-returns'] });
       qc.invalidateQueries({ queryKey: ['rentals'] });
+      qc.invalidateQueries({ queryKey: ['rental', variables.rentalId] });
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to process return'),
   });

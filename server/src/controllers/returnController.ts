@@ -196,7 +196,16 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
     let newStatus: string;
     if (allReturned) {
       const fineStillOwed = fineCalc.totalFine > 0 && !collectFine;
-      newStatus = fineStillOwed ? 'returned' : 'completed';
+      if (fineStillOwed) {
+        // Fine exists but not collected now — check if it was already paid previously
+        const prevPaid = await client.query(
+          `SELECT COUNT(*) FROM fine_transactions WHERE rental_id = $1 AND is_paid = true`,
+          [rentalId]
+        );
+        newStatus = parseInt(prevPaid.rows[0].count) > 0 ? 'completed' : 'returned';
+      } else {
+        newStatus = 'completed';
+      }
     } else {
       newStatus = fineCalc.totalFine > 0 ? 'late_return' : rental.status;
     }
