@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Minus, Trash2, CheckCircle, User, Package, Calendar, CreditCard,
   Banknote, Smartphone, Building2, Heart, Star, Gift, Sparkles, PartyPopper,
-  Info, X, AlertTriangle, Clock, Shield,
+  Info, X, AlertTriangle, Clock, Shield, Barcode,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { rentalService } from '@/services/rentalService';
@@ -64,6 +64,7 @@ export default function NewRentalPage() {
   const [cartItems, setCartItems] = useState<RentalCartItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [showProductResults, setShowProductResults] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const [rentalStartDate, setRentalStartDate] = useState('');
   const [rentalEndDate, setRentalEndDate] = useState('');
@@ -152,6 +153,35 @@ export default function NewRentalPage() {
     );
   }, [cartItems, finalTotal, customer, rentalStartDate, rentalEndDate, rentalDays]);
 
+  // Auto-focus the search field whenever the Items step becomes active
+  useEffect(() => {
+    if (step === 1) {
+      setTimeout(() => searchRef.current?.focus(), 80);
+    }
+  }, [step]);
+
+  const handleSearchKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    const query = productSearch.trim();
+    if (!query) return;
+    try {
+      const result = await productService.getByBarcode(query);
+      if (result.type === 'variant') {
+        const avail = result.available_for_rent ?? result.stock_quantity ?? 0;
+        if (avail <= 0) { toast.error('No rental stock available for this item'); return; }
+        addToCart(result, result.product_name, result.late_fine_per_day);
+        toast.success(`Added: ${result.product_name}${result.size ? ' · ' + result.size : ''}`);
+      } else if (result.type === 'product') {
+        const variant = (result.variants || []).find((v: any) => (v.available_for_rent ?? v.stock_quantity ?? 0) > 0);
+        if (!variant) { toast.error('No rental stock available for this item'); return; }
+        addToCart(variant, result.name, result.late_fine_per_day);
+        toast.success(`Added: ${result.name}`);
+      }
+    } catch {
+      // Not a barcode match — let the normal text search results stay visible
+    }
+  };
+
   const addToCart = (variant: any, productName: string, lateFinePerDay = 0) => {
     const existing = cartItems.find((i) => i.variantId === variant.id);
     if (existing) {
@@ -169,6 +199,7 @@ export default function NewRentalPage() {
     }
     setProductSearch('');
     setShowProductResults(false);
+    setTimeout(() => searchRef.current?.focus(), 50);
   };
 
   const finalEventType = eventTypeCustom ? customEventText : eventType;
@@ -334,12 +365,15 @@ export default function NewRentalPage() {
                     <h3 className="section-title">Select Items</h3>
                     <div className="relative">
                       <Input
+                        ref={searchRef}
                         value={productSearch}
                         onChange={(e) => { setProductSearch(e.target.value); setShowProductResults(true); }}
                         onFocus={() => setShowProductResults(true)}
                         onBlur={() => setTimeout(() => setShowProductResults(false), 150)}
-                        placeholder="Search rental items by name or SKU..."
-                        icon={<Search size={15} />}
+                        onKeyDown={handleSearchKeyDown}
+                        placeholder="Search or scan barcode..."
+                        icon={<Barcode size={15} />}
+                        iconRight={<Search size={13} className="opacity-50" />}
                       />
                       {showProductResults && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-10 overflow-hidden max-h-64 overflow-y-auto">
