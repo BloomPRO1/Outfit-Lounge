@@ -166,16 +166,21 @@ export default function NewRentalPage() {
       if (result.type === 'variant') {
         const avail = result.available_for_rent ?? result.stock_quantity ?? 0;
         if (avail <= 0) { toast.error('No rental stock available for this item'); return; }
-        addToCart(result, result.product_name, result.late_fine_per_day);
+        // Use variant price first, fall back to product-level price
+        const variantWithFallback = {
+          ...result,
+          rental_price_per_day: result.rental_price_per_day ?? result.product_rental_price_per_day,
+        };
+        addToCart(variantWithFallback, result.product_name, result.late_fine_per_day ?? 0);
         toast.success(`Added: ${result.product_name}${result.size ? ' · ' + result.size : ''}`);
       } else if (result.type === 'product') {
         const variant = (result.variants || []).find((v: any) => (v.available_for_rent ?? v.stock_quantity ?? 0) > 0);
         if (!variant) { toast.error('No rental stock available for this item'); return; }
-        addToCart(variant, result.name, result.late_fine_per_day);
+        addToCart(variant, result.name, result.late_fine_per_day ?? 0);
         toast.success(`Added: ${result.name}`);
       }
     } catch {
-      // Not a barcode match — let the normal text search results stay visible
+      toast.error('Product not found for SKU: ' + (e.target as HTMLInputElement).value.trim());
     }
   };
 

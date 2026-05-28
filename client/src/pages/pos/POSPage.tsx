@@ -270,12 +270,13 @@ export default function POSPage() {
       const result = await productService.getByBarcode(barcode);
       if (result.type === 'variant') {
         const saleStock = Math.max(0, (result.stock_quantity || 0) - (result.available_for_rent || 0));
+        const price = parseFloat(result.selling_price || result.product_selling_price || 0);
         addItem({
           variantId: result.id, productId: result.product_id,
           productName: result.product_name, variantSku: result.sku,
           size: result.size, color: result.color,
-          unitPrice: parseFloat(result.selling_price || 0),
-          quantity: 1, discount: 0, subtotal: parseFloat(result.selling_price || 0),
+          unitPrice: price,
+          quantity: 1, discount: 0, subtotal: price,
           stockQty: saleStock,
         });
         toast.success(`Added: ${result.product_name} ${result.size || ''}`);

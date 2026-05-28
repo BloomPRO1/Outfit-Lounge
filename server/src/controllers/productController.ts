@@ -14,7 +14,8 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
   let paramIndex = 1;
 
   if (search) {
-    whereClause += ` AND (p.name ILIKE $${paramIndex} OR p.sku ILIKE $${paramIndex} OR p.barcode ILIKE $${paramIndex})`;
+    whereClause += ` AND (p.name ILIKE $${paramIndex} OR p.sku ILIKE $${paramIndex} OR p.barcode ILIKE $${paramIndex}
+      OR EXISTS (SELECT 1 FROM product_variants WHERE product_id = p.id AND sku ILIKE $${paramIndex}))`;
     params.push(`%${search}%`);
     paramIndex++;
   }
@@ -131,6 +132,9 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
     // Try variant SKU
     const varRes = await db.query(`
       SELECT pv.*, p.name as product_name, p.id as product_id, p.type as product_type,
+             p.late_fine_per_day,
+             p.selling_price as product_selling_price,
+             p.rental_price_per_day as product_rental_price_per_day,
              pc.name as category_name, pi.url as primary_image
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
