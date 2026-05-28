@@ -84,17 +84,29 @@ async function sendReturnReminders(): Promise<void> {
 
   const res = await db.query(`
     SELECT r.id, r.booking_number, r.rental_end_date,
-           c.name as customer_name, c.phone, c.whatsapp, c.id as customer_id
+           r.total_rental_cost, r.discount_amount, r.advance_payment,
+           c.name as customer_name, c.phone, c.whatsapp, c.id as customer_id,
+           COALESCE((
+             SELECT SUM(amount) FROM payments
+             WHERE rental_id = r.id AND payment_type = 'rental'
+           ), 0) AS extra_paid
     FROM rentals r
     JOIN customers c ON c.id = r.customer_id
     WHERE r.rental_end_date = $1 AND r.status = 'picked_up'
   `, [tomorrowStr]);
 
   for (const rental of res.rows) {
+    const balanceDue = Math.max(0,
+      parseFloat(rental.total_rental_cost) -
+      parseFloat(rental.discount_amount || '0') -
+      parseFloat(rental.advance_payment || '0') -
+      parseFloat(rental.extra_paid || '0')
+    );
     const message = buildReturnReminderMessage({
       customerName: rental.customer_name,
       bookingNumber: rental.booking_number,
       returnDate: tomorrowStr,
+      balanceDue,
     });
 
     await sendSmsAndWhatsapp({ rentalId: rental.id, customerId: rental.customer_id, type: 'return_reminder', phone: rental.phone, whatsapp: rental.whatsapp, message });
@@ -104,26 +116,41 @@ async function sendReturnReminders(): Promise<void> {
 async function sendLateReturnWarnings(): Promise<void> {
   const today = new Date().toISOString().split('T')[0];
 
+  // Read fine per day from settings
+  const fineSettingRes = await db.query(
+    `SELECT value FROM settings WHERE key = 'default_fine_per_day'`
+  );
+  const finePerDay = parseFloat(fineSettingRes.rows[0]?.value || '20');
+
   const res = await db.query(`
     SELECT r.id, r.booking_number, r.rental_end_date,
+           r.total_rental_cost, r.discount_amount, r.advance_payment,
            c.name as customer_name, c.phone, c.whatsapp, c.id as customer_id,
            CURRENT_DATE - r.rental_end_date as days_late,
-           COALESCE(SUM(ri.rental_price_per_day * ri.quantity), 0) as daily_rate
+           COALESCE((
+             SELECT SUM(amount) FROM payments
+             WHERE rental_id = r.id AND payment_type = 'rental'
+           ), 0) AS extra_paid
     FROM rentals r
     JOIN customers c ON c.id = r.customer_id
-    JOIN rental_items ri ON ri.rental_id = r.id
     WHERE r.rental_end_date < $1 AND r.status IN ('picked_up', 'late_return')
     GROUP BY r.id, c.id
   `, [today]);
 
   for (const rental of res.rows) {
-    const finePerDay = 20; // Default fine per day
     const totalFine = rental.days_late * finePerDay;
+    const balanceDue = Math.max(0,
+      parseFloat(rental.total_rental_cost) -
+      parseFloat(rental.discount_amount || '0') -
+      parseFloat(rental.advance_payment || '0') -
+      parseFloat(rental.extra_paid || '0')
+    );
     const message = buildLateReturnMessage({
       customerName: rental.customer_name,
       bookingNumber: rental.booking_number,
       daysLate: rental.days_late,
       fineAmount: totalFine,
+      balanceDue,
     });
 
     await sendSmsAndWhatsapp({ rentalId: rental.id, customerId: rental.customer_id, type: 'late_warning', phone: rental.phone, whatsapp: rental.whatsapp, message });

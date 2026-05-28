@@ -479,12 +479,14 @@ export function buildReturnReminderMessage(data: {
   bookingNumber: string;
   returnDate: string;
   returnTime?: string;
+  balanceDue?: number;
 }): string {
   return (
     `Dear ${data.customerName},\n` +
     `This is a friendly reminder to return your rented full suit for booking #${data.bookingNumber}.\n\n` +
     `📅 Return Date: ${data.returnDate}\n` +
     (data.returnTime ? `🕒 Return Time: ${data.returnTime}\n` : '') +
+    (data.balanceDue && data.balanceDue > 0.01 ? `💰 Balance Due: LKR ${data.balanceDue.toFixed(2)}\n` : '') +
     `\nKindly ensure the suit is returned on time to avoid additional rental charges.\n` +
     `Thank you,\n` +
     `THE OUTFIT LOUNGE`
@@ -496,11 +498,13 @@ export function buildLateReturnMessage(data: {
   bookingNumber: string;
   daysLate: number;
   fineAmount: number;
+  balanceDue?: number;
 }): string {
   return (
     `Dear ${data.customerName},\n\n` +
     `Your rental #${data.bookingNumber} is ${data.daysLate} day(s) overdue.\n` +
-    `Late fine: LKR ${data.fineAmount.toFixed(2)}\n\n` +
-    `Please return items immediately to avoid additional charges.\n\n${SHOP}`
+    `Late fine: LKR ${data.fineAmount.toFixed(2)}\n` +
+    (data.balanceDue && data.balanceDue > 0.01 ? `💰 Balance Due: LKR ${data.balanceDue.toFixed(2)}\n` : '') +
+    `\nPlease return items immediately to avoid additional charges.\n\n${SHOP}`
   );
 }

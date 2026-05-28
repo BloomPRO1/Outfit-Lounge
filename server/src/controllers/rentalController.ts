@@ -414,7 +414,12 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
         const totalCost = parseFloat(rental.total_rental_cost || '0');
         const discountAmt = parseFloat(rental.discount_amount || '0');
         const advance = parseFloat(rental.advance_payment || '0');
-        const balance = totalCost - discountAmt - advance;
+        const extraPaidRes = await db.query(
+          `SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE rental_id = $1 AND payment_type = 'rental'`,
+          [id]
+        );
+        const extraPaid = parseFloat(extraPaidRes.rows[0].total || '0');
+        const balance = Math.max(0, totalCost - discountAmt - advance - extraPaid);
 
         const pickupDateStr = fmtDate(rental.rental_start_date);
         const returnDateStr = fmtDate(rental.rental_end_date);
@@ -463,7 +468,12 @@ export async function sendReturnReminder(req: AuthRequest, res: Response): Promi
 
     const result = await db.query(`
       SELECT r.booking_number, r.rental_end_date, r.customer_id,
-             c.name AS customer_name, c.phone, c.whatsapp
+             r.total_rental_cost, r.discount_amount, r.advance_payment,
+             c.name AS customer_name, c.phone, c.whatsapp,
+             COALESCE((
+               SELECT SUM(amount) FROM payments
+               WHERE rental_id = r.id AND payment_type = 'rental'
+             ), 0) AS extra_paid
       FROM rentals r
       JOIN customers c ON c.id = r.customer_id
       WHERE r.id = $1
@@ -481,11 +491,18 @@ export async function sendReturnReminder(req: AuthRequest, res: Response): Promi
     }
 
     const returnDate = fmtDate(row.rental_end_date);
+    const balanceDue = Math.max(0,
+      parseFloat(row.total_rental_cost) -
+      parseFloat(row.discount_amount || '0') -
+      parseFloat(row.advance_payment || '0') -
+      parseFloat(row.extra_paid || '0')
+    );
 
     const message = buildReturnReminderMessage({
       customerName: row.customer_name,
       bookingNumber: row.booking_number,
       returnDate,
+      balanceDue,
     });
 
     await sendSmsAndWhatsapp({
