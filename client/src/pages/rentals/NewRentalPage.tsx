@@ -385,7 +385,11 @@ export default function NewRentalPage() {
                             </p>
                           ) : (
                             productResults?.data.map((product: any) => {
-                              const variants = (product.variants || []).filter((v: any) => (v.available_for_rent ?? v.stock_quantity) > 0);
+                              const searchLower = productSearch.trim().toLowerCase();
+                              const allVariants = (product.variants || []).filter((v: any) => (v.available_for_rent ?? v.stock_quantity) > 0);
+                              // If search exactly matches a variant SKU, show only that variant
+                              const exactMatch = allVariants.find((v: any) => v.sku.toLowerCase() === searchLower);
+                              const variants = exactMatch ? [exactMatch] : allVariants;
                               if (variants.length === 0) return null;
                               return variants.map((v: any) => (
                                 <button
