@@ -3,7 +3,7 @@ import { db } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { getPagination, paginatedResponse } from '../utils/pagination';
 
-const VALID_CATEGORIES = ['stock_purchase', 'equipment', 'rent', 'utilities', 'salaries', 'other'];
+const VALID_CATEGORIES = ['stock_purchase', 'equipment', 'rent', 'utilities', 'salaries', 'other', 'owner_contribution'];
 
 function getMonthRange(fromMonth?: string, toMonth?: string): { from: string; to: string } {
   const now = new Date();
