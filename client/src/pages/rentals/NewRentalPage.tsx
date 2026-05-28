@@ -153,16 +153,13 @@ export default function NewRentalPage() {
     );
   }, [cartItems, finalTotal, customer, rentalStartDate, rentalEndDate, rentalDays]);
 
-  // Auto-focus the search field whenever the Items step becomes active
-  useEffect(() => {
-    if (step === 1) {
-      setTimeout(() => searchRef.current?.focus(), 80);
-    }
-  }, [step]);
+  // Auto-focus callback — called from onAnimationComplete on step-1 motion.div
+  const focusSearch = () => searchRef.current?.focus();
 
   const handleSearchKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return;
-    const query = productSearch.trim();
+    // Read from DOM directly to avoid stale React state (barcode scanners fire keystrokes rapidly)
+    const query = (e.target as HTMLInputElement).value.trim();
     if (!query) return;
     try {
       const result = await productService.getByBarcode(query);
@@ -361,7 +358,7 @@ export default function NewRentalPage() {
 
                 {/* Step 1: Items */}
                 {step === 1 && (
-                  <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                  <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} onAnimationComplete={focusSearch} className="space-y-4">
                     <h3 className="section-title">Select Items</h3>
                     <div className="relative">
                       <Input
