@@ -189,7 +189,17 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
     }
 
     // Update rental status
-    const newStatus = allReturned ? (fineCalc.totalFine > 0 ? 'returned' : 'completed') : rental.status;
+    // - All returned, fine paid (or no fine) → completed
+    // - All returned, fine exists but not collected now → returned (still owes fine)
+    // - Partial return, overdue → late_return
+    // - Partial return, on time → keep current
+    let newStatus: string;
+    if (allReturned) {
+      const fineStillOwed = fineCalc.totalFine > 0 && !collectFine;
+      newStatus = fineStillOwed ? 'returned' : 'completed';
+    } else {
+      newStatus = fineCalc.totalFine > 0 ? 'late_return' : rental.status;
+    }
 
     await client.query(`
       UPDATE rentals SET
