@@ -299,6 +299,31 @@ export default function POSPage() {
     }
   };
 
+  // Auto-add when barcode/SKU exactly matches a variant in search results
+  useEffect(() => {
+    const s = productSearch.trim();
+    if (!s || !products?.data?.length) return;
+    const lower = s.toLowerCase();
+    for (const prod of products.data) {
+      const exactV = (prod.variants || []).find((v: any) => v.sku?.toLowerCase() === lower);
+      if (exactV) {
+        const saleStock = Math.max(0, (exactV.stock_quantity || 0) - (exactV.available_for_rent || 0));
+        const price = Number(exactV.selling_price ?? prod.selling_price ?? 0);
+        addItem({
+          variantId: exactV.id, productId: prod.id,
+          productName: prod.name, variantSku: exactV.sku,
+          size: exactV.size, color: exactV.color,
+          image: prod.primary_image,
+          unitPrice: price, quantity: 1, discount: 0, subtotal: price,
+          stockQty: saleStock,
+        });
+        toast.success(`Added: ${prod.name}${exactV.size ? ' · ' + exactV.size : ''}`);
+        setProductSearch('');
+        break;
+      }
+    }
+  }, [products?.data, productSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleAddProduct = (product: any, variant: any) => {
     const saleStock = Math.max(0, (variant.stock_quantity || 0) - (variant.available_for_rent || 0));
     addItem({

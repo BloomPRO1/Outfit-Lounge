@@ -204,6 +204,26 @@ export default function NewRentalPage() {
     setTimeout(() => searchRef.current?.focus(), 50);
   };
 
+  // Auto-add when barcode/SKU exactly matches a variant in search results
+  useEffect(() => {
+    const s = productSearch.trim();
+    if (!s || !productResults?.data?.length) return;
+    const lower = s.toLowerCase();
+    for (const prod of productResults.data) {
+      const availVariants = (prod.variants || []).filter((v: any) => (v.available_for_rent ?? v.stock_quantity) > 0);
+      const exactV = availVariants.find((v: any) => v.sku?.toLowerCase() === lower);
+      if (exactV) {
+        addToCart(
+          { ...exactV, rental_price_per_day: exactV.rental_price_per_day ?? prod.rental_price_per_day },
+          prod.name,
+          prod.late_fine_per_day ?? 0
+        );
+        toast.success(`Added: ${prod.name}${exactV.size ? ' · ' + exactV.size : ''}`);
+        break;
+      }
+    }
+  }, [productResults?.data, productSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const finalEventType = eventTypeCustom ? customEventText : eventType;
 
   const handleSubmit = () => {
