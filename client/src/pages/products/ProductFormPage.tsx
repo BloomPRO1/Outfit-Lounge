@@ -361,10 +361,32 @@ export default function ProductFormPage() {
               <h3 className="section-title">Pricing Details</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {(form.type === 'sale' || form.type === 'both') && (
-                  <Input label="Selling Price (LKR)" type="number" step="0.01" min="0" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} placeholder="0.00" />
+                  <Input label="Selling Price (LKR)" type="number" step="0.01" min="0" value={form.sellingPrice}
+                    onChange={(e) => {
+                      const oldVal = form.sellingPrice;
+                      const newVal = e.target.value;
+                      setForm(f => ({ ...f, sellingPrice: newVal }));
+                      setVariants(prev => prev.map(v =>
+                        (v.sellingPrice === '' || v.sellingPrice === oldVal)
+                          ? { ...v, sellingPrice: newVal }
+                          : v
+                      ));
+                    }}
+                    placeholder="0.00" />
                 )}
                 {(form.type === 'rental' || form.type === 'both') && (
-                  <Input label="Rental Price Per Day (LKR)" type="number" step="0.01" min="0" value={form.rentalPricePerDay} onChange={(e) => setForm({ ...form, rentalPricePerDay: e.target.value })} placeholder="0.00" />
+                  <Input label="Rental Price Per Day (LKR)" type="number" step="0.01" min="0" value={form.rentalPricePerDay}
+                    onChange={(e) => {
+                      const oldVal = form.rentalPricePerDay;
+                      const newVal = e.target.value;
+                      setForm(f => ({ ...f, rentalPricePerDay: newVal }));
+                      setVariants(prev => prev.map(v =>
+                        (v.rentalPricePerDay === '' || v.rentalPricePerDay === oldVal)
+                          ? { ...v, rentalPricePerDay: newVal }
+                          : v
+                      ));
+                    }}
+                    placeholder="0.00" />
                 )}
                 {(form.type === 'rental' || form.type === 'both') && (
                   <Input label="Late Fine Per Day (LKR)" type="number" step="0.01" min="0" value={form.lateFinePerDay} onChange={(e) => setForm({ ...form, lateFinePerDay: e.target.value })} placeholder="0.00" />

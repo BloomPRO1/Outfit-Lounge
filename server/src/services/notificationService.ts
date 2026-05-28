@@ -341,6 +341,20 @@ export async function buildRentalInvoiceText(rentalId: string): Promise<string> 
   const days = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000));
   const fmt = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
+  // Fetch damage/lost charges for this rental
+  const dmgRes = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE rental_id = $1 AND payment_type = 'damage_charge'`,
+    [rentalId]
+  );
+  const totalDamage = parseFloat(dmgRes.rows[0].total || '0');
+
+  // Fetch extra rental payments (beyond advance)
+  const extraRes = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE rental_id = $1 AND payment_type = 'rental'`,
+    [rentalId]
+  );
+  const extraPaid = parseFloat(extraRes.rows[0].total || '0');
+
   let msg = `📋 *Rental Invoice — ${shop}*\n`;
   msg += `────────────────────\n`;
   msg += `Booking: ${r.booking_number}\n`;
@@ -360,10 +374,14 @@ export async function buildRentalInvoiceText(rentalId: string): Promise<string> 
     msg += `Discount:     -LKR ${parseFloat(r.discount_amount).toFixed(2)}\n`;
   if (parseFloat(r.advance_payment || '0') > 0)
     msg += `Advance Paid:  LKR ${parseFloat(r.advance_payment).toFixed(2)}\n`;
-  const balance = parseFloat(r.total_rental_cost) - parseFloat(r.discount_amount || '0') - parseFloat(r.advance_payment || '0');
-  if (balance > 0) msg += `*Balance Due:  LKR ${balance.toFixed(2)}*\n`;
+  if (extraPaid > 0)
+    msg += `Extra Paid:    LKR ${extraPaid.toFixed(2)}\n`;
+  const balance = parseFloat(r.total_rental_cost) - parseFloat(r.discount_amount || '0') - parseFloat(r.advance_payment || '0') - extraPaid;
+  if (balance > 0.01) msg += `*Balance Due:  LKR ${balance.toFixed(2)}*\n`;
   if (parseFloat(r.total_fine || '0') > 0)
     msg += `Late Fine:     LKR ${parseFloat(r.total_fine).toFixed(2)}\n`;
+  if (totalDamage > 0)
+    msg += `Damage/Lost:   LKR ${totalDamage.toFixed(2)}\n`;
   msg += `────────────────────\n`;
   msg += `Thank you for choosing ${shop}! 🙏`;
   return msg;

@@ -55,7 +55,7 @@ interface PDFData {
   customerName?: string; customerPhone?: string; customerEmail?: string;
   items: Array<{ name: string; qty: number; price: number; subtotal: number }>;
   subtotal: number; discount: number; tax: number;
-  total: number; paid: number; change?: number; fine?: number;
+  total: number; paid: number; change?: number; fine?: number; damageCharges?: number;
 }
 
 // ─── PDF Builder ──────────────────────────────────────────────────────────────
@@ -264,6 +264,7 @@ async function buildPDF(d: PDFData): Promise<Buffer> {
       const balance = d.total - (d.paid ?? 0);
       if (balance > 0.01)               tRow('Balance Due', fmt(balance), { bold: true, fg: RED, topBorder: true });
       if ((d.fine ?? 0) > 0.005)        tRow('Late Fine', fmt(d.fine!), { fg: RED });
+      if ((d.damageCharges ?? 0) > 0.005) tRow('Damage / Lost', fmt(d.damageCharges!), { fg: RED });
 
       // Outer stroke around totals
       doc.rect(TBX, totalsStartY, TB_W, y - totalsStartY).strokeColor(BORDER).lineWidth(0.5).stroke();
@@ -406,6 +407,12 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
   const days  = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
   const fmtD  = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
+  const dmgRes = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE rental_id = $1 AND payment_type = 'damage_charge'`,
+    [rentalId]
+  );
+  const damageCharges = parseFloat(dmgRes.rows[0].total || '0');
+
   const buffer = await buildPDF({
     type: 'rental',
     refNumber: r0.booking_number,
@@ -431,8 +438,9 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
     discount: parseFloat(r0.discount_amount || '0'),
     tax:      0,
     total:    parseFloat(r0.total_rental_cost) - parseFloat(r0.discount_amount || '0'),
-    paid:     parseFloat(r0.advance_payment || '0'),
-    fine:     parseFloat(r0.total_fine || '0'),
+    paid:          parseFloat(r0.advance_payment || '0'),
+    fine:          parseFloat(r0.total_fine || '0'),
+    damageCharges: damageCharges > 0 ? damageCharges : undefined,
   });
 
   const token = uuidv4();

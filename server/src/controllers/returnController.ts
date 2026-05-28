@@ -162,11 +162,15 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
     );
     const allReturned = parseInt(pendingRes.rows[0].count) === 0;
 
-    // Calculate total fine
+    // Calculate total fine using the configured rate (not hardcoded 20)
+    const fineSettingRes = await db.query<{ value: string }>(
+      `SELECT value FROM settings WHERE key = 'default_fine_per_day'`
+    );
+    const finePerDay = parseFloat(fineSettingRes.rows[0]?.value || '20');
     const fineCalc = await calculateFine(
       new Date(rental.rental_end_date),
       actualReturn,
-      20
+      finePerDay
     );
 
     if (fineCalc.totalFine > 0 && collectFine) {
