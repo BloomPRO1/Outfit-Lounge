@@ -86,44 +86,41 @@ async function buildPDF(d: PDFData): Promise<Buffer> {
       const ML = 44; const MR = 44; const W = PGW - ML - MR; // 507
 
       // ── Full-bleed header band ──────────────────────────────────────────────
-      const HDR_H = 125;
+      const HDR_H = 140;
       doc.rect(0, 0, PGW, HDR_H).fillColor(DARK2).fill();
       // thin left gold edge accent (full page height)
       doc.rect(0, 0, 5, PGH).fillColor(GOLD).fill();
       // gold strip at header bottom
       doc.rect(0, HDR_H, PGW, 4).fillColor(GOLD).fill();
 
-      // Logo in header
+      // Logo — centred in header
       const logoBuffer = await loadLogoBuffer(d.shopLogoUrl);
-      const LOGO_SIZE = 72;
-      const logoX = ML + 8;
-      const logoY = (HDR_H - LOGO_SIZE) / 2;
+      const LOGO_SIZE = 100;
+      const logoX = Math.round((PGW - LOGO_SIZE) / 2);
+      const logoY = Math.round((HDR_H - LOGO_SIZE) / 2);
       if (logoBuffer) {
         try { doc.image(logoBuffer, logoX, logoY, { fit: [LOGO_SIZE, LOGO_SIZE] }); } catch {}
+      } else {
+        // Fallback: shop name centred when no logo
+        doc.font('Helvetica-Bold').fontSize(22).fillColor(WHITE)
+          .text(d.shopName, ML, 45, { width: W, align: 'center', lineBreak: false });
       }
 
-      // Shop name + contact in header (left side)
-      const hTextX = logoX + (logoBuffer ? LOGO_SIZE + 14 : 0);
-      const hTextY = 22;
-      doc.font('Helvetica-Bold').fontSize(22).fillColor(WHITE)
-        .text(d.shopName, hTextX, hTextY, { lineBreak: false });
-      let hiy = hTextY + 30;
-      doc.font('Helvetica').fontSize(8.5).fillColor(GOLD_LT);
-      if (d.shopAddress) {
-        doc.text(d.shopAddress, hTextX, hiy, { lineBreak: false });
-        hiy += 13;
-      }
+      // Contact line centred under logo area (small, gold-light)
       const contact = [d.shopPhone, d.shopEmail].filter(Boolean).join('   ·   ');
-      if (contact) doc.text(contact, hTextX, hiy, { lineBreak: false });
+      if (contact) {
+        doc.font('Helvetica').fontSize(7.5).fillColor(GOLD_LT)
+          .text(contact, ML, HDR_H - 18, { width: W, align: 'center', lineBreak: false });
+      }
 
       // Invoice type badge + ref (right side of header)
       const badge = d.type === 'receipt' ? 'RECEIPT' : 'RENTAL INVOICE';
-      doc.font('Helvetica-Bold').fontSize(24).fillColor(GOLD)
-        .text(badge, ML, 28, { width: W - 8, align: 'right', lineBreak: false });
-      doc.font('Helvetica').fontSize(9.5).fillColor(GOLD_LT)
-        .text(`# ${d.refNumber}`, ML, 60, { width: W - 8, align: 'right', lineBreak: false });
-      doc.font('Helvetica').fontSize(8.5).fillColor(GOLD_LT)
-        .text(d.date, ML, 76, { width: W - 8, align: 'right', lineBreak: false });
+      doc.font('Helvetica-Bold').fontSize(20).fillColor(GOLD)
+        .text(badge, ML, 22, { width: W - 8, align: 'right', lineBreak: false });
+      doc.font('Helvetica').fontSize(9).fillColor(GOLD_LT)
+        .text(`# ${d.refNumber}`, ML, 50, { width: W - 8, align: 'right', lineBreak: false });
+      doc.font('Helvetica').fontSize(8).fillColor(GOLD_LT)
+        .text(d.date, ML, 65, { width: W - 8, align: 'right', lineBreak: false });
 
       let y = HDR_H + 22;
 

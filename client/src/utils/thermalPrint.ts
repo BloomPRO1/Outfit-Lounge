@@ -82,7 +82,7 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 <body>
 
   <div class="c" style="margin-bottom:2.5mm;">
-    <img src="${logoSrc}" style="max-width:22mm;max-height:22mm;object-fit:contain;"
+    <img src="${logoSrc}" style="max-width:36mm;max-height:36mm;object-fit:contain;display:block;margin:0 auto;"
          onerror="this.style.display='none'" />
   </div>
   <div class="c b" style="font-size:11pt;letter-spacing:0.5px;">${shop.name}</div>
