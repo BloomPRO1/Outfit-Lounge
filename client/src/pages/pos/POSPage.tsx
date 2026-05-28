@@ -293,7 +293,7 @@ export default function POSPage() {
         });
         toast.success(`Added: ${result.name}`);
       }
-      (e.target as HTMLInputElement).value = '';
+      setProductSearch('');
     } catch {
       toast.error('Product not found');
     }
@@ -426,15 +426,10 @@ export default function POSPage() {
           <div className="flex gap-2">
             <Input
               ref={barcodeRef}
-              placeholder="Scan barcode..."
-              icon={<Barcode size={15} />}
-              className="flex-1"
-              onKeyDown={handleBarcodeInput}
-            />
-            <Input
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Search products..."
+              onKeyDown={handleBarcodeInput}
+              placeholder="Search or scan barcode..."
               icon={<Search size={15} />}
               className="flex-1"
             />
