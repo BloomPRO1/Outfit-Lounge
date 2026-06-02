@@ -108,20 +108,19 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;background:#fff}
-    .grid{display:flex;flex-wrap:wrap;gap:0;padding:0}
+    .grid{display:block;padding:0;margin:0}
     .label{
       width:40mm;height:46mm;border:0.4pt solid #bbb;
-      padding:2mm;display:flex;flex-direction:column;
-      align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden
+      padding:2mm 2mm 1mm 2mm;display:flex;flex-direction:column;
+      align-items:center;justify-content:space-between;page-break-inside:avoid;overflow:hidden
     }
     .pname{font-size:7pt;font-weight:700;text-align:center;
-      width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      margin-bottom:1mm;line-height:1.1}
-    .variant{font-size:6pt;color:#555;margin-bottom:1mm;text-align:center}
-    .barcode{width:36mm;height:26mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
-    .barcode svg{transform:rotate(90deg);transform-origin:center;height:110px !important;width:auto !important;max-width:none !important}
-    .price{font-size:8pt;font-weight:700;margin-top:1mm}
-    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}.grid{padding:0;gap:0}.label{border:none}}
+      width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+    .variant{font-size:6pt;color:#555;text-align:center}
+    .barcode{width:36mm;flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:1mm 0}
+    .barcode svg{transform:rotate(90deg);transform-origin:center;height:34mm !important;width:auto !important;flex-shrink:0}
+    .price{font-size:8pt;font-weight:700}
+    @media print{@page{size:80mm 46mm;margin:0}body{margin:0}.label{border:none}}
   </style>
 </head>
 <body>
@@ -165,8 +164,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
               {variantLine && (
                 <p className="text-[9px] text-gray-500 mb-1.5">{variantLine}</p>
               )}
-              <div style={{ width: 80, height: 140, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg ref={svgRef} style={{ transform: 'rotate(90deg)', transformOrigin: 'center', flexShrink: 0 }} />
+              <div style={{ width: 120, height: 160, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg ref={svgRef} style={{ transform: 'rotate(90deg)', transformOrigin: 'center', height: 120, width: 'auto', flexShrink: 0 }} />
               </div>
               {item.price && (
                 <p className="text-[11px] font-bold text-black mt-1">
