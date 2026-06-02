@@ -90,13 +90,17 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       ? `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`
       : '';
 
+    // Inner div is 46×40mm (label dimensions swapped), rotated 90° and
+    // centered inside the 40×46mm label — all content rotates together.
     const labelHtml = `
       <div class="label">
-        <p class="pname">${item.productName}</p>
-        ${variantLine ? `<p class="variant">${variantLine}</p>` : ''}
-        <div class="bwrap">${tempSvg.outerHTML}</div>
-        <p class="sku">${item.sku}</p>
-        ${priceText ? `<p class="price">${priceText}</p>` : ''}
+        <div class="inner">
+          <p class="pname">${item.productName}</p>
+          ${variantLine ? `<p class="variant">${variantLine}</p>` : ''}
+          <div class="bwrap">${tempSvg.outerHTML}</div>
+          <p class="sku">${item.sku}</p>
+          ${priceText ? `<p class="price">${priceText}</p>` : ''}
+        </div>
       </div>`;
 
     const html = `<!DOCTYPE html>
@@ -108,27 +112,26 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;background:#fff}
     .label{
-      width:40mm;height:46mm;
-      padding:2mm;
-      display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-      page-break-after:always;overflow:hidden;
+      position:relative;width:40mm;height:46mm;
+      overflow:hidden;page-break-after:always;
     }
-    .pname{font-size:8.5pt;font-weight:800;text-align:center;width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .variant{font-size:7pt;color:#333;text-align:center}
-    .bwrap{
-      width:36mm;height:28mm;
-      flex-shrink:0;overflow:hidden;
-      display:flex;align-items:center;justify-content:center;
-    }
-    .bwrap svg{
+    .inner{
+      position:absolute;
+      width:46mm;height:40mm;
+      top:3mm;left:-3mm;
       transform:rotate(90deg);
-      transform-origin:center center;
-      height:34mm !important;
-      width:26mm !important;
+      transform-origin:center;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:space-between;
+      padding:2mm;
     }
+    .pname{font-size:8pt;font-weight:800;text-align:center;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .variant{font-size:7pt;color:#333;text-align:center}
+    .bwrap{flex:1;width:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:1mm 0}
+    .bwrap svg{width:100% !important;height:100% !important}
     .sku{font-size:6.5pt;color:#444;text-align:center;letter-spacing:0.3pt}
     .price{font-size:10pt;font-weight:800;text-align:center}
-    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}.label{border:none}}
+    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}}
   </style>
 </head>
 <body>
@@ -163,18 +166,25 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
           <div className="flex justify-center p-4 bg-white rounded-xl border border-charcoal-400">
-            <div className="flex flex-col items-center gap-1" style={{ width: 152 }}>
-              <p className="text-[11px] font-extrabold text-black text-center w-full truncate">{item.productName}</p>
-              {variantLine && <p className="text-[9px] text-gray-500 text-center">{variantLine}</p>}
-              <div style={{ width: 136, height: 106, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg ref={svgRef} style={{ transform: 'rotate(90deg)', transformOrigin: 'center', height: 128, width: 98, flexShrink: 0 }} />
+            {/* Outer = label shape (40×46mm → 120×138px preview) */}
+            <div style={{ position: 'relative', width: 120, height: 138, overflow: 'hidden', flexShrink: 0 }}>
+              {/* Inner = swapped dims (46×40mm → 138×120px), rotated 90°, centered */}
+              <div style={{
+                position: 'absolute', width: 138, height: 120,
+                top: 9, left: -9,
+                transform: 'rotate(90deg)', transformOrigin: 'center',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'space-between',
+                padding: 6,
+              }}>
+                <p style={{ fontSize: 10, fontWeight: 800, textAlign: 'center', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#000' }}>{item.productName}</p>
+                {variantLine && <p style={{ fontSize: 8, color: '#555', textAlign: 'center' }}>{variantLine}</p>}
+                <div style={{ flex: 1, width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '2px 0' }}>
+                  <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+                </div>
+                <p style={{ fontSize: 8, color: '#666', textAlign: 'center' }}>{item.sku}</p>
+                {item.price && <p style={{ fontSize: 11, fontWeight: 800, textAlign: 'center', color: '#000' }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
               </div>
-              <p className="text-[8px] text-gray-500 text-center tracking-wide">{item.sku}</p>
-              {item.price && (
-                <p className="text-[12px] font-extrabold text-black text-center">
-                  LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
-                </p>
-              )}
             </div>
           </div>
         </div>
