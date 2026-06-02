@@ -100,8 +100,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     // 80mm printer left-aligns 40mm content on the 40mm roll naturally.
     // Rotated inner (46×40mm at top:3mm left:-3mm) fits within the 40×46mm page
     // after 90° rotation — center=(20mm,23mm) = exact page center ✓
-    tempSvg.setAttribute('width', '72mm');
-    tempSvg.setAttribute('height', '52mm');
+    tempSvg.setAttribute('width', '82mm');
+    tempSvg.setAttribute('height', '32mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
@@ -129,15 +129,18 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif}
     .page{
-      position:relative;
       width:80mm;height:92mm;
+      position:relative;overflow:hidden;
       page-break-after:always;
     }
     .label{
-      width:80mm;height:92mm;
+      width:92mm;height:80mm;
+      position:absolute;top:0;left:80mm;
+      transform:rotate(90deg);
+      transform-origin:top left;
       display:flex;flex-direction:column;
       align-items:center;justify-content:space-between;
-      padding:4mm;
+      padding:4mm;box-sizing:border-box;
     }
     .pname{font-size:24pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
     .variant{font-size:20pt;color:#222;text-align:center}
@@ -179,7 +182,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         {/* Label Preview */}
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
-          {/* Landscape preview (46×40mm → 184×160px) — matches printed page exactly */}
+          {/* Rotated preview (92×80mm → 184×160px) — content rotated 90deg on 80×92mm page */}
           <div className="flex justify-center p-4 bg-white rounded-xl border border-charcoal-400">
             <div style={{ width: 184, height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: 8, overflow: 'hidden', flexShrink: 0 }}>
               <p style={{ fontSize: 11, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.25, wordBreak: 'break-word' }}>{item.productName}</p>
