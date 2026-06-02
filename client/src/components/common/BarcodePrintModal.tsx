@@ -100,8 +100,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     // 80mm printer left-aligns 40mm content on the 40mm roll naturally.
     // Rotated inner (46×40mm at top:3mm left:-3mm) fits within the 40×46mm page
     // after 90° rotation — center=(20mm,23mm) = exact page center ✓
-    tempSvg.setAttribute('width', '38mm');
-    tempSvg.setAttribute('height', '20mm');
+    tempSvg.setAttribute('width', '76mm');
+    tempSvg.setAttribute('height', '40mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
@@ -130,26 +130,26 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     body{font-family:Arial,Helvetica,sans-serif}
     .page{
       position:relative;
-      width:80mm;height:46mm;
+      width:80mm;height:92mm;
       page-break-after:always;
     }
     .label{
       position:absolute;
-      width:46mm;height:40mm;
-      top:3mm;left:-3mm;
+      width:92mm;height:80mm;
+      top:6mm;left:-6mm;
       transform:rotate(90deg);
       transform-origin:center;
       display:flex;flex-direction:column;
       align-items:center;justify-content:space-between;
-      padding:7mm 2mm 1mm 2mm;
+      padding:14mm 4mm 2mm 4mm;
     }
-    .pname{font-size:12pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
-    .variant{font-size:10pt;color:#222;text-align:center}
-    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:1mm 0;overflow:hidden}
+    .pname{font-size:24pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
+    .variant{font-size:20pt;color:#222;text-align:center}
+    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:2mm 0;overflow:hidden}
     .bwrap svg{display:block;max-height:100%}
-    .sku{font-size:9pt;color:#333;text-align:center;letter-spacing:0.5pt}
-    .price{font-size:14pt;font-weight:800;text-align:center}
-    @media print{@page{size:80mm 46mm;margin:0}body{margin:0}}
+    .sku{font-size:18pt;color:#333;text-align:center;letter-spacing:0.5pt}
+    .price{font-size:28pt;font-weight:800;text-align:center}
+    @media print{@page{size:80mm 92mm;margin:0}body{margin:0}}
   </style>
 </head>
 <body>
