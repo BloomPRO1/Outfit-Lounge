@@ -96,10 +96,12 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       });
     } catch { return; }
 
-    // SVG width → becomes barcode HEIGHT on physical label (after 90° rotation)
-    // SVG height → becomes barcode LENGTH on physical label (after 90° rotation)
-    tempSvg.setAttribute('width', '36mm');   // height on label
-    tempSvg.setAttribute('height', '36mm');  // length on label
+    // Page = 80mm × 46mm (exact printer width). The rotated 46×40mm label sits at
+    // x=0 (left edge) where the 40mm paper is loaded. Right 40mm of page is empty.
+    // Using 80mm page width ensures no centering offset by the Windows driver.
+    // The 46mm label div fits entirely within 80mm → no page-split overflow.
+    tempSvg.setAttribute('width', '38mm');
+    tempSvg.setAttribute('height', '20mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
@@ -107,10 +109,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       ? `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`
       : '';
 
-    // Portrait page (40×46mm). .label is 46×40mm rotated 90° inside.
-    // Wrapper has NO overflow:hidden so the transform is not clipped before it renders.
+    // .page = full 80mm × 46mm printer page (one per copy)
+    // .label = 46×40mm landscape content, rotated 90° CW, centered in left 40mm
+    //   top:3mm left:-3mm → center=(20mm,23mm) = center of 40×46mm paper area ✓
     const labelHtml = `
-      <div class="wrapper">
+      <div class="page">
         <div class="label">
           <p class="pname">${item.productName}</p>
           ${variantLine ? `<p class="variant">${variantLine}</p>` : ''}
@@ -128,13 +131,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif}
-    /* Wrapper = one page. No overflow:hidden — lets rotation render correctly */
-    .wrapper{
+    .page{
       position:relative;
-      width:40mm;height:46mm;
+      width:80mm;height:46mm;
       page-break-after:always;
     }
-    /* Label content: 46×40mm, rotated 90° CW, centered inside the 40×46mm wrapper */
     .label{
       position:absolute;
       width:46mm;height:40mm;
@@ -151,7 +152,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     .bwrap svg{display:block}
     .sku{font-size:7pt;color:#333;text-align:center;letter-spacing:0.5pt}
     .price{font-size:11pt;font-weight:800;text-align:center}
-    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}}
+    @media print{@page{size:80mm 46mm;margin:0}body{margin:0}}
   </style>
 </head>
 <body>
@@ -185,27 +186,16 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         {/* Label Preview */}
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
-          {/* Portrait preview (40×46mm → 152×175px) with rotated inner matching print */}
+          {/* Landscape preview (46×40mm → 184×160px) — matches printed page exactly */}
           <div className="flex justify-center p-4 bg-white rounded-xl border border-charcoal-400">
-            <div style={{ position: 'relative', width: 152, height: 175, flexShrink: 0 }}>
-              <div style={{
-                position: 'absolute',
-                width: 175, height: 152,
-                top: 11.5, left: -11.5,
-                transform: 'rotate(90deg)',
-                transformOrigin: 'center',
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'space-between',
-                padding: 8,
-              }}>
-                <p style={{ fontSize: 11, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.25, wordBreak: 'break-word' }}>{item.productName}</p>
-                {variantLine && <p style={{ fontSize: 9, color: '#333', textAlign: 'center' }}>{variantLine}</p>}
-                <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '3px 0', overflow: 'hidden' }}>
-                  <svg ref={svgRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
-                </div>
-                <p style={{ fontSize: 9, color: '#555', textAlign: 'center' }}>{item.sku}</p>
-                {item.price && <p style={{ fontSize: 13, fontWeight: 800, textAlign: 'center', color: '#000' }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
+            <div style={{ width: 184, height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: 8, overflow: 'hidden', flexShrink: 0 }}>
+              <p style={{ fontSize: 11, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.25, wordBreak: 'break-word' }}>{item.productName}</p>
+              {variantLine && <p style={{ fontSize: 9, color: '#333', textAlign: 'center' }}>{variantLine}</p>}
+              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0', overflow: 'hidden' }}>
+                <svg ref={svgRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
               </div>
+              <p style={{ fontSize: 9, color: '#555', textAlign: 'center' }}>{item.sku}</p>
+              {item.price && <p style={{ fontSize: 13, fontWeight: 800, textAlign: 'center', color: '#000' }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
             </div>
           </div>
         </div>
