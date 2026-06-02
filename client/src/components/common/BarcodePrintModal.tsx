@@ -101,7 +101,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     // Rotated inner (46×40mm at top:3mm left:-3mm) fits within the 40×46mm page
     // after 90° rotation — center=(20mm,23mm) = exact page center ✓
     tempSvg.setAttribute('width', '38mm');
-    tempSvg.setAttribute('height', '26mm');
+    tempSvg.setAttribute('height', '20mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
@@ -130,7 +130,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     body{font-family:Arial,Helvetica,sans-serif}
     .page{
       position:relative;
-      width:40mm;height:46mm;
+      width:80mm;height:46mm;
       page-break-after:always;
     }
     .label{
@@ -143,13 +143,13 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       align-items:center;justify-content:space-between;
       padding:7mm 2mm 1mm 2mm;
     }
-    .pname{font-size:12pt;font-weight:800;text-align:center;width:100%;line-height:1.25;word-break:break-word}
+    .pname{font-size:12pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
     .variant{font-size:10pt;color:#222;text-align:center}
-    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:1mm 0}
-    .bwrap svg{display:block}
+    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:1mm 0;overflow:hidden}
+    .bwrap svg{display:block;max-height:100%}
     .sku{font-size:9pt;color:#333;text-align:center;letter-spacing:0.5pt}
     .price{font-size:14pt;font-weight:800;text-align:center}
-    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}}
+    @media print{@page{size:80mm 46mm;margin:0}body{margin:0}}
   </style>
 </head>
 <body>
