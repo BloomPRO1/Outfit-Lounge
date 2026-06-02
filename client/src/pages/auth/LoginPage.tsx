@@ -74,7 +74,7 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@tailorshop.com"
+              placeholder="Enter your email"
               required
               autoComplete="email"
             />
@@ -106,22 +106,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-6 p-3 bg-charcoal-600/50 rounded-xl border border-charcoal-500">
-            <p className="text-xs text-charcoal-200 text-center mb-2 font-medium">Demo Credentials</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-charcoal-200">
-              <div>
-                <span className="text-charcoal-300">Email:</span>
-                <br />
-                <code className="text-gold-500">admin@tailorshop.com</code>
-              </div>
-              <div>
-                <span className="text-charcoal-300">Password:</span>
-                <br />
-                <code className="text-gold-500">Admin@1234</code>
-              </div>
-            </div>
-          </div>
         </div>
 
         <p className="text-center text-xs text-charcoal-300 mt-6">
