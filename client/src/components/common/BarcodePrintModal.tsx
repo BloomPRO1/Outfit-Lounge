@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import JsBarcode from 'jsbarcode';
-import { Printer, Usb } from 'lucide-react';
+import { Printer, Usb, Monitor } from 'lucide-react';
 import { toast } from 'sonner';
 import Button from './Button';
 import Drawer from './Drawer';
@@ -34,11 +34,10 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       setLabelPrinterName(name);
       toast.success(`Label printer connected: ${name}`);
     } catch {
-      toast.error('Could not connect label printer');
+      toast.error('Could not connect — printer may have a Windows driver installed (see tip below)');
     }
   };
 
-  // Render preview barcode
   useEffect(() => {
     if (!open || !item || !svgRef.current) return;
     try {
@@ -52,33 +51,28 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         background: '#ffffff',
         lineColor: '#000000',
       });
-    } catch {
-      // invalid SKU for barcode — show nothing
-    }
+    } catch { /* invalid SKU */ }
   }, [open, item]);
 
-  // Default copies to stock quantity
   useEffect(() => {
     if (open && item) setCopies(Math.max(1, item.stockQty || 1));
   }, [open, item]);
 
-  const handlePrint = async () => {
+  const handlePrintDirect = async () => {
+    if (!item) return;
+    try {
+      await tsplPrint(item, copies);
+      toast.success(`Printed ${copies} label${copies !== 1 ? 's' : ''}`);
+      onClose();
+    } catch (err) {
+      console.error('TSPL print failed:', err);
+      toast.error('Direct print failed — try Print Dialog instead');
+    }
+  };
+
+  const handlePrintDialog = () => {
     if (!item) return;
 
-    // ── Silent TSPL print if label printer is connected ──────────────────────
-    if (isLabelConnected()) {
-      try {
-        await tsplPrint(item, copies);
-        toast.success(`Printed ${copies} label${copies !== 1 ? 's' : ''}`);
-        onClose();
-        return;
-      } catch (err) {
-        console.error('TSPL print failed:', err);
-        toast.error('Label printer error — falling back to print dialog');
-      }
-    }
-
-    // ── Fallback: open browser print dialog ──────────────────────────────────
     const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     try {
       JsBarcode(tempSvg, item.sku, {
@@ -91,10 +85,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         background: '#ffffff',
         lineColor: '#000000',
       });
-    } catch {
-      return;
-    }
-    const svgHtml = tempSvg.outerHTML;
+    } catch { return; }
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
     const priceHtml = item.price
@@ -105,7 +96,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       <div class="label">
         <p class="pname">${item.productName}</p>
         ${variantLine ? `<p class="variant">${variantLine}</p>` : ''}
-        <div class="barcode">${svgHtml}</div>
+        <div class="barcode">${tempSvg.outerHTML}</div>
         ${priceHtml}
       </div>`;
 
@@ -157,60 +148,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       onClose={onClose}
       title="Print Barcode Labels"
       footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" icon={<Printer size={15} />} onClick={handlePrint}>
-            Print {copies} Label{copies !== 1 ? 's' : ''}
-          </Button>
-        </>
+        <Button variant="secondary" onClick={onClose}>Close</Button>
       }
     >
       <div className="space-y-5">
-        {/* Printer status */}
-        <div className={`flex items-center justify-between p-3 rounded-xl border ${
-          labelConnected
-            ? 'border-emerald-500/40 bg-emerald-500/10'
-            : 'border-charcoal-400 bg-charcoal-600/40'
-        }`}>
-          <div className="flex items-center gap-2">
-            <Usb size={14} className={labelConnected ? 'text-emerald-400' : 'text-charcoal-300'} />
-            <span className="text-xs text-charcoal-100">
-              {labelConnected ? labelPrinterName || 'Label Printer' : 'No label printer connected'}
-            </span>
-            {labelConnected && (
-              <span className="text-[10px] text-emerald-400 font-medium">● SILENT PRINT</span>
-            )}
-          </div>
-          {!labelConnected && (
-            <Button variant="secondary" size="sm" onClick={handleConnectLabel}>
-              Connect
-            </Button>
-          )}
-        </div>
-        {!labelConnected && (
-          <div className="px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-1">
-            <p className="font-semibold">Printer not appearing when you click Connect?</p>
-            <p>
-              Chrome's USB picker <strong>cannot see printers that have a Windows driver installed</strong>.
-              To allow direct USB access, you need to replace the printer driver with WinUSB:
-            </p>
-            <ol className="list-decimal list-inside space-y-0.5 pl-1">
-              <li>Download <strong>Zadig</strong> from <span className="text-amber-200">zadig.akeo.ie</span></li>
-              <li>Open Zadig → Options → <strong>List All Devices</strong></li>
-              <li>Select your label printer from the dropdown</li>
-              <li>Choose <strong>WinUSB</strong> and click <strong>Replace Driver</strong></li>
-              <li>Reconnect the printer and click Connect again</li>
-            </ol>
-            <p className="text-amber-400/70">
-              Note: after replacing the driver the printer will only work via this app (not Windows print dialog). To undo, use Device Manager → Update Driver.
-            </p>
-            <p>
-              Or skip Connect entirely — click <strong>Print Labels</strong> below to use the browser print dialog with the installed driver.
-            </p>
-          </div>
-        )}
-
-        {/* Preview */}
+        {/* Label Preview */}
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
           <div className="flex justify-center p-5 bg-white rounded-xl border border-charcoal-400">
@@ -243,6 +185,57 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
             onWheel={(e) => e.currentTarget.blur()}
             className="w-full bg-charcoal-600 border border-charcoal-400 rounded-xl px-3 py-2.5 text-charcoal-50 text-sm focus:outline-none focus:border-gold-600"
           />
+        </div>
+
+        {/* Print options */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-charcoal-100">Choose Print Method</p>
+
+          {/* Option 1: Print Dialog — always works with installed driver */}
+          <div className="p-4 rounded-xl border-2 border-gold-600 bg-gold-700/10 space-y-3">
+            <div className="flex items-center gap-2">
+              <Monitor size={16} className="text-gold-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-gold-400">Print via Windows Dialog</p>
+                <p className="text-xs text-charcoal-200">Works with your installed printer driver — no setup needed</p>
+              </div>
+            </div>
+            <Button variant="primary" icon={<Printer size={15} />} onClick={handlePrintDialog} className="w-full">
+              Print {copies} Label{copies !== 1 ? 's' : ''} (Opens Print Dialog)
+            </Button>
+          </div>
+
+          {/* Option 2: Direct USB / Silent */}
+          <div className="p-4 rounded-xl border border-charcoal-400 bg-charcoal-600/30 space-y-3">
+            <div className="flex items-center gap-2">
+              <Usb size={16} className={labelConnected ? 'text-emerald-400' : 'text-charcoal-300'} />
+              <div>
+                <p className={`text-sm font-semibold ${labelConnected ? 'text-emerald-400' : 'text-charcoal-100'}`}>
+                  Direct USB — Silent Print
+                </p>
+                <p className="text-xs text-charcoal-200">
+                  {labelConnected
+                    ? `Connected: ${labelPrinterName || 'Label Printer'} — prints instantly, no dialog`
+                    : 'Prints silently with no dialog. Requires the printer to NOT have a Windows driver installed.'}
+                </p>
+              </div>
+            </div>
+            {labelConnected ? (
+              <Button variant="secondary" icon={<Printer size={15} />} onClick={handlePrintDirect} className="w-full">
+                Print {copies} Label{copies !== 1 ? 's' : ''} (Silent)
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Button variant="secondary" onClick={handleConnectLabel} className="w-full">
+                  Connect USB Printer
+                </Button>
+                <p className="text-xs text-charcoal-400">
+                  If your printer doesn't appear after clicking Connect, it has a Windows driver installed.
+                  Uninstall the driver from Device Manager first, or just use the <strong className="text-charcoal-200">Windows Dialog</strong> option above — it works perfectly.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="p-3 bg-charcoal-600/40 rounded-xl space-y-1">
