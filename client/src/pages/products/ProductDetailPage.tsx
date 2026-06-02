@@ -207,6 +207,7 @@ export default function ProductDetailPage() {
                         className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-gold-400 transition-colors"
                         onClick={() => setBarcodeItem({
                           sku: v.sku,
+                          labelId: v.label_id,
                           productName: product.name,
                           size: v.size,
                           color: v.color,

@@ -65,7 +65,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
         COALESCE(
           json_agg(
             json_build_object(
-              'id', id, 'sku', sku, 'size', size, 'color', color,
+              'id', id, 'sku', sku, 'label_id', label_id, 'size', size, 'color', color,
               'selling_price', selling_price,
               'rental_price_per_day', rental_price_per_day,
               'stock_quantity', stock_quantity,
@@ -129,7 +129,8 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
   `, [barcode]);
 
   if (!res2.rows[0]) {
-    // Try variant SKU
+    // Try variant SKU or short label_id (e.g. "000042")
+    const labelId = parseInt(barcode, 10);
     const varRes = await db.query(`
       SELECT pv.*, p.name as product_name, p.id as product_id, p.type as product_type,
              p.late_fine_per_day,
@@ -140,8 +141,8 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
       JOIN products p ON p.id = pv.product_id
       LEFT JOIN product_categories pc ON pc.id = p.category_id
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = true
-      WHERE pv.sku = $1
-    `, [barcode]);
+      WHERE pv.sku = $1 OR ($2::int IS NOT NULL AND pv.label_id = $2::int)
+    `, [barcode, isNaN(labelId) ? null : labelId]);
 
     if (!varRes.rows[0]) {
       res.status(404).json({ error: 'Product not found' });
