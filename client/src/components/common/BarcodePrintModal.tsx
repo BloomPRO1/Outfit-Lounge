@@ -100,7 +100,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     // 80mm printer left-aligns 40mm content on the 40mm roll naturally.
     // Rotated inner (46×40mm at top:3mm left:-3mm) fits within the 40×46mm page
     // after 90° rotation — center=(20mm,23mm) = exact page center ✓
-    tempSvg.setAttribute('width', '123mm');
+    tempSvg.setAttribute('width', '108mm');
     tempSvg.setAttribute('height', '48mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
@@ -128,19 +128,12 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif}
-    .page{
+    .page,.label{
       width:120mm;height:138mm;
-      position:relative;overflow:hidden;
-      page-break-after:always;
-    }
-    .label{
-      width:138mm;height:120mm;
-      position:absolute;top:0;left:120mm;
-      transform:rotate(90deg);
-      transform-origin:top left;
       display:flex;flex-direction:column;
       align-items:center;justify-content:space-between;
       padding:6mm;box-sizing:border-box;
+      page-break-after:always;
     }
     .pname{font-size:36pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
     .variant{font-size:30pt;color:#222;text-align:center}
