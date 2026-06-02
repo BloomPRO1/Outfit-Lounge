@@ -135,7 +135,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     w.document.write(html);
     w.document.close();
     w.focus();
-    setTimeout(() => { w.print(); w.close(); }, 400);
+    w.onafterprint = () => w.close();
+    setTimeout(() => w.print(), 400);
   };
 
   if (!item) return null;
