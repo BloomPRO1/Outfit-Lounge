@@ -191,11 +191,21 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
           <div className="px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-1">
             <p className="font-semibold">Printer not appearing when you click Connect?</p>
             <p>
-              Chrome's USB picker <strong>cannot see printers that have an OS driver installed</strong>.
-              To fix it on Linux, run: <code className="bg-charcoal-700 px-1 rounded">sudo rmmod usblp</code> then reconnect the USB cable.
+              Chrome's USB picker <strong>cannot see printers that have a Windows driver installed</strong>.
+              To allow direct USB access, you need to replace the printer driver with WinUSB:
+            </p>
+            <ol className="list-decimal list-inside space-y-0.5 pl-1">
+              <li>Download <strong>Zadig</strong> from <span className="text-amber-200">zadig.akeo.ie</span></li>
+              <li>Open Zadig → Options → <strong>List All Devices</strong></li>
+              <li>Select your label printer from the dropdown</li>
+              <li>Choose <strong>WinUSB</strong> and click <strong>Replace Driver</strong></li>
+              <li>Reconnect the printer and click Connect again</li>
+            </ol>
+            <p className="text-amber-400/70">
+              Note: after replacing the driver the printer will only work via this app (not Windows print dialog). To undo, use Device Manager → Update Driver.
             </p>
             <p>
-              Alternatively, just click <strong>Print Labels</strong> below — it opens the browser print dialog where your installed printer will appear normally.
+              Or skip Connect entirely — click <strong>Print Labels</strong> below to use the browser print dialog with the installed driver.
             </p>
           </div>
         )}
