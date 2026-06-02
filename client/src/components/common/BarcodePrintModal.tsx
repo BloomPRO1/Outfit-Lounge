@@ -51,7 +51,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         lineColor: '#000000',
       });
       svgRef.current.setAttribute('width', '144');
-      svgRef.current.setAttribute('height', '84');
+      svgRef.current.setAttribute('height', '106');
       svgRef.current.setAttribute('preserveAspectRatio', 'none');
     } catch { /* invalid SKU */ }
   }, [open, item]);
@@ -90,7 +90,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
 
     // Patch the SVG to stretch to explicit mm dimensions so it fills the label
     tempSvg.setAttribute('width', '38mm');
-    tempSvg.setAttribute('height', '22mm');
+    tempSvg.setAttribute('height', '28mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
