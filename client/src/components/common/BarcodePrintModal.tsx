@@ -96,10 +96,10 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       });
     } catch { return; }
 
-    // Page = 80mm × 46mm (exact printer width). The rotated 46×40mm label sits at
-    // x=0 (left edge) where the 40mm paper is loaded. Right 40mm of page is empty.
-    // Using 80mm page width ensures no centering offset by the Windows driver.
-    // The 46mm label div fits entirely within 80mm → no page-split overflow.
+    // @page 40×46mm = actual paper size → no scaling by driver.
+    // 80mm printer left-aligns 40mm content on the 40mm roll naturally.
+    // Rotated inner (46×40mm at top:3mm left:-3mm) fits within the 40×46mm page
+    // after 90° rotation — center=(20mm,23mm) = exact page center ✓
     tempSvg.setAttribute('width', '38mm');
     tempSvg.setAttribute('height', '20mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
@@ -109,9 +109,6 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       ? `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`
       : '';
 
-    // .page = full 80mm × 46mm printer page (one per copy)
-    // .label = 46×40mm landscape content, rotated 90° CW, centered in left 40mm
-    //   top:3mm left:-3mm → center=(20mm,23mm) = center of 40×46mm paper area ✓
     const labelHtml = `
       <div class="page">
         <div class="label">
@@ -133,7 +130,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     body{font-family:Arial,Helvetica,sans-serif}
     .page{
       position:relative;
-      width:80mm;height:46mm;
+      width:40mm;height:46mm;
       page-break-after:always;
     }
     .label{
@@ -152,7 +149,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     .bwrap svg{display:block}
     .sku{font-size:7pt;color:#333;text-align:center;letter-spacing:0.5pt}
     .price{font-size:11pt;font-weight:800;text-align:center}
-    @media print{@page{size:80mm 46mm;margin:0}body{margin:0}}
+    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}}
   </style>
 </head>
 <body>
