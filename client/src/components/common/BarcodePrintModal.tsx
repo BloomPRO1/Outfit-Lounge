@@ -43,10 +43,9 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(svgRef.current, item.sku, {
         format: 'CODE128',
-        width: 1.8,
-        height: 80,
-        displayValue: true,
-        fontSize: 10,
+        width: 2,
+        height: 100,
+        displayValue: false,
         margin: 4,
         background: '#ffffff',
         lineColor: '#000000',
@@ -78,26 +77,26 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       JsBarcode(tempSvg, item.sku, {
         format: 'CODE128',
         width: 2,
-        height: 110,
-        displayValue: true,
-        fontSize: 9,
-        margin: 3,
+        height: 100,
+        displayValue: false,  // SKU drawn separately as horizontal text
+        margin: 4,
         background: '#ffffff',
         lineColor: '#000000',
       });
     } catch { return; }
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
-    const priceHtml = item.price
-      ? `<p class="price">LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>`
+    const priceText = item.price
+      ? `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`
       : '';
 
     const labelHtml = `
       <div class="label">
         <p class="pname">${item.productName}</p>
         ${variantLine ? `<p class="variant">${variantLine}</p>` : ''}
-        <div class="barcode">${tempSvg.outerHTML}</div>
-        ${priceHtml}
+        <div class="bwrap">${tempSvg.outerHTML}</div>
+        <p class="sku">${item.sku}</p>
+        ${priceText ? `<p class="price">${priceText}</p>` : ''}
       </div>`;
 
     const html = `<!DOCTYPE html>
@@ -108,25 +107,32 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;background:#fff}
-    .grid{display:block;padding:0;margin:0}
     .label{
-      width:40mm;height:46mm;border:0.4pt solid #bbb;
-      padding:2mm 2mm 1mm 2mm;display:flex;flex-direction:column;
-      align-items:center;justify-content:space-between;page-break-inside:avoid;overflow:hidden
+      width:40mm;height:46mm;
+      padding:2mm;
+      display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+      page-break-after:always;overflow:hidden;
     }
-    .pname{font-size:7pt;font-weight:700;text-align:center;
-      width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
-    .variant{font-size:6pt;color:#555;text-align:center}
-    .barcode{width:36mm;flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:1mm 0}
-    .barcode svg{transform:rotate(90deg);transform-origin:center;height:34mm !important;width:auto !important;flex-shrink:0}
-    .price{font-size:8pt;font-weight:700}
-    @media print{@page{size:80mm 46mm;margin:0}body{margin:0}.label{border:none}}
+    .pname{font-size:8.5pt;font-weight:800;text-align:center;width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .variant{font-size:7pt;color:#333;text-align:center}
+    .bwrap{
+      width:36mm;height:28mm;
+      flex-shrink:0;overflow:hidden;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .bwrap svg{
+      transform:rotate(90deg);
+      transform-origin:center center;
+      height:34mm !important;
+      width:26mm !important;
+    }
+    .sku{font-size:6.5pt;color:#444;text-align:center;letter-spacing:0.3pt}
+    .price{font-size:10pt;font-weight:800;text-align:center}
+    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}.label{border:none}}
   </style>
 </head>
 <body>
-  <div class="grid">
-    ${Array(copies).fill(labelHtml).join('')}
-  </div>
+  ${Array(copies).fill(labelHtml).join('')}
 </body>
 </html>`;
 
@@ -156,19 +162,16 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         {/* Label Preview */}
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
-          <div className="flex justify-center p-5 bg-white rounded-xl border border-charcoal-400">
-            <div className="flex flex-col items-center text-center">
-              <p className="text-[11px] font-bold text-black max-w-[200px] truncate leading-tight mb-1">
-                {item.productName}
-              </p>
-              {variantLine && (
-                <p className="text-[9px] text-gray-500 mb-1.5">{variantLine}</p>
-              )}
-              <div style={{ width: 120, height: 160, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg ref={svgRef} style={{ transform: 'rotate(90deg)', transformOrigin: 'center', height: 120, width: 'auto', flexShrink: 0 }} />
+          <div className="flex justify-center p-4 bg-white rounded-xl border border-charcoal-400">
+            <div className="flex flex-col items-center gap-1" style={{ width: 152 }}>
+              <p className="text-[11px] font-extrabold text-black text-center w-full truncate">{item.productName}</p>
+              {variantLine && <p className="text-[9px] text-gray-500 text-center">{variantLine}</p>}
+              <div style={{ width: 136, height: 106, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg ref={svgRef} style={{ transform: 'rotate(90deg)', transformOrigin: 'center', height: 128, width: 98, flexShrink: 0 }} />
               </div>
+              <p className="text-[8px] text-gray-500 text-center tracking-wide">{item.sku}</p>
               {item.price && (
-                <p className="text-[11px] font-bold text-black mt-1">
+                <p className="text-[12px] font-extrabold text-black text-center">
                   LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}
                 </p>
               )}
