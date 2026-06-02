@@ -100,8 +100,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     // 80mm printer left-aligns 40mm content on the 40mm roll naturally.
     // Rotated inner (46×40mm at top:3mm left:-3mm) fits within the 40×46mm page
     // after 90° rotation — center=(20mm,23mm) = exact page center ✓
-    tempSvg.setAttribute('width', '108mm');
-    tempSvg.setAttribute('height', '48mm');
+    tempSvg.setAttribute('width', '86mm');
+    tempSvg.setAttribute('height', '36mm');
     tempSvg.setAttribute('preserveAspectRatio', 'none');
 
     const variantLine = [item.size, item.color].filter(Boolean).join(' / ');
@@ -128,20 +128,27 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif}
-    .page,.label{
-      width:120mm;height:138mm;
-      display:flex;flex-direction:column;
-      align-items:center;justify-content:space-between;
-      padding:6mm;box-sizing:border-box;
+    .page{
+      width:80mm;height:92mm;
+      position:relative;overflow:hidden;
       page-break-after:always;
     }
-    .pname{font-size:36pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
-    .variant{font-size:30pt;color:#222;text-align:center}
-    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:3mm 0;overflow:hidden}
+    .label{
+      width:92mm;height:80mm;
+      position:absolute;top:0;left:80mm;
+      transform:rotate(90deg);
+      transform-origin:top left;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:space-between;
+      padding:3mm;box-sizing:border-box;
+    }
+    .pname{font-size:26pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
+    .variant{font-size:20pt;color:#222;text-align:center}
+    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:2mm 0;overflow:hidden}
     .bwrap svg{display:block;max-height:100%}
-    .sku{font-size:27pt;color:#333;text-align:center;letter-spacing:0.5pt}
-    .price{font-size:42pt;font-weight:800;text-align:center}
-    @media print{@page{size:120mm 138mm;margin:0}body{margin:0}}
+    .sku{font-size:18pt;color:#333;text-align:center;letter-spacing:0.5pt}
+    .price{font-size:28pt;font-weight:800;text-align:center}
+    @media print{@page{size:80mm 92mm;margin:0}body{margin:0}}
   </style>
 </head>
 <body>
@@ -175,16 +182,16 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         {/* Label Preview */}
         <div>
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
-          {/* Rotated preview (138×120mm → 276×240px) — content rotated 90deg on 120×138mm page */}
+          {/* Rotated preview (92×80mm → 184×160px) — content rotated 90deg on 80×92mm page */}
           <div className="flex justify-center p-4 bg-white rounded-xl border border-charcoal-400">
-            <div style={{ width: 276, height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: 12, overflow: 'hidden', flexShrink: 0 }}>
-              <p style={{ fontSize: 17, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.25, wordBreak: 'break-word' }}>{item.productName}</p>
-              {variantLine && <p style={{ fontSize: 14, color: '#333', textAlign: 'center' }}>{variantLine}</p>}
-              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '6px 0', overflow: 'hidden' }}>
+            <div style={{ width: 184, height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: 6, overflow: 'hidden', flexShrink: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.25, wordBreak: 'break-word' }}>{item.productName}</p>
+              {variantLine && <p style={{ fontSize: 10, color: '#333', textAlign: 'center' }}>{variantLine}</p>}
+              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0', overflow: 'hidden' }}>
                 <svg ref={svgRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
               </div>
-              <p style={{ fontSize: 14, color: '#555', textAlign: 'center' }}>{item.sku}</p>
-              {item.price && <p style={{ fontSize: 20, fontWeight: 800, textAlign: 'center', color: '#000' }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
+              <p style={{ fontSize: 9, color: '#555', textAlign: 'center' }}>{item.sku}</p>
+              {item.price && <p style={{ fontSize: 13, fontWeight: 800, textAlign: 'center', color: '#000' }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
             </div>
           </div>
         </div>
