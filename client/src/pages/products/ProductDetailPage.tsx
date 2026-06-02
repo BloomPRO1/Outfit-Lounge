@@ -173,7 +173,7 @@ export default function ProductDetailPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-charcoal-500 text-left">
-                  {['SKU', 'Size', 'Color', 'Material', 'Stock', 'Available', 'Damaged', 'Actions'].map((h) => (
+                  {['SKU', 'Size', 'Color', 'Material', 'Selling Price', 'Rental/Day', 'Stock', 'Available', 'Damaged', 'Actions'].map((h) => (
                     <th key={h} className="py-2 px-3 text-xs text-charcoal-200 font-medium">{h}</th>
                   ))}
                 </tr>
@@ -185,6 +185,16 @@ export default function ProductDetailPage() {
                     <td className="py-2.5 px-3">{v.size || '—'}</td>
                     <td className="py-2.5 px-3">{v.color || '—'}</td>
                     <td className="py-2.5 px-3">{v.material || '—'}</td>
+                    <td className="py-2.5 px-3">
+                      {v.selling_price != null
+                        ? <span className="text-gold-400 font-medium">{formatCurrency(v.selling_price)}</span>
+                        : <span className="text-charcoal-400 text-xs">default</span>}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {v.rental_price_per_day != null
+                        ? <span className="text-gold-400 font-medium">{formatCurrency(v.rental_price_per_day)}</span>
+                        : <span className="text-charcoal-400 text-xs">default</span>}
+                    </td>
                     <td className="py-2.5 px-3">
                       <span className={cn('font-medium', v.stock_quantity <= 3 ? 'text-red-400' : 'text-charcoal-50')}>
                         {v.stock_quantity}
@@ -200,7 +210,7 @@ export default function ProductDetailPage() {
                           productName: product.name,
                           size: v.size,
                           color: v.color,
-                          price: product.selling_price,
+                          price: v.selling_price ?? product.selling_price,
                           stockQty: v.stock_quantity,
                         })}
                       >

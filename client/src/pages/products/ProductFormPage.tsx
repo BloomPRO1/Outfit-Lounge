@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, Plus, Trash2, CheckCircle, Package, Tag, Calendar, ShoppingBag } from 'lucide-react';
+import { Upload, X, Plus, Trash2, CheckCircle, Package, Tag, Calendar, ShoppingBag, Pencil, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
@@ -47,6 +47,8 @@ export default function ProductFormPage() {
     size: '', color: '', material: '', stockQuantity: 0,
     availableForRent: 0, sellingPrice: '', rentalPricePerDay: '',
   });
+  const [editingVariantIdx, setEditingVariantIdx] = useState<number | null>(null);
+  const [editingVariantPrices, setEditingVariantPrices] = useState({ sellingPrice: '', rentalPricePerDay: '' });
 
   const { data: categories } = useQuery({
     queryKey: ['product-categories'],
@@ -409,6 +411,14 @@ export default function ProductFormPage() {
                   <Input placeholder="Material" value={newVariant.material} onChange={(e) => setNewVariant({ ...newVariant, material: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(form.type === 'sale' || form.type === 'both') && (
+                    <Input label="Selling Price (LKR)" type="number" step="0.01" min="0" placeholder={form.sellingPrice || '0.00'} value={newVariant.sellingPrice} onChange={(e) => setNewVariant({ ...newVariant, sellingPrice: e.target.value })} />
+                  )}
+                  {(form.type === 'rental' || form.type === 'both') && (
+                    <Input label="Rental Price/Day (LKR)" type="number" step="0.01" min="0" placeholder={form.rentalPricePerDay || '0.00'} value={newVariant.rentalPricePerDay} onChange={(e) => setNewVariant({ ...newVariant, rentalPricePerDay: e.target.value })} />
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input label="Stock Qty" type="number" min="0" value={newVariant.stockQuantity} onChange={(e) => setNewVariant({ ...newVariant, stockQuantity: parseInt(e.target.value) || 0 })} />
                   <Input label="Available for Rent" type="number" min="0" value={newVariant.availableForRent} onChange={(e) => setNewVariant({ ...newVariant, availableForRent: parseInt(e.target.value) || 0 })} />
                 </div>
@@ -421,16 +431,50 @@ export default function ProductFormPage() {
               {variants.length > 0 && (
                 <div className="space-y-2">
                   {variants.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-charcoal-600/30 rounded-xl border border-charcoal-500">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {v.size && <span className="text-sm text-charcoal-50 font-medium">Size: {v.size}</span>}
-                        {v.color && <span className="text-sm text-charcoal-200">Color: {v.color}</span>}
-                        {v.material && <span className="text-sm text-charcoal-200">Material: {v.material}</span>}
-                        <span className="text-sm text-charcoal-200">Qty: {v.stockQuantity}</span>
+                    <div key={i} className="p-3 bg-charcoal-600/30 rounded-xl border border-charcoal-500 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {v.size && <span className="text-sm text-charcoal-50 font-medium">Size: {v.size}</span>}
+                          {v.color && <span className="text-sm text-charcoal-200">Color: {v.color}</span>}
+                          {v.material && <span className="text-sm text-charcoal-200">Material: {v.material}</span>}
+                          <span className="text-sm text-charcoal-200">Qty: {v.stockQuantity}</span>
+                          {v.sellingPrice
+                            ? <span className="text-xs text-gold-400 font-medium">LKR {v.sellingPrice}</span>
+                            : (form.type === 'sale' || form.type === 'both') && <span className="text-xs text-charcoal-400">No sale price</span>}
+                          {v.rentalPricePerDay
+                            ? <span className="text-xs text-gold-400 font-medium">LKR {v.rentalPricePerDay}/day</span>
+                            : (form.type === 'rental' || form.type === 'both') && <span className="text-xs text-charcoal-400">No rental price</span>}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => { setEditingVariantIdx(i); setEditingVariantPrices({ sellingPrice: String(v.sellingPrice ?? ''), rentalPricePerDay: String(v.rentalPricePerDay ?? '') }); }}
+                            className="text-charcoal-300 hover:text-gold-400 transition-colors"
+                            title="Edit prices"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => { removeVariant(i); if (editingVariantIdx === i) setEditingVariantIdx(null); }} className="text-charcoal-200 hover:text-red-400 transition-colors">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
-                      <button onClick={() => removeVariant(i)} className="text-charcoal-200 hover:text-red-400 transition-colors">
-                        <Trash2 size={15} />
-                      </button>
+                      {editingVariantIdx === i && (
+                        <div className="pt-2 border-t border-charcoal-500 space-y-2">
+                          <p className="text-xs text-charcoal-300 font-medium">Edit prices for this variant</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {(form.type === 'sale' || form.type === 'both') && (
+                              <Input label="Selling Price (LKR)" type="number" step="0.01" min="0" placeholder={form.sellingPrice || '0.00'} value={editingVariantPrices.sellingPrice} onChange={(e) => setEditingVariantPrices((p) => ({ ...p, sellingPrice: e.target.value }))} />
+                            )}
+                            {(form.type === 'rental' || form.type === 'both') && (
+                              <Input label="Rental Price/Day (LKR)" type="number" step="0.01" min="0" placeholder={form.rentalPricePerDay || '0.00'} value={editingVariantPrices.rentalPricePerDay} onChange={(e) => setEditingVariantPrices((p) => ({ ...p, rentalPricePerDay: e.target.value }))} />
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="primary" icon={<Check size={13} />} onClick={() => { setVariants((prev) => prev.map((vv, idx) => idx === i ? { ...vv, sellingPrice: editingVariantPrices.sellingPrice, rentalPricePerDay: editingVariantPrices.rentalPricePerDay } : vv)); setEditingVariantIdx(null); }}>Save</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setEditingVariantIdx(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

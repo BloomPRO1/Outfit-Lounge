@@ -44,14 +44,14 @@ export async function tsplPrint(item: BarcodeItem, copies: number): Promise<void
 
 // ─── TSPL builder ────────────────────────────────────────────────────────────
 // Targets 203 DPI thermal label printers (8 dots/mm).
-// Label: 76 mm × 25 mm (3" × 1") = 608 × 200 dots.
+// Label: 40 mm × 46 mm = 320 × 368 dots.
 
 function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
   const enc = new TextEncoder();
   const lines: string[] = [];
 
-  const W = 76;   // label width  mm  (3 inches)
-  const H = 25;   // label height mm  (1 inch)
+  const W = 40;   // label width  mm
+  const H = 46;   // label height mm
 
   lines.push(`SIZE ${W} mm,${H} mm`);
   lines.push('GAP 2 mm,0 mm');
@@ -59,25 +59,25 @@ function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
   lines.push('REFERENCE 0,0');
   lines.push('CLS');
 
-  // Product name — font "2" (~12×20 dots), trim to fit 76mm (≈50 chars)
-  const name = item.productName.substring(0, 30);
-  lines.push(`TEXT 5,3,"2",0,1,1,"${esc(name)}"`);
+  // Product name — font "2" (~12×20 dots), trim to fit 40mm (≈20 chars)
+  const name = item.productName.substring(0, 20);
+  lines.push(`TEXT 5,5,"2",0,1,1,"${esc(name)}"`);
 
   // Optional variant line — font "1" (~8×12 dots)
   const variant = [item.size, item.color].filter(Boolean).join(' / ');
-  const barcodeY = variant ? 42 : 26;
+  const barcodeY = variant ? 50 : 32;
   if (variant) {
-    lines.push(`TEXT 5,26,"1",0,1,1,"${esc(variant)}"`);
+    lines.push(`TEXT 5,32,"1",0,1,1,"${esc(variant)}"`);
   }
 
-  // Barcode CODE128, height 65 dots, human-readable below
-  lines.push(`BARCODE 5,${barcodeY},"128",65,1,0,2,3,"${esc(item.sku)}"`);
+  // Barcode CODE128, height 100 dots, human-readable below
+  lines.push(`BARCODE 5,${barcodeY},"128",100,1,0,2,2,"${esc(item.sku)}"`);
 
   // Price — font "1", below barcode body + HRI clearance
   if (item.price) {
-    const priceY = barcodeY + 65 + 20;
+    const priceY = barcodeY + 100 + 24;
     const priceStr = `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
-    lines.push(`TEXT 5,${priceY},"1",0,1,1,"${esc(priceStr)}"`);
+    lines.push(`TEXT 5,${priceY},"2",0,1,1,"${esc(priceStr)}"`);
   }
 
   lines.push(`PRINT ${copies},1`);

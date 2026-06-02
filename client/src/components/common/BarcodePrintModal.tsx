@@ -119,17 +119,17 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     body{font-family:Arial,Helvetica,sans-serif;background:#fff}
     .grid{display:flex;flex-wrap:wrap;gap:0;padding:0}
     .label{
-      width:76mm;height:25mm;border:0.4pt solid #bbb;
-      padding:1mm 1.5mm;display:flex;flex-direction:column;
+      width:40mm;height:46mm;border:0.4pt solid #bbb;
+      padding:2mm;display:flex;flex-direction:column;
       align-items:center;justify-content:center;page-break-inside:avoid;overflow:hidden
     }
     .pname{font-size:7pt;font-weight:700;text-align:center;
-      width:72mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      margin-bottom:0.5mm;line-height:1.1}
-    .variant{font-size:6pt;color:#555;margin-bottom:0.5mm;text-align:center}
-    .barcode svg{max-width:72mm;max-height:10mm}
-    .price{font-size:7pt;font-weight:700;margin-top:0.5mm}
-    @media print{@page{size:3in 1in;margin:0}body{margin:0}.grid{padding:0}.label{border:none}}
+      width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      margin-bottom:1mm;line-height:1.1}
+    .variant{font-size:6pt;color:#555;margin-bottom:1mm;text-align:center}
+    .barcode svg{max-width:36mm;display:block}
+    .price{font-size:8pt;font-weight:700;margin-top:1mm}
+    @media print{@page{size:40mm 46mm;margin:0}body{margin:0}.grid{padding:0;gap:0}.label{border:none}}
   </style>
 </head>
 <body>
@@ -187,6 +187,18 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
             </Button>
           )}
         </div>
+        {!labelConnected && (
+          <div className="px-3 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-1">
+            <p className="font-semibold">Printer not appearing when you click Connect?</p>
+            <p>
+              Chrome's USB picker <strong>cannot see printers that have an OS driver installed</strong>.
+              To fix it on Linux, run: <code className="bg-charcoal-700 px-1 rounded">sudo rmmod usblp</code> then reconnect the USB cable.
+            </p>
+            <p>
+              Alternatively, just click <strong>Print Labels</strong> below — it opens the browser print dialog where your installed printer will appear normally.
+            </p>
+          </div>
+        )}
 
         {/* Preview */}
         <div>
