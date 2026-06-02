@@ -43,10 +43,10 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(svgRef.current, item.sku, {
         format: 'CODE128',
-        width: 1.2,
-        height: 35,
+        width: 1.8,
+        height: 80,
         displayValue: true,
-        fontSize: 9,
+        fontSize: 10,
         margin: 4,
         background: '#ffffff',
         lineColor: '#000000',
@@ -77,11 +77,11 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(tempSvg, item.sku, {
         format: 'CODE128',
-        width: 1.2,
-        height: 28,
+        width: 2,
+        height: 110,
         displayValue: true,
-        fontSize: 8,
-        margin: 2,
+        fontSize: 9,
+        margin: 3,
         background: '#ffffff',
         lineColor: '#000000',
       });
@@ -118,7 +118,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       margin-bottom:1mm;line-height:1.1}
     .variant{font-size:6pt;color:#555;margin-bottom:1mm;text-align:center}
-    .barcode svg{max-width:36mm;display:block}
+    .barcode{width:36mm;height:26mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .barcode svg{transform:rotate(90deg);transform-origin:center;height:110px !important;width:auto !important;max-width:none !important}
     .price{font-size:8pt;font-weight:700;margin-top:1mm}
     @media print{@page{size:40mm 46mm;margin:0}body{margin:0}.grid{padding:0;gap:0}.label{border:none}}
   </style>
@@ -164,7 +165,9 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
               {variantLine && (
                 <p className="text-[9px] text-gray-500 mb-1.5">{variantLine}</p>
               )}
-              <svg ref={svgRef} />
+              <div style={{ width: 80, height: 140, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg ref={svgRef} style={{ transform: 'rotate(90deg)', transformOrigin: 'center', flexShrink: 0 }} />
+              </div>
               {item.price && (
                 <p className="text-[11px] font-bold text-black mt-1">
                   LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}

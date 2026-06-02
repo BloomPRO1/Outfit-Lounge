@@ -65,19 +65,19 @@ function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
 
   // Optional variant line — font "1" (~8×12 dots)
   const variant = [item.size, item.color].filter(Boolean).join(' / ');
-  const barcodeY = variant ? 50 : 32;
+  const barcodeY = variant ? 48 : 30;
   if (variant) {
-    lines.push(`TEXT 5,32,"1",0,1,1,"${esc(variant)}"`);
+    lines.push(`TEXT 5,30,"1",0,1,1,"${esc(variant)}"`);
   }
 
-  // Barcode CODE128, height 100 dots, human-readable below
-  lines.push(`BARCODE 5,${barcodeY},"128",100,1,0,2,2,"${esc(item.sku)}"`);
+  // Barcode CODE128, height 290 dots (≈36mm visual width after 90° rotation),
+  // rotation=90, narrow=2, wide=4, human-readable below barcode
+  lines.push(`BARCODE 310,${barcodeY},"128",290,1,90,2,4,"${esc(item.sku)}"`);
 
-  // Price — font "1", below barcode body + HRI clearance
+  // Price — below barcode, font "2"
   if (item.price) {
-    const priceY = barcodeY + 100 + 24;
     const priceStr = `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
-    lines.push(`TEXT 5,${priceY},"2",0,1,1,"${esc(priceStr)}"`);
+    lines.push(`TEXT 5,330,"2",0,1,1,"${esc(priceStr)}"`);
   }
 
   lines.push(`PRINT ${copies},1`);
