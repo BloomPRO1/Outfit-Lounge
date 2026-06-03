@@ -44,14 +44,14 @@ export async function tsplPrint(item: BarcodeItem, copies: number): Promise<void
 
 // ─── TSPL builder ────────────────────────────────────────────────────────────
 // Targets 203 DPI thermal label printers (8 dots/mm).
-// Label: 40 mm × 46 mm = 320 × 368 dots.
+// Label: 40 mm × 50 mm = 320 × 400 dots.
 
 function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
   const enc = new TextEncoder();
   const lines: string[] = [];
 
   const W = 40;   // label width  mm
-  const H = 46;   // label height mm
+  const H = 50;   // label height mm
 
   lines.push(`SIZE ${W} mm,${H} mm`);
   lines.push('GAP 2 mm,0 mm');
@@ -70,14 +70,13 @@ function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
     lines.push(`TEXT 5,30,"1",0,1,1,"${esc(variant)}"`);
   }
 
-  // Barcode CODE128, height 290 dots (≈36mm visual width after 90° rotation),
-  // rotation=90, narrow=2, wide=4, human-readable below barcode
-  lines.push(`BARCODE 310,${barcodeY},"128",290,1,90,2,4,"${esc(item.sku)}"`);
+  // Barcode CODE128, height 220 dots (reduced), rotation=90, narrow=2, wide=4
+  lines.push(`BARCODE 310,${barcodeY},"128",220,1,90,2,4,"${esc(item.sku)}"`);
 
   // Price — below barcode, font "2"
   if (item.price) {
     const priceStr = `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
-    lines.push(`TEXT 5,330,"2",0,1,1,"${esc(priceStr)}"`);
+    lines.push(`TEXT 5,360,"2",0,1,1,"${esc(priceStr)}"`);
   }
 
   lines.push(`PRINT ${copies},1`);
