@@ -47,8 +47,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         : item.sku;
       JsBarcode(svgRef.current, previewValue, {
         format: 'CODE128',
-        width: 11,
-        height: 280,
+        width: 9,
+        height: 220,
         displayValue: false,
         margin: 5,
         background: '#ffffff',
@@ -87,8 +87,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(tempSvg, barcodeValue, {
         format: 'CODE128',
-        width: 11,
-        height: 280,
+        width: 9,
+        height: 220,
         displayValue: false,
         margin: 5,
         background: '#ffffff',
@@ -135,15 +135,15 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       transform:rotate(90deg);
       transform-origin:top left;
       display:flex;flex-direction:column;
-      align-items:center;justify-content:space-between;
-      padding:3mm;box-sizing:border-box;
+      align-items:center;justify-content:center;gap:1.5mm;
+      padding:2mm;box-sizing:border-box;
     }
-    .pname{font-size:18pt;font-weight:800;text-align:center;width:100%;line-height:1.2;word-break:break-word}
-    .variant{font-size:14pt;color:#222;text-align:center}
-    .bwrap{flex:1;width:100%;display:flex;align-items:center;justify-content:center;margin:2mm 0;overflow:hidden}
+    .pname{font-size:14pt;font-weight:800;text-align:center;width:100%;line-height:1.1;word-break:break-word}
+    .variant{font-size:11pt;color:#222;text-align:center;line-height:1.1}
+    .bwrap{width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
     .bwrap svg{display:block;max-height:100%}
-    .sku{font-size:12pt;color:#333;text-align:center;letter-spacing:0.5pt}
-    .price{font-size:19pt;font-weight:800;text-align:center}
+    .sku{font-size:10pt;color:#333;text-align:center;letter-spacing:0.5pt;line-height:1.1}
+    .price{font-size:15pt;font-weight:800;text-align:center;line-height:1.1}
     @media print{@page{size:80mm 100mm;margin:0}body{margin:0}}
   </style>
 </head>
@@ -180,14 +180,14 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
           <p className="text-xs text-charcoal-200 mb-3">Label Preview</p>
           {/* Rotated preview (100×80mm → 200×160px) — content rotated 90deg on 80×100mm page */}
           <div className="flex justify-center p-4 bg-white rounded-xl border border-charcoal-400">
-            <div style={{ width: 200, height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: 6, overflow: 'hidden', flexShrink: 0 }}>
-              <p style={{ fontSize: 8, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.25, wordBreak: 'break-word' }}>{item.productName}</p>
-              {variantLine && <p style={{ fontSize: 7, color: '#333', textAlign: 'center' }}>{variantLine}</p>}
-              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0', overflow: 'hidden' }}>
+            <div style={{ width: 200, height: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: 6, overflow: 'hidden', flexShrink: 0 }}>
+              <p style={{ fontSize: 7, fontWeight: 800, textAlign: 'center', width: '100%', color: '#000', lineHeight: 1.1, wordBreak: 'break-word' }}>{item.productName}</p>
+              {variantLine && <p style={{ fontSize: 6, color: '#333', textAlign: 'center', lineHeight: 1.1 }}>{variantLine}</p>}
+              <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 <svg ref={svgRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
               </div>
-              <p style={{ fontSize: 6, color: '#555', textAlign: 'center' }}>{item.sku}</p>
-              {item.price && <p style={{ fontSize: 9, fontWeight: 800, textAlign: 'center', color: '#000' }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
+              <p style={{ fontSize: 6, color: '#555', textAlign: 'center', lineHeight: 1.1 }}>{item.sku}</p>
+              {item.price && <p style={{ fontSize: 7, fontWeight: 800, textAlign: 'center', color: '#000', lineHeight: 1.1 }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
             </div>
           </div>
         </div>

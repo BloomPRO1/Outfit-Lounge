@@ -70,8 +70,8 @@ function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
     lines.push(`TEXT 5,30,"1",0,1,1,"${esc(variant)}"`);
   }
 
-  // Barcode CODE128, height 170 dots (reduced), rotation=90, narrow=2, wide=4
-  lines.push(`BARCODE 310,${barcodeY},"128",170,1,90,2,4,"${esc(item.sku)}"`);
+  // Barcode CODE128, height 130 dots (compact), rotation=90, narrow=2, wide=4
+  lines.push(`BARCODE 310,${barcodeY},"128",130,1,90,2,4,"${esc(item.sku)}"`);
 
   // Price — below barcode, font "2"
   if (item.price) {
