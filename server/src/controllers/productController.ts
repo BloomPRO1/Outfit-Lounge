@@ -306,12 +306,63 @@ export async function updateProduct(req: AuthRequest, res: Response, next: NextF
 
 export async function deleteProduct(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
-  const result = await db.query(`UPDATE products SET is_active = false WHERE id = $1 RETURNING id`, [id]);
+
+  const usageRes = await db.query(`
+    SELECT
+      (SELECT COUNT(*) FROM rental_items ri
+       JOIN product_variants pv ON pv.id = ri.product_variant_id
+       WHERE pv.product_id = $1)::int AS rental_count,
+      (SELECT COUNT(*) FROM sale_items si
+       JOIN product_variants pv ON pv.id = si.product_variant_id
+       WHERE pv.product_id = $1)::int AS sale_count,
+      (SELECT COUNT(*) FROM inventory_movements im
+       JOIN product_variants pv ON pv.id = im.product_variant_id
+       WHERE pv.product_id = $1)::int AS movement_count
+  `, [id]);
+
+  const { rental_count, sale_count, movement_count } = usageRes.rows[0] as any;
+  if (rental_count > 0 || sale_count > 0 || movement_count > 0) {
+    res.status(409).json({
+      error: `Cannot delete — this product has ${rental_count} rental(s), ${sale_count} sale(s), and ${movement_count} stock movement(s) on record.`,
+    });
+    return;
+  }
+
+  const result = await db.query(`DELETE FROM products WHERE id = $1 RETURNING id`, [id]);
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Product not found' });
     return;
   }
-  res.json({ message: 'Product deactivated successfully' });
+  res.json({ message: 'Product deleted successfully' });
+}
+
+export async function deleteVariant(req: Request, res: Response): Promise<void> {
+  const { id: productId, variantId } = req.params;
+
+  const usageRes = await db.query(`
+    SELECT
+      (SELECT COUNT(*) FROM rental_items      WHERE product_variant_id = $1)::int AS rental_count,
+      (SELECT COUNT(*) FROM sale_items        WHERE product_variant_id = $1)::int AS sale_count,
+      (SELECT COUNT(*) FROM inventory_movements WHERE product_variant_id = $1)::int AS movement_count
+  `, [variantId]);
+
+  const { rental_count, sale_count, movement_count } = usageRes.rows[0] as any;
+  if (rental_count > 0 || sale_count > 0 || movement_count > 0) {
+    res.status(409).json({
+      error: `Cannot delete — this variant has ${rental_count} rental(s), ${sale_count} sale(s), and ${movement_count} stock movement(s) on record.`,
+    });
+    return;
+  }
+
+  const result = await db.query(
+    `DELETE FROM product_variants WHERE id = $1 AND product_id = $2 RETURNING id`,
+    [variantId, productId],
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Variant not found' });
+    return;
+  }
+  res.json({ message: 'Variant deleted successfully' });
 }
 
 export async function uploadProductImage(req: AuthRequest, res: Response): Promise<void> {

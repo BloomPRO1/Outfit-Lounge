@@ -4,8 +4,9 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown, Receipt } from 'lucide-react';
+import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown, Receipt, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 import { reportService } from '@/services/reportService';
 import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
@@ -98,6 +99,7 @@ export default function ReportsPage() {
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [fullStockLoading, setFullStockLoading] = useState<'pdf' | 'excel' | null>(null);
 
   // Chart refs for PDF capture
   const overviewChartRef   = useRef<HTMLDivElement>(null);
@@ -152,6 +154,78 @@ export default function ReportsPage() {
 
   const periodLabel = period === 'week' ? 'Last 7 Days' : period === 'month' ? 'Last 30 Days' : 'Last 12 Months';
   const dateRangeLabel = `${dateFrom} — ${dateTo}`;
+
+  const downloadFullStockPDF = async () => {
+    setFullStockLoading('pdf');
+    try {
+      const { items } = await reportService.getAllStockReport();
+      const doc = createDoc();
+      const logo = await loadLogo();
+      let y = await addHeader(doc, logo, 'Full Stock Report', `Generated: ${new Date().toLocaleDateString('en-GB')}`);
+
+      y = addSectionTitle(doc, 'All Products & Variants', y);
+      addTable(
+        doc,
+        ['Category', 'Product', 'SKU', 'Size', 'Color', 'Total Stock', 'Sale Stock', 'Rental Stock', 'Damaged'],
+        items.map((item: any) => [
+          item.category,
+          item.product_name,
+          item.sku,
+          item.size || '—',
+          item.color || '—',
+          item.total_stock,
+          item.sale_stock,
+          item.rental_stock,
+          item.damaged,
+        ]),
+        y,
+      );
+
+      addFooter(doc);
+      doc.save(`full_stock_report_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (err: any) {
+      toast.error('Failed to generate PDF: ' + err.message);
+    } finally {
+      setFullStockLoading(null);
+    }
+  };
+
+  const downloadFullStockExcel = async () => {
+    setFullStockLoading('excel');
+    try {
+      const { items } = await reportService.getAllStockReport();
+
+      const wsData: any[][] = [
+        ['Category', 'Product', 'Type', 'SKU', 'Size', 'Color', 'Total Stock', 'Sale Stock', 'Rental Stock', 'Damaged'],
+        ...items.map((item: any) => [
+          item.category,
+          item.product_name,
+          item.product_type,
+          item.sku,
+          item.size || '',
+          item.color || '',
+          item.total_stock,
+          item.sale_stock,
+          item.rental_stock,
+          item.damaged,
+        ]),
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = [
+        { wch: 20 }, { wch: 30 }, { wch: 10 }, { wch: 15 }, { wch: 10 },
+        { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 10 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'All Stock');
+      XLSX.writeFile(wb, `full_stock_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (err: any) {
+      toast.error('Failed to generate Excel: ' + err.message);
+    } finally {
+      setFullStockLoading(null);
+    }
+  };
 
   const downloadPDF = async () => {
     setPdfLoading(true);
@@ -666,6 +740,35 @@ export default function ReportsPage() {
       {activeTab === 'inventory' && (
         <div className="space-y-5">
           {inventoryError && <ErrorBanner message={(inventoryError as any)?.message || 'Unknown error'} />}
+
+          <Card>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-semibold text-charcoal-100">Full Stock Report</h4>
+                <p className="text-xs text-charcoal-300 mt-0.5">All products and variants with complete stock levels</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<FileDown size={13} />}
+                  onClick={downloadFullStockPDF}
+                  loading={fullStockLoading === 'pdf'}
+                >
+                  PDF
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<FileSpreadsheet size={13} />}
+                  onClick={downloadFullStockExcel}
+                  loading={fullStockLoading === 'excel'}
+                >
+                  Excel
+                </Button>
+              </div>
+            </div>
+          </Card>
 
           {inventoryLoading ? (
             <><LoadingCards count={4} /><div className="h-48 bg-charcoal-600 rounded-2xl animate-pulse" /></>

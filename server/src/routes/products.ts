@@ -3,7 +3,7 @@ import {
   getProducts, getProductById, getProductByBarcode,
   createProduct, updateProduct, deleteProduct,
   uploadProductImage, getCategories, createCategory,
-  createVariant, updateVariant,
+  createVariant, updateVariant, deleteVariant,
 } from '../controllers/productController';
 import { authenticate } from '../middleware/auth';
 import { requireManagerOrAbove, requireStaffOrAbove } from '../middleware/roles';
@@ -31,5 +31,6 @@ router.post('/:id/images', requireManagerOrAbove, upload.single('image'), upload
 // Variants
 router.post('/:id/variants', requireManagerOrAbove, createVariant);
 router.put('/:id/variants/:variantId', requireManagerOrAbove, updateVariant);
+router.delete('/:id/variants/:variantId', requireManagerOrAbove, deleteVariant);
 
 export default router;

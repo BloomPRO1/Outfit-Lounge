@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Edit, Package, Printer, ArrowLeft } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Edit, Package, Printer, ArrowLeft, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import BarcodePrintModal, { type BarcodeItem } from '@/components/common/BarcodePrintModal';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
@@ -13,13 +15,41 @@ import { cn } from '@/utils/cn';
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [activeImage, setActiveImage] = useState(0);
   const [barcodeItem, setBarcodeItem] = useState<BarcodeItem | null>(null);
+  const [confirmDeleteProduct, setConfirmDeleteProduct] = useState(false);
+  const [confirmDeleteVariantId, setConfirmDeleteVariantId] = useState<string | null>(null);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
     queryFn: () => productService.getById(id!),
     enabled: !!id,
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: () => productService.delete(id!),
+    onSuccess: () => {
+      toast.success('Product deleted');
+      qc.invalidateQueries({ queryKey: ['products'] });
+      navigate('/products');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || 'Failed to delete product');
+    },
+  });
+
+  const deleteVariantMutation = useMutation({
+    mutationFn: (variantId: string) => productService.deleteVariant(id!, variantId),
+    onSuccess: () => {
+      toast.success('Variant deleted');
+      qc.invalidateQueries({ queryKey: ['product', id] });
+      setConfirmDeleteVariantId(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || 'Failed to delete variant');
+      setConfirmDeleteVariantId(null);
+    },
   });
 
   if (isLoading) {
@@ -61,6 +91,9 @@ export default function ProductDetailPage() {
         </div>
         <Button variant="secondary" icon={<Edit size={16} />} onClick={() => navigate(`/products/${id}/edit`)}>
           Edit
+        </Button>
+        <Button variant="danger" size="sm" icon={<Trash2 size={15} />} onClick={() => setConfirmDeleteProduct(true)}>
+          Delete
         </Button>
       </div>
 
@@ -161,6 +194,28 @@ export default function ProductDetailPage() {
         item={barcodeItem}
       />
 
+      <ConfirmDialog
+        open={confirmDeleteProduct}
+        onClose={() => setConfirmDeleteProduct(false)}
+        onConfirm={() => deleteProductMutation.mutate()}
+        title="Delete Product"
+        message={`Are you sure you want to permanently delete "${product?.name}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteProductMutation.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDeleteVariantId}
+        onClose={() => setConfirmDeleteVariantId(null)}
+        onConfirm={() => confirmDeleteVariantId && deleteVariantMutation.mutate(confirmDeleteVariantId)}
+        title="Delete Variant"
+        message="Are you sure you want to permanently delete this variant? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteVariantMutation.isPending}
+      />
+
       {/* Variants */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -203,21 +258,30 @@ export default function ProductDetailPage() {
                     <td className="py-2.5 px-3 text-charcoal-100">{v.available_for_rent}</td>
                     <td className="py-2.5 px-3 text-red-400">{v.damaged_count || 0}</td>
                     <td className="py-2.5 px-3">
-                      <button
-                        className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-gold-400 transition-colors"
-                        onClick={() => setBarcodeItem({
-                          sku: v.sku,
-                          labelId: v.label_id,
-                          productName: product.name,
-                          size: v.size,
-                          color: v.color,
-                          price: v.selling_price ?? product.selling_price,
-                          stockQty: v.stock_quantity,
-                        })}
-                      >
-                        <Printer size={12} />
-                        Barcode
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-gold-400 transition-colors"
+                          onClick={() => setBarcodeItem({
+                            sku: v.sku,
+                            labelId: v.label_id,
+                            productName: product.name,
+                            size: v.size,
+                            color: v.color,
+                            price: v.selling_price ?? product.selling_price,
+                            stockQty: v.stock_quantity,
+                          })}
+                        >
+                          <Printer size={12} />
+                          Barcode
+                        </button>
+                        <button
+                          className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-red-400 transition-colors"
+                          onClick={() => setConfirmDeleteVariantId(v.id)}
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

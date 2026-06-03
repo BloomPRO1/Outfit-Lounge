@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useListKeyNav } from '@/hooks/useListKeyNav';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Package, Grid, List, Tag, Barcode } from 'lucide-react';
+import { Plus, Package, Grid, List, Tag, Barcode, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import SearchInput from '@/components/common/SearchInput';
 import Select from '@/components/common/Select';
 import Table from '@/components/common/Table';
@@ -33,6 +34,20 @@ export default function ProductsPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => productService.delete(id),
+    onSuccess: () => {
+      toast.success('Product deleted');
+      qc.invalidateQueries({ queryKey: ['products'] });
+      setDeleteTarget(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || 'Failed to delete product');
+      setDeleteTarget(null);
+    },
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', { search, categoryFilter, typeFilter, page }],
@@ -129,6 +144,19 @@ export default function ProductsPage() {
         <Badge variant={p.is_active ? 'success' : 'neutral'}>{p.is_active ? 'Active' : 'Inactive'}</Badge>
       ),
     },
+    {
+      key: 'actions',
+      header: '',
+      render: (p: Product) => (
+        <button
+          className="p-1.5 rounded-lg text-charcoal-300 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}
+          title="Delete product"
+        >
+          <Trash2 size={14} />
+        </button>
+      ),
+    },
   ];
 
   return (
@@ -206,9 +234,16 @@ export default function ProductsPage() {
                     key={product.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-charcoal-600/50 border border-charcoal-500 rounded-xl overflow-hidden cursor-pointer hover:border-gold-700/40 hover:shadow-gold transition-all duration-200 group"
+                    className="relative bg-charcoal-600/50 border border-charcoal-500 rounded-xl overflow-hidden cursor-pointer hover:border-gold-700/40 hover:shadow-gold transition-all duration-200 group"
                     onClick={() => navigate(`/products/${product.id}`)}
                   >
+                    <button
+                      className="absolute top-1.5 right-1.5 z-10 p-1 rounded-lg bg-charcoal-700/80 text-charcoal-300 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/20 transition-all"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(product); }}
+                      title="Delete product"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                     <div className="aspect-square bg-charcoal-600 flex items-center justify-center overflow-hidden">
                       {product.primary_image ? (
                         <img src={product.primary_image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -256,6 +291,17 @@ export default function ProductsPage() {
           />
         )}
       </Card>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Product"
+        message={`Are you sure you want to permanently delete "${deleteTarget?.name}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }

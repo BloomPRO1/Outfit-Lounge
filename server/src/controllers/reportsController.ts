@@ -416,6 +416,33 @@ export async function getExpensesReport(req: Request, res: Response): Promise<vo
   }
 }
 
+export async function getAllStockReport(_req: Request, res: Response): Promise<void> {
+  try {
+    const result = await db.query(`
+      SELECT
+        COALESCE(pc.name, 'Uncategorized') AS category,
+        p.name                              AS product_name,
+        p.type                              AS product_type,
+        pv.sku,
+        COALESCE(pv.size, '')              AS size,
+        COALESCE(pv.color, '')             AS color,
+        pv.stock_quantity::int             AS total_stock,
+        pv.available_for_rent::int         AS rental_stock,
+        pv.damaged_count::int              AS damaged,
+        GREATEST(0, pv.stock_quantity - pv.available_for_rent - pv.damaged_count)::int AS sale_stock
+      FROM product_variants pv
+      JOIN products p ON p.id = pv.product_id
+      LEFT JOIN product_categories pc ON pc.id = p.category_id
+      WHERE p.is_active = true
+      ORDER BY pc.name NULLS LAST, p.name, pv.size, pv.color
+    `);
+    res.json({ items: result.rows });
+  } catch (err: any) {
+    console.error('getAllStockReport error:', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 export async function getInventoryReport(_req: Request, res: Response): Promise<void> {
   try {
     const [overviewRes, byCategoryRes, lowStockRes, movementsRes, rentedRes] = await Promise.all([

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   getDashboardStats, getRevenueChart,
-  getSalesReport, getRentalReport, getInventoryReport, getExpensesReport,
+  getSalesReport, getRentalReport, getInventoryReport, getExpensesReport, getAllStockReport,
 } from '../controllers/reportsController';
 import { authenticate } from '../middleware/auth';
 
@@ -12,6 +12,7 @@ router.get('/dashboard', getDashboardStats);
 router.get('/revenue-chart', getRevenueChart);
 router.get('/sales', getSalesReport);
 router.get('/rentals', getRentalReport);
+router.get('/inventory/all-stock', getAllStockReport);
 router.get('/inventory', getInventoryReport);
 router.get('/expenses', getExpensesReport);
 

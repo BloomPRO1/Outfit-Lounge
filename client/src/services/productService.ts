@@ -50,4 +50,7 @@ export const productService = {
     const { data } = await api.put(`/products/${productId}/variants/${variantId}`, payload);
     return data as ProductVariant;
   },
+  deleteVariant: async (productId: string, variantId: string) => {
+    await api.delete(`/products/${productId}/variants/${variantId}`);
+  },
 };
