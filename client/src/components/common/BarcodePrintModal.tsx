@@ -47,8 +47,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
         : item.sku;
       JsBarcode(svgRef.current, previewValue, {
         format: 'CODE128',
-        width: 9,
-        height: 220,
+        width: 7,
+        height: 175,
         displayValue: false,
         margin: 5,
         background: '#ffffff',
@@ -87,8 +87,8 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     try {
       JsBarcode(tempSvg, barcodeValue, {
         format: 'CODE128',
-        width: 9,
-        height: 220,
+        width: 7,
+        height: 175,
         displayValue: false,
         margin: 5,
         background: '#ffffff',
