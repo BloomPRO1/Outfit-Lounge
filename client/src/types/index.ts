@@ -113,6 +113,7 @@ export interface Rental {
   customer_email?: string;
   status: RentalStatus;
   rental_start_date: string;
+  event_date?: string;
   rental_end_date: string;
   actual_return_date?: string;
   advance_payment: number;
