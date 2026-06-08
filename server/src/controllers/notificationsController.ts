@@ -4,6 +4,7 @@ import { sendNotification, buildPOSInvoiceText, buildPOSSmsText, buildRentalInvo
 import { generatePOSInvoicePDF, generateRentalInvoicePDF, getStoredInvoice } from '../services/pdfInvoiceService';
 import { isConnected, sendWADocument } from '../services/whatsappService';
 import { AuthRequest } from '../middleware/auth';
+import { env } from '../config/env';
 
 // ─── FitSMS Delivery Report Webhook ─────────────────────────────────────────
 export async function fitsmsWebhook(req: Request, res: Response): Promise<void> {
@@ -346,4 +347,74 @@ export async function autoSendWAInvoice(
     recipient: phone,
     message: caption,
   }).catch(() => {});
+}
+
+// ─── Test SMS ─────────────────────────────────────────────────────────────────
+export async function testSms(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      res.status(400).json({ error: 'phone is required' });
+      return;
+    }
+
+    const cfgRes = await db.query(
+      `SELECT key, value FROM settings WHERE key IN ('fitsms_api_token', 'fitsms_sender_id', 'sms_enabled')`
+    );
+    const cfg: Record<string, string> = {};
+    for (const r of cfgRes.rows) cfg[r.key] = r.value;
+
+    if (cfg['sms_enabled'] === 'false') {
+      res.status(400).json({ error: 'SMS is disabled. Enable it in Settings → Notifications → SMS Notifications toggle, then save.' });
+      return;
+    }
+
+    const apiToken = cfg['fitsms_api_token'] || env.FITSMS_API_TOKEN;
+    if (!apiToken) {
+      res.status(400).json({ error: 'FitSMS API token not configured. Set it in Settings → Notifications → FitSMS Configuration, then save.' });
+      return;
+    }
+
+    let recipient = phone.replace(/[\s\-]/g, '');
+    if (recipient.startsWith('0')) recipient = '+94' + recipient.slice(1);
+    else if (!recipient.startsWith('+')) recipient = '+' + recipient;
+
+    const senderId = (cfg['fitsms_sender_id'] || 'OutfitLnge').substring(0, 11);
+
+    const response = await fetch('https://app.fitsms.lk/api/v4/sms/send', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        recipient,
+        sender_id: senderId,
+        type: 'plain',
+        message: 'Test SMS from The Outfit Lounge. SMS notifications are working correctly!',
+        expiry_time: 3600,
+      }),
+    });
+
+    const rawText = await response.text();
+
+    if (!response.ok) {
+      res.status(400).json({ error: `FitSMS HTTP ${response.status}: ${rawText}` });
+      return;
+    }
+
+    let result: any;
+    try { result = JSON.parse(rawText); }
+    catch { res.status(400).json({ error: `FitSMS non-JSON response: ${rawText}` }); return; }
+
+    if (result.status !== 'success') {
+      res.status(400).json({ error: `FitSMS rejected: ${result.message || JSON.stringify(result)}` });
+      return;
+    }
+
+    res.json({ success: true, sentTo: recipient, ruid: result.data?.ruid, status: result.data?.status });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 }

@@ -443,6 +443,22 @@ function NotificationSettings({ settings, onSave, saving }: { settings: any; onS
   const [form, setForm] = useState<Record<string, string>>({});
   const get = (k: string, def = '') => form[k] !== undefined ? form[k] : s(k, def);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const [testPhone, setTestPhone] = useState('');
+  const [testResult, setTestResult] = useState<{ success?: boolean; error?: string; sentTo?: string } | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
+
+  const sendTestSms = async () => {
+    setTestResult(null);
+    setTestLoading(true);
+    try {
+      const resp = await import('@/services/api').then(m => m.default.post('/notifications/test-sms', { phone: testPhone }));
+      setTestResult({ success: true, sentTo: resp.data.sentTo });
+    } catch (e: any) {
+      setTestResult({ error: e.response?.data?.error || e.message });
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const toggleBool = (k: string, def = 'false') => {
     const current = get(k, def);
@@ -455,25 +471,25 @@ function NotificationSettings({ settings, onSave, saving }: { settings: any; onS
         <h4 className="text-base font-semibold text-charcoal-50 mb-5">Notification Channels</h4>
         <div className="space-y-3">
           {[
-            { key: 'sms_enabled', label: 'SMS Notifications', desc: 'Send SMS for bookings, reminders, and alerts' },
-            { key: 'whatsapp_enabled', label: 'WhatsApp Notifications', desc: 'Send WhatsApp messages (requires Twilio)' },
-            { key: 'email_enabled', label: 'Email Notifications', desc: 'Send emails (requires SMTP config)' },
-          ].map(({ key, label, desc }) => (
+            { key: 'sms_enabled', label: 'SMS Notifications', desc: 'Send SMS for bookings, reminders, and alerts', defaultVal: 'true' },
+            { key: 'whatsapp_enabled', label: 'WhatsApp Notifications', desc: 'Send WhatsApp messages via FitSMS or Cloud API', defaultVal: 'false' },
+            { key: 'email_enabled', label: 'Email Notifications', desc: 'Send emails (requires SMTP config)', defaultVal: 'false' },
+          ].map(({ key, label, desc, defaultVal }) => (
             <div key={key} className="flex items-center justify-between p-3.5 bg-charcoal-600/40 rounded-xl">
               <div>
                 <p className="text-sm font-medium text-charcoal-50">{label}</p>
                 <p className="text-xs text-charcoal-200">{desc}</p>
               </div>
               <button
-                onClick={() => toggleBool(key, 'false')}
+                onClick={() => toggleBool(key, defaultVal)}
                 className={cn(
                   'relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors',
-                  get(key, 'false') === 'true' ? 'bg-gold-600' : 'bg-charcoal-500'
+                  get(key, defaultVal) === 'true' ? 'bg-gold-600' : 'bg-charcoal-500'
                 )}
               >
                 <span className={cn(
                   'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5',
-                  get(key, 'false') === 'true' ? 'translate-x-5' : 'translate-x-0.5'
+                  get(key, defaultVal) === 'true' ? 'translate-x-5' : 'translate-x-0.5'
                 )} />
               </button>
             </div>
@@ -629,6 +645,41 @@ function NotificationSettings({ settings, onSave, saving }: { settings: any; onS
             placeholder="OutfitLnge"
             hint="Alphanumeric, max 11 characters — shown as sender on customer's phone"
           />
+
+          <div className="border-t border-charcoal-600 pt-4">
+            <p className="text-sm font-medium text-charcoal-100 mb-3">Send a Test SMS</p>
+            <div className="flex gap-2">
+              <Input
+                label=""
+                value={testPhone}
+                onChange={(e) => { setTestPhone(e.target.value); setTestResult(null); }}
+                placeholder="0771234567 or +94771234567"
+                className="flex-1"
+              />
+              <div className="flex items-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={sendTestSms}
+                  loading={testLoading}
+                  disabled={!testPhone.trim()}
+                >
+                  Send Test
+                </Button>
+              </div>
+            </div>
+            {testResult && (
+              <div className={cn(
+                'mt-2 p-3 rounded-xl text-sm',
+                testResult.success ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300' : 'bg-red-500/10 border border-red-500/20 text-red-300'
+              )}>
+                {testResult.success
+                  ? `Test SMS sent to ${testResult.sentTo}. Check the phone for the message.`
+                  : testResult.error}
+              </div>
+            )}
+            <p className="text-xs text-charcoal-400 mt-2">Save your API token and sender ID above before testing.</p>
+          </div>
         </div>
       </Card>
 
