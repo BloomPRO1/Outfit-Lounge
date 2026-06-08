@@ -401,6 +401,7 @@ export function buildBookingConfirmationMessage(data: {
   customerName: string;
   bookingNumber: string;
   startDate: string;
+  eventDate: string;
   endDate: string;
   totalCost: number;
   advancePaid: number;
@@ -419,6 +420,7 @@ export function buildBookingConfirmationMessage(data: {
     `Dear ${data.customerName},\n` +
     `Your full suit rental booking #${data.bookingNumber} has been successfully confirmed.\n\n` +
     `📅 Pickup Date: ${data.startDate}\n` +
+    `🎉 Event Date: ${data.eventDate}\n` +
     `📅 Return Date: ${data.endDate}\n` +
     `💰 Total Amount: LKR ${data.totalCost.toFixed(2)}\n` +
     `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +

@@ -68,6 +68,7 @@ export default function NewRentalPage() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const [rentalStartDate, setRentalStartDate] = useState('');
+  const [eventDate, setEventDate] = useState('');
   const [rentalEndDate, setRentalEndDate] = useState('');
   const [eventType, setEventType] = useState('');
   const [eventTypeCustom, setEventTypeCustom] = useState(false);
@@ -117,8 +118,9 @@ export default function NewRentalPage() {
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create rental'),
   });
 
-  const rentalDays = rentalStartDate && rentalEndDate
-    ? Math.max(1, getDaysDiff(rentalStartDate, rentalEndDate))
+  // Cost is calculated from event date to return date; pickup date is not billed
+  const rentalDays = eventDate && rentalEndDate
+    ? Math.max(1, getDaysDiff(eventDate, rentalEndDate))
     : 1;
 
   const totalCost = cartItems.reduce((sum, item) => sum + item.rentalPricePerDay * item.quantity * rentalDays, 0);
@@ -152,7 +154,7 @@ export default function NewRentalPage() {
       rentalStartDate || '',
       rentalEndDate   || ''
     );
-  }, [cartItems, finalTotal, customer, rentalStartDate, rentalEndDate, rentalDays]);
+  }, [cartItems, finalTotal, customer, rentalStartDate, eventDate, rentalEndDate, rentalDays]);
 
   // Auto-focus callback — called from onAnimationComplete on step-1 motion.div
   const focusSearch = () => searchRef.current?.focus();
@@ -230,10 +232,11 @@ export default function NewRentalPage() {
   const finalEventType = eventTypeCustom ? customEventText : eventType;
 
   const handleSubmit = () => {
-    if (!customer || !rentalStartDate || !rentalEndDate || cartItems.length === 0) return;
+    if (!customer || !rentalStartDate || !eventDate || !rentalEndDate || cartItems.length === 0) return;
     createRentalMutation.mutate({
       customerId: customer.id,
       rentalStartDate,
+      eventDate,
       rentalEndDate,
       items: cartItems.map((i) => ({
         variantId: i.variantId,
@@ -473,15 +476,17 @@ export default function NewRentalPage() {
                 {step === 2 && (
                   <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
                     <h3 className="section-title">Rental Dates</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input label="Pickup Date" type="date" min={today} value={rentalStartDate} onChange={(e) => setRentalStartDate(e.target.value)} required />
-                      <Input label="Return Date" type="date" min={rentalStartDate || today} value={rentalEndDate} onChange={(e) => setRentalEndDate(e.target.value)} required />
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input label="Pickup Date" type="date" min={today} value={rentalStartDate} onChange={(e) => { setRentalStartDate(e.target.value); if (!eventDate || eventDate < e.target.value) setEventDate(e.target.value); }} required />
+                      <Input label="Event Date" type="date" min={rentalStartDate || today} value={eventDate} onChange={(e) => setEventDate(e.target.value)} required />
+                      <Input label="Return Date" type="date" min={eventDate || rentalStartDate || today} value={rentalEndDate} onChange={(e) => setRentalEndDate(e.target.value)} required />
                     </div>
+                    <p className="text-xs text-charcoal-400">Rental cost is calculated from <strong className="text-charcoal-200">Event Date</strong> to <strong className="text-charcoal-200">Return Date</strong>. Pickup date is for scheduling only.</p>
 
-                    {rentalStartDate && rentalEndDate && (
+                    {eventDate && rentalEndDate && (
                       <div className="flex gap-3">
                         <div className="flex-1 p-3 bg-charcoal-600/50 rounded-xl text-center">
-                          <p className="text-xs text-charcoal-300 mb-1">Duration</p>
+                          <p className="text-xs text-charcoal-300 mb-1">Billed Days</p>
                           <p className="text-lg font-semibold text-charcoal-50">{rentalDays}<span className="text-xs font-normal text-charcoal-300 ml-1">day{rentalDays !== 1 ? 's' : ''}</span></p>
                         </div>
                         <div className="flex-1 p-3 bg-charcoal-600/50 rounded-xl text-center">
@@ -679,8 +684,9 @@ export default function NewRentalPage() {
                         { label: 'Customer',       value: customer?.name },
                         { label: 'Phone',          value: customer?.phone || '—' },
                         { label: 'Pickup Date',    value: rentalStartDate },
+                        { label: 'Event Date',     value: eventDate },
                         { label: 'Return Date',    value: rentalEndDate },
-                        { label: 'Duration',       value: `${rentalDays} day(s)` },
+                        { label: 'Billed Days',    value: `${rentalDays} day(s)` },
                         { label: 'Event',          value: finalEventType || '—' },
                         { label: 'Items',          value: `${cartItems.length} item(s)` },
                         { label: 'Rental Cost',    value: formatCurrency(totalCost) },
@@ -722,7 +728,7 @@ export default function NewRentalPage() {
                   disabled={
                     (step === 0 && !customer) ||
                     (step === 1 && cartItems.length === 0) ||
-                    (step === 2 && (!rentalStartDate || !rentalEndDate))
+                    (step === 2 && (!rentalStartDate || !eventDate || !rentalEndDate))
                   }
                 >
                   Next
@@ -787,6 +793,12 @@ export default function NewRentalPage() {
                     <span className="text-charcoal-400">Pickup</span>
                     <span className="text-charcoal-100 font-medium">{rentalStartDate}</span>
                   </div>
+                  {eventDate && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-charcoal-400">Event</span>
+                      <span className="text-gold-400 font-medium">{eventDate}</span>
+                    </div>
+                  )}
                   {rentalEndDate && (
                     <div className="flex justify-between text-xs">
                       <span className="text-charcoal-400">Return</span>
@@ -794,7 +806,7 @@ export default function NewRentalPage() {
                     </div>
                   )}
                   <div className="flex justify-between text-xs">
-                    <span className="text-charcoal-400">Duration</span>
+                    <span className="text-charcoal-400">Billed Days</span>
                     <span className="text-charcoal-100 font-medium">{rentalDays} day{rentalDays !== 1 ? 's' : ''}</span>
                   </div>
                   {finalEventType && (

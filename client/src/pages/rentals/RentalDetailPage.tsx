@@ -242,7 +242,7 @@ export default function RentalDetailPage() {
               </span>
             )}
           </div>
-          <p className="text-sm text-charcoal-300 mt-0.5">{rental.customer_name} · {formatDate(rental.rental_start_date)} → {formatDate(rental.rental_end_date)}</p>
+          <p className="text-sm text-charcoal-300 mt-0.5">{rental.customer_name} · Pickup: {formatDate(rental.rental_start_date)}{rental.event_date ? ` · Event: ${formatDate(rental.event_date)}` : ''} · Return: {formatDate(rental.rental_end_date)}</p>
         </div>
         <Button variant="secondary" icon={<Printer size={15} />} onClick={() => setShowReceiptPreview(true)}>
           Print Receipt
@@ -426,11 +426,17 @@ export default function RentalDetailPage() {
           {/* Dates */}
           <Card>
             <h4 className="text-sm font-semibold text-charcoal-100 mb-3">Rental Period</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <p className="text-xs text-charcoal-200">Pickup Date</p>
                 <p className="font-medium text-charcoal-50 mt-0.5">{formatDate(rental.rental_start_date)}</p>
               </div>
+              {rental.event_date && (
+                <div>
+                  <p className="text-xs text-charcoal-200">Event Date</p>
+                  <p className="font-medium text-gold-400 mt-0.5">{formatDate(rental.event_date)}</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-charcoal-200">Return Date</p>
                 <p className="font-medium text-charcoal-50 mt-0.5">{formatDate(rental.rental_end_date)}</p>

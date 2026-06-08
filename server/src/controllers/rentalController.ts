@@ -147,15 +147,15 @@ export async function getRentalById(req: Request, res: Response): Promise<void> 
 
 export async function createRental(req: AuthRequest, res: Response): Promise<void> {
   const {
-    customerId, rentalStartDate, rentalEndDate,
+    customerId, rentalStartDate, eventDate, rentalEndDate,
     items, advancePayment,
     discountAmount, notes, eventType, paymentMethod,
     promotionId,
     securityType, securityDeposit, securityIdNumber,
   } = req.body;
 
-  if (!customerId || !rentalStartDate || !rentalEndDate || !items?.length) {
-    res.status(400).json({ error: 'Customer, dates, and at least one item are required' });
+  if (!customerId || !rentalStartDate || !eventDate || !rentalEndDate || !items?.length) {
+    res.status(400).json({ error: 'Customer, pickup date, event date, return date, and at least one item are required' });
     return;
   }
 
@@ -168,10 +168,10 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
     const seq = parseInt(countRes.rows[0].count) + 1;
     const bookingNumber = generateBookingNumber(seq);
 
-    // Calculate total rental cost
-    const startDate = new Date(rentalStartDate);
+    // Calculate total rental cost: event_date → return_date (pickup date is NOT used for billing)
+    const eventDateObj = new Date(eventDate);
     const endDate = new Date(rentalEndDate);
-    const days = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const days = Math.max(1, Math.ceil((endDate.getTime() - eventDateObj.getTime()) / (1000 * 60 * 60 * 24)));
 
     let totalCost = 0;
 
@@ -248,14 +248,14 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
 
     const rentalRes = await client.query(`
       INSERT INTO rentals (
-        booking_number, customer_id, status, rental_start_date, rental_end_date,
+        booking_number, customer_id, status, rental_start_date, event_date, rental_end_date,
         advance_payment, total_rental_cost, discount_amount,
         notes, event_type, created_by,
         security_type, security_deposit, security_id_number
-      ) VALUES ($1,$2,'reserved',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ) VALUES ($1,$2,'reserved',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
     `, [
-      bookingNumber, customerId, rentalStartDate, rentalEndDate,
+      bookingNumber, customerId, rentalStartDate, eventDate, rentalEndDate,
       advancePayment || 0, totalCost,
       totalDiscountAmount, notes || null, eventType || null, req.user?.id,
       securityType || null, securityDeposit || 0, securityIdNumber || null,
@@ -319,6 +319,7 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
         customerName: customer.name,
         bookingNumber,
         startDate: fmtDate(rentalStartDate),
+        eventDate: fmtDate(eventDate),
         endDate: fmtDate(rentalEndDate),
         totalCost: totalCost - totalDiscountAmount,
         advancePaid: advancePayment || 0,
