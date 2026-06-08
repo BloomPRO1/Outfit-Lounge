@@ -71,7 +71,7 @@ export default function InventoryPage() {
     queryFn: () => inventoryService.getAll({
       search: search || undefined,
       lowStock: lowStockOnly || undefined,
-      limit: 500,
+      limit: 100,
     }),
   });
 

@@ -53,7 +53,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
   const dataRes = await db.query(`
     SELECT p.*,
            pc.name as category_name,
-           primary_img.url as primary_image,
+           CASE WHEN primary_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as primary_image,
            COALESCE(pv_stats.variant_count, 0) as variant_count,
            COALESCE(pv_stats.total_stock, 0) as total_stock,
            COALESCE(pv_stats.total_available, 0) as total_available
@@ -61,7 +61,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     FROM products p
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     LEFT JOIN LATERAL (
-      SELECT url FROM product_images
+      SELECT true as has_image FROM product_images
       WHERE product_id = p.id AND is_primary = true
       LIMIT 1
     ) primary_img ON true
@@ -371,6 +371,22 @@ export async function deleteVariant(req: Request, res: Response): Promise<void> 
     return;
   }
   res.json({ message: 'Variant deleted successfully' });
+}
+
+export async function serveProductImage(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  const result = await db.query(
+    `SELECT url FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1`,
+    [id]
+  );
+  if (!result.rows[0]) { res.status(404).end(); return; }
+  const url: string = result.rows[0].url;
+  const match = url.match(/^data:([^;]+);base64,(.+)$/s);
+  if (!match) { res.status(404).end(); return; }
+  const [, mime, b64] = match;
+  res.set('Content-Type', mime);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(Buffer.from(b64, 'base64'));
 }
 
 export async function uploadProductImage(req: AuthRequest, res: Response): Promise<void> {

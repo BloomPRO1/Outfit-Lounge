@@ -4,13 +4,16 @@ import {
   createProduct, updateProduct, deleteProduct,
   uploadProductImage, getCategories, createCategory,
   createVariant, updateVariant, deleteVariant,
-  splitVariantToRental,
+  splitVariantToRental, serveProductImage,
 } from '../controllers/productController';
 import { authenticate } from '../middleware/auth';
 import { requireManagerOrAbove, requireStaffOrAbove } from '../middleware/roles';
 import { upload } from '../middleware/upload';
 
 const router = Router();
+
+// Public image endpoint — no auth (product photos are not sensitive)
+router.get('/:id/image', serveProductImage);
 
 router.use(authenticate);
 

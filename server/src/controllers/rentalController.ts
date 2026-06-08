@@ -90,7 +90,7 @@ export async function getRentalById(req: Request, res: Response): Promise<void> 
            p.selling_price as product_selling_price,
            p.type as product_type,
            pv.size, pv.color, pv.material, pv.sku as variant_sku,
-           pi.url as product_image
+           CASE WHEN pi.id IS NOT NULL THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as product_image
     FROM rental_items ri
     JOIN product_variants pv ON pv.id = ri.product_variant_id
     JOIN products p ON p.id = pv.product_id
@@ -563,7 +563,7 @@ export async function getAvailability(req: AuthRequest, res: Response): Promise<
         p.id           AS product_id,
         p.name         AS product_name,
         pc.name        AS category_name,
-        pi_img.url     AS product_image,
+        CASE WHEN pi_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END AS product_image,
         pv.id          AS variant_id,
         pv.sku,
         pv.size,
@@ -578,7 +578,7 @@ export async function getAvailability(req: AuthRequest, res: Response): Promise<
       JOIN product_variants pv ON pv.product_id = p.id
       LEFT JOIN product_categories pc ON pc.id = p.category_id
       LEFT JOIN LATERAL (
-        SELECT url FROM product_images
+        SELECT true as has_image FROM product_images
         WHERE product_id = p.id AND is_primary = true
         LIMIT 1
       ) pi_img ON true

@@ -38,7 +38,7 @@ export async function getInventory(req: Request, res: Response): Promise<void> {
     SELECT pv.*,
            p.name as product_name, p.sku as product_sku, p.type as product_type,
            pc.name as category_name,
-           pi.url as product_image,
+           CASE WHEN pi.id IS NOT NULL THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as product_image,
            (pv.stock_quantity - pv.available_for_rent - pv.damaged_count) as sold_count
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
@@ -198,7 +198,8 @@ export async function getLowStockAlerts(_req: Request, res: Response): Promise<v
   const threshold = parseInt(settingRes.rows[0]?.value || '3');
 
   const result = await db.query(`
-    SELECT pv.*, p.name as product_name, pc.name as category_name, pi.url as product_image
+    SELECT pv.*, p.name as product_name, pc.name as category_name,
+           CASE WHEN pi.id IS NOT NULL THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as product_image
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN product_categories pc ON pc.id = p.category_id
