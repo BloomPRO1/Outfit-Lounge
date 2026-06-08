@@ -344,10 +344,16 @@ export default function POSPage() {
   };
 
   const handleProductCardClick = (product: any) => {
+    const allVariants = product.variants || [];
     const saleQty = (v: any) => Math.max(0, (v.stock_quantity || 0) - (v.available_for_rent || 0));
-    const saleVariants = (product.variants || []).filter((v: any) => saleQty(v) > 0);
-    if (saleVariants.length === 1) handleAddProduct(product, saleVariants[0]);
-    else if (saleVariants.length > 1) setVariantPickerProduct(product);
+    const saleVariants = allVariants.filter((v: any) => saleQty(v) > 0);
+    // Show picker whenever the product has multiple variants so the user can choose
+    // (even if only 1 has stock — shows the rest as unavailable rather than silently auto-adding)
+    if (allVariants.length > 1) {
+      setVariantPickerProduct(product);
+    } else if (saleVariants.length === 1) {
+      handleAddProduct(product, saleVariants[0]);
+    }
   };
 
   const subtotal = getSubtotal();
@@ -512,6 +518,7 @@ export default function POSPage() {
                 const saleVariants = variants.filter((v: any) => saleQty(v) > 0);
                 const lowestPrice = Math.min(...(saleVariants.length ? saleVariants : variants).map((v: any) => parseFloat(v.selling_price || product.selling_price || 0)));
                 const multipleVariants = variants.length > 1;
+                const availableCount = saleVariants.length;
                 const total = products.data.length;
                 return (
                   <motion.button
@@ -537,7 +544,7 @@ export default function POSPage() {
                     <div className="p-2.5">
                       <p className="text-xs font-medium text-charcoal-50 leading-tight truncate">{product.name}</p>
                       {multipleVariants
-                        ? <p className="text-xs text-gold-500/80 mt-0.5">{variants.length} sizes available</p>
+                        ? <p className="text-xs text-gold-500/80 mt-0.5">{availableCount}/{variants.length} sizes available</p>
                         : variants[0].size && <p className="text-xs text-charcoal-200 mt-0.5">Size: {variants[0].size}</p>}
                       <div className="flex items-center justify-between mt-1.5">
                         <span className="text-sm font-semibold text-gold-400">

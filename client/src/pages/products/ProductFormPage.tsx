@@ -187,8 +187,10 @@ export default function ProductFormPage() {
         ...v,
         sellingPrice: v.sellingPrice ? parseFloat(v.sellingPrice) : undefined,
         rentalPricePerDay: v.rentalPricePerDay ? parseFloat(v.rentalPricePerDay) : undefined,
-        // 'both' type: all units start in POS — rent pool managed via Product Detail
-        availableForRent: form.type === 'both' ? 0 : v.availableForRent,
+        // 'both' type: non-rent variants start with 0; rent variants ('-R' suffix) keep their allocation
+        availableForRent: form.type === 'both'
+          ? (v.color?.endsWith('-R') || v.size?.endsWith('-R') ? v.availableForRent : 0)
+          : v.availableForRent,
       })),
     };
 
