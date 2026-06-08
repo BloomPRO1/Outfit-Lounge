@@ -164,7 +164,11 @@ export default function ProductFormPage() {
       toast.error('Please enter at least size or color');
       return;
     }
-    setVariants((prev) => [...prev, { ...newVariant }]);
+    // For 'both' type, always start with 0 in rent pool — transfer later via Product Detail
+    const variantToAdd = form.type === 'both'
+      ? { ...newVariant, availableForRent: 0 }
+      : newVariant;
+    setVariants((prev) => [...prev, variantToAdd]);
     setNewVariant({ size: '', color: '', material: '', stockQuantity: 0, availableForRent: 0, sellingPrice: '', rentalPricePerDay: '' });
   };
 
@@ -183,6 +187,8 @@ export default function ProductFormPage() {
         ...v,
         sellingPrice: v.sellingPrice ? parseFloat(v.sellingPrice) : undefined,
         rentalPricePerDay: v.rentalPricePerDay ? parseFloat(v.rentalPricePerDay) : undefined,
+        // 'both' type: all units start in POS — rent pool managed via Product Detail
+        availableForRent: form.type === 'both' ? 0 : v.availableForRent,
       })),
     };
 
@@ -332,9 +338,9 @@ export default function ProductFormPage() {
                 <p className="text-sm font-medium text-charcoal-100 mb-2">Product Type <span className="text-red-400">*</span></p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { value: 'sale', label: 'Sale Only', icon: ShoppingBag, desc: 'Sold to customers' },
-                    { value: 'rental', label: 'Rental Only', icon: Calendar, desc: 'Available to rent' },
-                    { value: 'both', label: 'Rental & Sale', icon: Tag, desc: 'Both options' },
+                    { value: 'sale', label: 'Sale Only', icon: ShoppingBag, desc: 'Sold via POS' },
+                    { value: 'rental', label: 'Rental Only', icon: Calendar, desc: 'For rent only' },
+                    { value: 'both', label: 'Rent & Sale', icon: Tag, desc: 'In POS; transfer units to rent as needed' },
                   ].map(({ value, label, icon: Icon, desc }) => (
                     <button
                       key={value}
@@ -420,8 +426,15 @@ export default function ProductFormPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input label="Stock Qty" type="number" min="0" value={newVariant.stockQuantity} onChange={(e) => setNewVariant({ ...newVariant, stockQuantity: parseInt(e.target.value) || 0 })} />
-                  <Input label="Available for Rent" type="number" min="0" value={newVariant.availableForRent} onChange={(e) => setNewVariant({ ...newVariant, availableForRent: parseInt(e.target.value) || 0 })} />
+                  {form.type === 'rental' && (
+                    <Input label="Available for Rent" type="number" min="0" value={newVariant.availableForRent} onChange={(e) => setNewVariant({ ...newVariant, availableForRent: parseInt(e.target.value) || 0 })} />
+                  )}
                 </div>
+                {form.type === 'both' && (
+                  <p className="text-xs text-charcoal-300 bg-charcoal-700/50 rounded-lg px-3 py-2">
+                    All units start in POS. Use <strong className="text-charcoal-100">Product Detail → To Rent</strong> to move specific units into the rental pool and print their new barcodes.
+                  </p>
+                )}
                 <Button variant="secondary" size="sm" icon={<Plus size={14} />} onClick={addVariant}>
                   Add Variant
                 </Button>
@@ -543,7 +556,7 @@ export default function ProductFormPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { label: 'Name', value: form.name },
-                    { label: 'Type', value: form.type === 'both' ? 'Rental & Sale' : form.type === 'rental' ? 'Rental Only' : 'Sale Only' },
+                    { label: 'Type', value: form.type === 'both' ? 'Rent & Sale' : form.type === 'rental' ? 'Rental Only' : 'Sale Only' },
                     { label: 'Category', value: categories?.find((c: ProductCategory) => c.id === form.categoryId)?.name || '—' },
                     { label: 'Selling Price', value: form.sellingPrice ? `LKR ${form.sellingPrice}` : '—' },
                     { label: 'Rental Price/Day', value: form.rentalPricePerDay ? `LKR ${form.rentalPricePerDay}` : '—' },

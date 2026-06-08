@@ -4,6 +4,7 @@ import {
   createProduct, updateProduct, deleteProduct,
   uploadProductImage, getCategories, createCategory,
   createVariant, updateVariant, deleteVariant,
+  splitVariantToRental,
 } from '../controllers/productController';
 import { authenticate } from '../middleware/auth';
 import { requireManagerOrAbove, requireStaffOrAbove } from '../middleware/roles';
@@ -30,6 +31,7 @@ router.post('/:id/images', requireManagerOrAbove, upload.single('image'), upload
 
 // Variants
 router.post('/:id/variants', requireManagerOrAbove, createVariant);
+router.post('/:id/variants/:variantId/split-to-rental', requireManagerOrAbove, splitVariantToRental);
 router.put('/:id/variants/:variantId', requireManagerOrAbove, updateVariant);
 router.delete('/:id/variants/:variantId', requireManagerOrAbove, deleteVariant);
 

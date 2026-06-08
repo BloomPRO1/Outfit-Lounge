@@ -219,6 +219,7 @@ export default function POSPage() {
     queryFn: () => productService.getAll({
       search: productSearch || undefined,
       category: categoryFilter || undefined,
+      type: 'sale',
       active: true,
       includeVariants: true,
       limit: 50,
@@ -275,6 +276,7 @@ export default function POSPage() {
           variantId: result.id, productId: result.product_id,
           productName: result.product_name, variantSku: result.sku,
           size: result.size, color: result.color,
+          image: result.primary_image,
           unitPrice: price,
           quantity: 1, discount: 0, subtotal: price,
           stockQty: saleStock,
@@ -287,6 +289,7 @@ export default function POSPage() {
           variantId: v.id, productId: result.id,
           productName: result.name, variantSku: v.sku,
           size: v.size, color: v.color,
+          image: result.primary_image,
           unitPrice: parseFloat(v.selling_price || result.selling_price || 0),
           quantity: 1, discount: 0, subtotal: parseFloat(v.selling_price || result.selling_price || 0),
           stockQty: saleStock,

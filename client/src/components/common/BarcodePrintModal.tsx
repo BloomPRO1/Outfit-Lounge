@@ -14,6 +14,7 @@ export interface BarcodeItem {
   color?: string;
   price?: number | string;
   stockQty?: number;
+  rentOnly?: boolean; // when true, label shows RENT ONLY instead of price
 }
 
 interface Props {
@@ -112,7 +113,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
           ${variantLine ? `<p class="variant">${variantLine}</p>` : ''}
           <div class="bwrap">${tempSvg.outerHTML}</div>
           <p class="sku">${item.sku}</p>
-          ${priceText ? `<p class="price">${priceText}</p>` : ''}
+          ${item.rentOnly ? `<p class="rent">RENT ONLY</p>` : priceText ? `<p class="price">${priceText}</p>` : ''}
         </div>
       </div>`;
 
@@ -144,6 +145,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
     .bwrap svg{display:block;max-height:100%}
     .sku{font-size:10pt;color:#333;text-align:center;letter-spacing:0.5pt;line-height:1.1}
     .price{font-size:15pt;font-weight:800;text-align:center;line-height:1.1}
+    .rent{font-size:13pt;font-weight:800;color:#0044aa;text-align:center;line-height:1.1;letter-spacing:1pt}
     @media print{@page{size:80mm 100mm;margin:0}body{margin:0}}
   </style>
 </head>
@@ -187,7 +189,9 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
                 <svg ref={svgRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
               </div>
               <p style={{ fontSize: 6, color: '#555', textAlign: 'center', lineHeight: 1.1 }}>{item.sku}</p>
-              {item.price && <p style={{ fontSize: 7, fontWeight: 800, textAlign: 'center', color: '#000', lineHeight: 1.1 }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
+              {item.rentOnly
+                ? <p style={{ fontSize: 7, fontWeight: 800, textAlign: 'center', color: '#0044aa', lineHeight: 1.1, letterSpacing: 1 }}>RENT ONLY</p>
+                : item.price && <p style={{ fontSize: 7, fontWeight: 800, textAlign: 'center', color: '#000', lineHeight: 1.1 }}>LKR {Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}</p>}
             </div>
           </div>
         </div>

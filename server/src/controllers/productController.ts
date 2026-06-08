@@ -451,3 +451,117 @@ export async function updateVariant(req: AuthRequest, res: Response): Promise<vo
   }
   res.json(result.rows[0]);
 }
+
+export async function splitVariantToRental(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  const { id: productId, variantId } = req.params;
+  const qty = parseInt(req.body.quantity);
+
+  if (!qty || qty < 1) {
+    res.status(400).json({ error: 'Quantity must be at least 1' });
+    return;
+  }
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Load source variant + product SKU
+    const srcRes = await client.query(
+      `SELECT pv.*, p.sku as product_sku FROM product_variants pv
+       JOIN products p ON p.id = pv.product_id
+       WHERE pv.id = $1 AND pv.product_id = $2`,
+      [variantId, productId]
+    );
+    if (!srcRes.rows[0]) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Variant not found' });
+      return;
+    }
+    const src = srcRes.rows[0];
+
+    // Sale stock = total stock minus whatever is already allocated to rent
+    const saleStock = (src.stock_quantity || 0) - (src.available_for_rent || 0);
+    if (qty > saleStock) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: `Only ${saleStock} unit(s) available for transfer` });
+      return;
+    }
+
+    // Derive rent variant identifiers (append -R to color; fall back to size)
+    const rentColor = src.color ? `${src.color}-R` : src.color;
+    const rentSize  = !src.color && src.size ? `${src.size}-R` : src.size;
+
+    if (!rentColor && !rentSize) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Variant must have a size or color to split into rent' });
+      return;
+    }
+
+    // Does the rent variant already exist?
+    const existRes = await client.query(
+      `SELECT * FROM product_variants
+       WHERE product_id = $1
+         AND size IS NOT DISTINCT FROM $2
+         AND color IS NOT DISTINCT FROM $3`,
+      [productId, rentSize, rentColor]
+    );
+
+    let rentVariant: any;
+    if (existRes.rows[0]) {
+      // Add units to the existing rent variant
+      const upd = await client.query(
+        `UPDATE product_variants SET
+           stock_quantity    = stock_quantity    + $1,
+           available_for_rent = available_for_rent + $1,
+           updated_at = NOW()
+         WHERE id = $2 RETURNING *`,
+        [qty, existRes.rows[0].id]
+      );
+      rentVariant = upd.rows[0];
+    } else {
+      // Create brand-new rent variant — gets its own auto-incremented label_id
+      const rentSku = generateVariantSKU(src.product_sku, rentSize, rentColor);
+      const ins = await client.query(
+        `INSERT INTO product_variants
+           (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          productId, rentSku, rentSize, rentColor, src.material,
+          src.selling_price, src.rental_price_per_day,
+          qty, qty,
+        ]
+      );
+      rentVariant = ins.rows[0];
+    }
+
+    // Deduct from source variant
+    await client.query(
+      `UPDATE product_variants SET stock_quantity = stock_quantity - $1, updated_at = NOW() WHERE id = $2`,
+      [qty, variantId]
+    );
+
+    // Inventory movement log
+    await client.query(
+      `INSERT INTO inventory_movements (product_variant_id, type, quantity, reason, created_by)
+       VALUES ($1,'out',$2,'Transferred to rental pool',$3)`,
+      [variantId, qty, req.user?.id]
+    );
+    await client.query(
+      `INSERT INTO inventory_movements (product_variant_id, type, quantity, reason, created_by)
+       VALUES ($1,'in',$2,'Transferred from sale pool',$3)`,
+      [rentVariant.id, qty, req.user?.id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ sourceVariant: src, rentVariant });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'SKU conflict — try again' });
+    } else {
+      next(err);
+    }
+  } finally {
+    client.release();
+  }
+}

@@ -53,4 +53,8 @@ export const productService = {
   deleteVariant: async (productId: string, variantId: string) => {
     await api.delete(`/products/${productId}/variants/${variantId}`);
   },
+  splitVariantToRental: async (productId: string, variantId: string, quantity: number) => {
+    const { data } = await api.post(`/products/${productId}/variants/${variantId}/split-to-rental`, { quantity });
+    return data as { sourceVariant: any; rentVariant: any };
+  },
 };

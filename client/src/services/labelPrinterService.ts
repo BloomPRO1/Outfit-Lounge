@@ -73,8 +73,10 @@ function buildTSPL(item: BarcodeItem, copies: number): Uint8Array {
   // Barcode CODE128, height 100 dots (compact), rotation=90, narrow=2, wide=4
   lines.push(`BARCODE 310,${barcodeY},"128",100,1,90,2,4,"${esc(item.sku)}"`);
 
-  // Price — below barcode, font "2"
-  if (item.price) {
+  // Price or RENT ONLY — below barcode, font "2"
+  if (item.rentOnly) {
+    lines.push(`TEXT 5,360,"2",0,1,1,"RENT ONLY"`);
+  } else if (item.price) {
     const priceStr = `LKR ${Number(item.price).toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
     lines.push(`TEXT 5,360,"2",0,1,1,"${esc(priceStr)}"`);
   }

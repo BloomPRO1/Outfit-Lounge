@@ -48,6 +48,7 @@ interface RentalCartItem {
   rentalPricePerDay: number;
   lateFinePerDay: number;
   quantity: number;
+  image?: string;
 }
 
 export default function NewRentalPage() {
@@ -171,12 +172,12 @@ export default function NewRentalPage() {
           ...result,
           rental_price_per_day: result.rental_price_per_day ?? result.product_rental_price_per_day,
         };
-        addToCart(variantWithFallback, result.product_name, result.late_fine_per_day ?? 0);
+        addToCart(variantWithFallback, result.product_name, result.late_fine_per_day ?? 0, result.primary_image);
         toast.success(`Added: ${result.product_name}${result.size ? ' · ' + result.size : ''}`);
       } else if (result.type === 'product') {
         const variant = (result.variants || []).find((v: any) => (v.available_for_rent ?? v.stock_quantity ?? 0) > 0);
         if (!variant) { toast.error('No rental stock available for this item'); return; }
-        addToCart(variant, result.name, result.late_fine_per_day ?? 0);
+        addToCart(variant, result.name, result.late_fine_per_day ?? 0, result.primary_image);
         toast.success(`Added: ${result.name}`);
       }
     } catch {
@@ -184,7 +185,7 @@ export default function NewRentalPage() {
     }
   };
 
-  const addToCart = (variant: any, productName: string, lateFinePerDay = 0) => {
+  const addToCart = (variant: any, productName: string, lateFinePerDay = 0, image?: string) => {
     const existing = cartItems.find((i) => i.variantId === variant.id);
     if (existing) {
       setCartItems(cartItems.map((i) => i.variantId === variant.id ? { ...i, quantity: i.quantity + 1 } : i));
@@ -197,6 +198,7 @@ export default function NewRentalPage() {
         rentalPricePerDay: parseFloat(variant.rental_price_per_day || variant.rentalPricePerDay || 0),
         lateFinePerDay: parseFloat(String(lateFinePerDay || 0)),
         quantity: 1,
+        image,
       }]);
     }
     setProductSearch('');
@@ -216,7 +218,8 @@ export default function NewRentalPage() {
         addToCart(
           { ...exactV, rental_price_per_day: exactV.rental_price_per_day ?? prod.rental_price_per_day },
           prod.name,
-          prod.late_fine_per_day ?? 0
+          prod.late_fine_per_day ?? 0,
+          prod.primary_image
         );
         toast.success(`Added: ${prod.name}${exactV.size ? ' · ' + exactV.size : ''}`);
         break;
@@ -415,7 +418,7 @@ export default function NewRentalPage() {
                                 <button
                                   key={v.id}
                                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-charcoal-600 transition-colors border-b border-charcoal-600/50 last:border-0"
-                                  onMouseDown={() => addToCart(v, product.name, product.late_fine_per_day)}
+                                  onMouseDown={() => addToCart(v, product.name, product.late_fine_per_day, product.primary_image)}
                                 >
                                   <Package size={14} className="text-charcoal-300 flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
@@ -438,6 +441,11 @@ export default function NewRentalPage() {
                       <div className="space-y-2">
                         {cartItems.map((item) => (
                           <div key={item.variantId} className="flex items-center gap-3 p-3 bg-charcoal-600/50 rounded-xl">
+                            <div className="w-10 h-10 rounded-lg bg-charcoal-600 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                              {item.image
+                                ? <img src={item.image} alt={item.productName} className="w-full h-full object-cover" />
+                                : <Package size={16} className="text-charcoal-300" />}
+                            </div>
                             <div className="flex-1">
                               <p className="text-sm font-medium text-charcoal-50">{item.productName}</p>
                               <p className="text-xs text-charcoal-200">{item.variantInfo} · {formatCurrency(item.rentalPricePerDay)}/day</p>

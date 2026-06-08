@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Edit, Package, Printer, ArrowLeft, Trash2 } from 'lucide-react';
+import { Edit, Package, Printer, ArrowLeft, Trash2, ArrowRightLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
@@ -20,6 +20,8 @@ export default function ProductDetailPage() {
   const [barcodeItem, setBarcodeItem] = useState<BarcodeItem | null>(null);
   const [confirmDeleteProduct, setConfirmDeleteProduct] = useState(false);
   const [confirmDeleteVariantId, setConfirmDeleteVariantId] = useState<string | null>(null);
+  const [transferVariant, setTransferVariant] = useState<any | null>(null);
+  const [transferQty, setTransferQty] = useState(1);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -49,6 +51,28 @@ export default function ProductDetailPage() {
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || 'Failed to delete variant');
       setConfirmDeleteVariantId(null);
+    },
+  });
+
+  const splitToRentMutation = useMutation({
+    mutationFn: ({ variant, qty }: { variant: any; qty: number }) =>
+      productService.splitVariantToRental(id!, variant.id, qty),
+    onSuccess: (data) => {
+      toast.success('Units transferred — print the RENT ONLY label now');
+      qc.invalidateQueries({ queryKey: ['product', id] });
+      setTransferVariant(null);
+      setBarcodeItem({
+        sku: data.rentVariant.sku,
+        labelId: data.rentVariant.label_id,
+        productName: (product as any)?.name || '',
+        size: data.rentVariant.size,
+        color: data.rentVariant.color,
+        rentOnly: true,
+        stockQty: data.rentVariant.stock_quantity,
+      });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || 'Failed to transfer units');
     },
   });
 
@@ -135,7 +159,7 @@ export default function ProductDetailPage() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={cn('badge-status border text-xs px-2.5 py-1', TYPE_COLORS[product.type])}>
-                  {product.type === 'both' ? 'Rental & Sale' : product.type === 'rental' ? 'Rental' : 'Sale'}
+                  {product.type === 'both' ? 'Rent & Sale' : product.type === 'rental' ? 'Rental Only' : 'Sale Only'}
                 </span>
                 <Badge variant={product.is_active ? 'success' : 'neutral'}>
                   {product.is_active ? 'Active' : 'Inactive'}
@@ -216,6 +240,56 @@ export default function ProductDetailPage() {
         loading={deleteVariantMutation.isPending}
       />
 
+      {/* Transfer to Rent dialog */}
+      {transferVariant && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => setTransferVariant(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#1a1a26', border: '1px solid #2a2a38', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
+          >
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#c8c8d8' }}>Transfer Units to Rent</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#8a8a9a', lineHeight: 1.5 }}>
+              Selected: <strong style={{ color: '#c8c8d8' }}>{[transferVariant.size, transferVariant.color].filter(Boolean).join(' / ') || 'Variant'}</strong>
+              <br />
+              Available for sale: <strong style={{ color: '#c8c8d8' }}>{Math.max(0, (transferVariant.stock_quantity || 0) - (transferVariant.available_for_rent || 0))}</strong>
+            </p>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: '#8a8a9a' }}>
+              A new <strong style={{ color: '#6fa8ff' }}>{[transferVariant.size, transferVariant.color ? transferVariant.color + '-R' : null].filter(Boolean).join(', ')}</strong> rent variant will be created with its own barcode.
+            </p>
+            <div style={{ margin: '16px 0' }}>
+              <label style={{ display: 'block', fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>How many units to transfer?</label>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(0, (transferVariant.stock_quantity || 0) - (transferVariant.available_for_rent || 0))}
+                value={transferQty}
+                onChange={(e) => setTransferQty(Math.max(1, parseInt(e.target.value) || 1))}
+                autoFocus
+                style={{ width: '100%', background: '#0d0d1a', border: '1px solid #3a3a4a', borderRadius: 10, padding: '10px 14px', color: '#f0f0f8', fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setTransferVariant(null)}
+                style={{ padding: '8px 18px', borderRadius: 10, border: '1px solid #3a3a4a', background: 'transparent', color: '#8a8a9a', cursor: 'pointer', fontSize: 13 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => splitToRentMutation.mutate({ variant: transferVariant, qty: transferQty })}
+                disabled={splitToRentMutation.isPending || transferQty < 1}
+                style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: splitToRentMutation.isPending ? 0.7 : 1 }}
+              >
+                {splitToRentMutation.isPending ? 'Transferring…' : 'Transfer to Rent'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Variants */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -228,63 +302,108 @@ export default function ProductDetailPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-charcoal-500 text-left">
-                  {['SKU', 'Size', 'Color', 'Material', 'Selling Price', 'Rental/Day', 'Stock', 'Available', 'Damaged', 'Actions'].map((h) => (
+                  {[
+                    'SKU', 'Size', 'Color', 'Material', 'Selling Price', 'Rental/Day',
+                    'Stock', 'Available', 'Damaged',
+                    ...(product.type === 'both' ? ['Mode'] : []),
+                    'Actions',
+                  ].map((h) => (
                     <th key={h} className="py-2 px-3 text-xs text-charcoal-200 font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {variants.map((v: any) => (
-                  <tr key={v.id} className="border-b border-charcoal-600 hover:bg-charcoal-600/30">
-                    <td className="py-2.5 px-3"><code className="text-xs text-gold-500">{v.sku}</code></td>
-                    <td className="py-2.5 px-3">{v.size || '—'}</td>
-                    <td className="py-2.5 px-3">{v.color || '—'}</td>
-                    <td className="py-2.5 px-3">{v.material || '—'}</td>
-                    <td className="py-2.5 px-3">
-                      {v.selling_price != null
-                        ? <span className="text-gold-400 font-medium">{formatCurrency(v.selling_price)}</span>
-                        : <span className="text-charcoal-400 text-xs">default</span>}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      {v.rental_price_per_day != null
-                        ? <span className="text-gold-400 font-medium">{formatCurrency(v.rental_price_per_day)}</span>
-                        : <span className="text-charcoal-400 text-xs">default</span>}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <span className={cn('font-medium', v.stock_quantity <= 3 ? 'text-red-400' : 'text-charcoal-50')}>
-                        {v.stock_quantity}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-charcoal-100">{v.available_for_rent}</td>
-                    <td className="py-2.5 px-3 text-red-400">{v.damaged_count || 0}</td>
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-gold-400 transition-colors"
-                          onClick={() => setBarcodeItem({
-                            sku: v.sku,
-                            labelId: v.label_id,
-                            productName: product.name,
-                            size: v.size,
-                            color: v.color,
-                            price: v.selling_price ?? product.selling_price,
-                            stockQty: v.stock_quantity,
-                          })}
-                        >
-                          <Printer size={12} />
-                          Barcode
-                        </button>
-                        <button
-                          className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-red-400 transition-colors"
-                          onClick={() => setConfirmDeleteVariantId(v.id)}
-                        >
-                          <Trash2 size={12} />
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {variants.map((v: any) => {
+                  const saleStock = (vv: any) => Math.max(0, (vv.stock_quantity || 0) - (vv.available_for_rent || 0));
+                  const isRentOnly = product.type === 'both' && v.stock_quantity > 0 && saleStock(v) === 0;
+                  return (
+                    <tr key={v.id} className="border-b border-charcoal-600 hover:bg-charcoal-600/30">
+                      <td className="py-2.5 px-3"><code className="text-xs text-gold-500">{v.sku}</code></td>
+                      <td className="py-2.5 px-3">{v.size || '—'}</td>
+                      <td className="py-2.5 px-3">{v.color || '—'}</td>
+                      <td className="py-2.5 px-3">{v.material || '—'}</td>
+                      <td className="py-2.5 px-3">
+                        {v.selling_price != null
+                          ? <span className="text-gold-400 font-medium">{formatCurrency(v.selling_price)}</span>
+                          : <span className="text-charcoal-400 text-xs">default</span>}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {v.rental_price_per_day != null
+                          ? <span className="text-gold-400 font-medium">{formatCurrency(v.rental_price_per_day)}</span>
+                          : <span className="text-charcoal-400 text-xs">default</span>}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={cn('font-medium', v.stock_quantity <= 3 ? 'text-red-400' : 'text-charcoal-50')}>
+                          {v.stock_quantity}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-charcoal-100">{v.available_for_rent}</td>
+                      <td className="py-2.5 px-3 text-red-400">{v.damaged_count || 0}</td>
+                      {product.type === 'both' && (
+                        <td className="py-2.5 px-3">
+                          {isRentOnly
+                            ? <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 whitespace-nowrap">Rent Only</span>
+                            : <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">For Sale</span>
+                          }
+                        </td>
+                      )}
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {product.type === 'both' && saleStock(v) > 0 && (
+                            <button
+                              className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-blue-400 transition-colors whitespace-nowrap"
+                              onClick={() => { setTransferVariant(v); setTransferQty(1); }}
+                            >
+                              <ArrowRightLeft size={12} />
+                              To Rent
+                            </button>
+                          )}
+                          {product.type === 'both' && isRentOnly && (
+                            <button
+                              className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-gold-400 transition-colors whitespace-nowrap"
+                              onClick={() => setBarcodeItem({
+                                sku: v.sku,
+                                labelId: v.label_id,
+                                productName: (product as any).name,
+                                size: v.size,
+                                color: v.color,
+                                rentOnly: true,
+                                stockQty: v.stock_quantity,
+                              })}
+                            >
+                              <Printer size={12} />
+                              Rent Label
+                            </button>
+                          )}
+                          {!isRentOnly && (
+                            <button
+                              className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-gold-400 transition-colors"
+                              onClick={() => setBarcodeItem({
+                                sku: v.sku,
+                                labelId: v.label_id,
+                                productName: (product as any).name,
+                                size: v.size,
+                                color: v.color,
+                                price: v.selling_price ?? (product as any).selling_price,
+                                stockQty: v.stock_quantity,
+                              })}
+                            >
+                              <Printer size={12} />
+                              Barcode
+                            </button>
+                          )}
+                          <button
+                            className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-red-400 transition-colors"
+                            onClick={() => setConfirmDeleteVariantId(v.id)}
+                          >
+                            <Trash2 size={12} />
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
