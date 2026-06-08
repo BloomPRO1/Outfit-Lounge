@@ -14,10 +14,18 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
   let paramIndex = 1;
 
   if (search) {
-    whereClause += ` AND (p.name ILIKE $${paramIndex} OR p.sku ILIKE $${paramIndex} OR p.barcode ILIKE $${paramIndex}
-      OR EXISTS (SELECT 1 FROM product_variants WHERE product_id = p.id AND sku ILIKE $${paramIndex}))`;
+    const labelId = parseInt(search as string, 10);
+    const labelIdParam = !isNaN(labelId) ? labelId : null;
+    whereClause += ` AND (
+      p.name ILIKE $${paramIndex} OR p.sku ILIKE $${paramIndex} OR p.barcode ILIKE $${paramIndex}
+      OR EXISTS (SELECT 1 FROM product_variants WHERE product_id = p.id AND sku ILIKE $${paramIndex})
+      OR ($${paramIndex + 1}::int IS NOT NULL AND EXISTS (
+            SELECT 1 FROM product_variants WHERE product_id = p.id AND label_id = $${paramIndex + 1}::int
+         ))
+    )`;
     params.push(`%${search}%`);
-    paramIndex++;
+    params.push(labelIdParam);
+    paramIndex += 2;
   }
   if (category) {
     whereClause += ` AND p.category_id = $${paramIndex++}`;
