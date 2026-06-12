@@ -15,31 +15,6 @@ export function getStoredInvoice(token: string): InvoiceEntry | null {
   return entry;
 }
 
-// ─── Image helpers ─────────────────────────────────────────────────────────────
-async function fetchImageBuffer(url: string): Promise<Buffer | null> {
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!r.ok) return null;
-    return Buffer.from(await r.arrayBuffer());
-  } catch { return null; }
-}
-
-async function loadLogoBuffer(shopLogoUrl?: string): Promise<Buffer | null> {
-  // Try local filesystem paths (works in both dev/tsx and compiled/dist)
-  const candidates = [
-    path.join(__dirname, '../../../client/public/logo.jpg'),
-    path.join(__dirname, '../../../client/dist/logo.jpg'),
-  ];
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) return fs.readFileSync(p);
-    } catch { /* continue */ }
-  }
-  // Fallback: fetch from configured URL
-  if (shopLogoUrl) return fetchImageBuffer(shopLogoUrl);
-  return null;
-}
-
 function fmt(n: number | string) {
   const v = parseFloat(String(n));
   return `LKR ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -68,232 +43,166 @@ async function buildPDF(d: PDFData): Promise<Buffer> {
       doc.on('end', () => resolve(Buffer.concat(bufs)));
       doc.on('error', reject);
 
-      // ── Palette ────────────────────────────────────────────────────────────
-      const GOLD     = '#c9a96e';
-      const GOLD_LT  = '#e8d5b0';
-      const DARK     = '#1a1a2e';
-      const DARK2    = '#12121f';
-      const TEXT     = '#1c1c2e';
-      const GRAY     = '#6b7280';
-      const LGRAY    = '#f7f7fb';
-      const LGRAY2   = '#eeeef5';
-      const BORDER   = '#dcdce8';
-      const GREEN    = '#059669';
-      const RED      = '#dc2626';
-      const WHITE    = '#ffffff';
+      const BLACK  = '#000000';
+      const DKGRAY = '#333333';
+      const GRAY   = '#666666';
+      const LTGRAY = '#cccccc';
 
-      const PGW = 595; const PGH = 842;
-      const ML = 44; const MR = 44; const W = PGW - ML - MR; // 507
+      const PGW = 595;
+      const ML = 50; const MR = 50; const W = PGW - ML - MR;
 
-      // ── Full-bleed header band ──────────────────────────────────────────────
-      const HDR_H = 140;
-      doc.rect(0, 0, PGW, HDR_H).fillColor(DARK2).fill();
-      // thin left gold edge accent (full page height)
-      doc.rect(0, 0, 5, PGH).fillColor(GOLD).fill();
-      // gold strip at header bottom
-      doc.rect(0, HDR_H, PGW, 4).fillColor(GOLD).fill();
+      let y = 48;
 
-      // Logo — centred in header
-      const logoBuffer = await loadLogoBuffer(d.shopLogoUrl);
-      const LOGO_SIZE = 100;
-      const logoX = Math.round((PGW - LOGO_SIZE) / 2);
-      const logoY = Math.round((HDR_H - LOGO_SIZE) / 2);
-      if (logoBuffer) {
-        try { doc.image(logoBuffer, logoX, logoY, { fit: [LOGO_SIZE, LOGO_SIZE] }); } catch {}
-      } else {
-        // Fallback: shop name centred when no logo
-        doc.font('Helvetica-Bold').fontSize(22).fillColor(WHITE)
-          .text(d.shopName, ML, 45, { width: W, align: 'center', lineBreak: false });
+      // ── Shop name & contact ────────────────────────────────────────────────
+      doc.font('Helvetica-Bold').fontSize(22).fillColor(BLACK)
+        .text(d.shopName.toUpperCase(), ML, y, { width: W, align: 'center', lineBreak: false });
+      y += 28;
+
+      if (d.shopAddress) {
+        doc.font('Helvetica').fontSize(9).fillColor(GRAY)
+          .text(d.shopAddress, ML, y, { width: W, align: 'center', lineBreak: false });
+        y += 13;
       }
-
-      // Contact line centred under logo area (small, gold-light)
-      const contact = [d.shopPhone, d.shopEmail].filter(Boolean).join('   ·   ');
+      const contact = [d.shopPhone, d.shopEmail].filter(Boolean).join('   |   ');
       if (contact) {
-        doc.font('Helvetica').fontSize(7.5).fillColor(GOLD_LT)
-          .text(contact, ML, HDR_H - 18, { width: W, align: 'center', lineBreak: false });
+        doc.font('Helvetica').fontSize(9).fillColor(GRAY)
+          .text(contact, ML, y, { width: W, align: 'center', lineBreak: false });
+        y += 13;
       }
 
-      // Invoice type badge + ref (right side of header)
-      const badge = d.type === 'receipt' ? 'RECEIPT' : 'RENTAL INVOICE';
-      doc.font('Helvetica-Bold').fontSize(20).fillColor(GOLD)
-        .text(badge, ML, 22, { width: W - 8, align: 'right', lineBreak: false });
-      doc.font('Helvetica').fontSize(9).fillColor(GOLD_LT)
-        .text(`# ${d.refNumber}`, ML, 50, { width: W - 8, align: 'right', lineBreak: false });
-      doc.font('Helvetica').fontSize(8).fillColor(GOLD_LT)
-        .text(d.date, ML, 65, { width: W - 8, align: 'right', lineBreak: false });
+      y += 6;
+      doc.rect(ML, y, W, 1).fillColor(BLACK).fill();
+      y += 10;
 
-      let y = HDR_H + 22;
+      // ── Document type ──────────────────────────────────────────────────────
+      const title = d.type === 'receipt' ? 'RECEIPT' : 'RENTAL INVOICE';
+      doc.font('Helvetica-Bold').fontSize(13).fillColor(BLACK)
+        .text(title, ML, y, { width: W, align: 'center', lineBreak: false });
+      y += 18;
+      doc.rect(ML, y, W, 0.5).fillColor(LTGRAY).fill();
+      y += 14;
 
-      // ── Info boxes ─────────────────────────────────────────────────────────
-      const HALF  = (W - 16) / 2;
-      const BOX_H = 95;
-      const GAP   = 16;
-      const ACCENT = 4; // gold left-border width
+      // ── Invoice meta (2-column) ────────────────────────────────────────────
+      const HALF = (W - 20) / 2;
 
-      // ── Left box: Invoice Details ──
-      const lx = ML;
-      doc.rect(lx, y, HALF, BOX_H).fillColor(LGRAY).fill();
-      doc.rect(lx, y, HALF, BOX_H).strokeColor(BORDER).lineWidth(0.5).stroke();
-      doc.rect(lx, y, ACCENT, BOX_H).fillColor(GOLD).fill(); // gold accent
-      doc.font('Helvetica-Bold').fontSize(7).fillColor(GOLD)
-        .text('INVOICE DETAILS', lx + ACCENT + 10, y + 10, { lineBreak: false });
-      doc.rect(lx + ACCENT, y + 22, HALF - ACCENT, 0.5).fillColor(BORDER).fill();
-
-      let iy = y + 29;
-      const iLine = (label: string, value: string) => {
+      const metaLeft = (label: string, value: string, my: number) => {
         doc.font('Helvetica-Bold').fontSize(8).fillColor(GRAY)
-          .text(label, lx + ACCENT + 10, iy, { width: 72, lineBreak: false });
-        doc.font('Helvetica').fontSize(8.5).fillColor(TEXT)
-          .text(value, lx + ACCENT + 85, iy, { width: HALF - ACCENT - 95, lineBreak: false });
-        iy += 14;
+          .text(label, ML, my, { width: 85, lineBreak: false });
+        doc.font('Helvetica').fontSize(8.5).fillColor(BLACK)
+          .text(value, ML + 90, my, { width: HALF - 95, lineBreak: false });
       };
-      iLine(d.type === 'receipt' ? 'Sale No.' : 'Booking No.', d.refNumber);
-      iLine('Date', d.date);
-      if (d.returnDate)    iLine('Return', d.returnDate);
-      if (d.days)          iLine('Duration', `${d.days} day(s)`);
-      if (d.paymentMethod) iLine('Payment', d.paymentMethod);
-      if (d.eventType)     iLine('Event', d.eventType);
 
-      // ── Right box: Bill To ──
-      const rx = ML + HALF + GAP;
-      doc.rect(rx, y, HALF, BOX_H).fillColor(LGRAY).fill();
-      doc.rect(rx, y, HALF, BOX_H).strokeColor(BORDER).lineWidth(0.5).stroke();
-      doc.rect(rx, y, ACCENT, BOX_H).fillColor(GOLD).fill();
-      doc.font('Helvetica-Bold').fontSize(7).fillColor(GOLD)
-        .text('BILL TO', rx + ACCENT + 10, y + 10, { lineBreak: false });
-      doc.rect(rx + ACCENT, y + 22, HALF - ACCENT, 0.5).fillColor(BORDER).fill();
+      const metaRight = (label: string, value: string, my: number) => {
+        const rx = ML + HALF + 20;
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(GRAY)
+          .text(label, rx, my, { width: 85, lineBreak: false });
+        doc.font('Helvetica').fontSize(8.5).fillColor(BLACK)
+          .text(value, rx + 90, my, { width: HALF - 95, lineBreak: false });
+      };
 
-      let cy2 = y + 29;
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK)
-        .text(d.customerName || 'Walk-in Customer', rx + ACCENT + 10, cy2, { width: HALF - ACCENT - 18, lineBreak: false });
-      cy2 += 17;
-      doc.font('Helvetica').fontSize(8.5).fillColor(GRAY);
-      if (d.customerPhone) {
-        doc.text(`Tel:  ${d.customerPhone}`, rx + ACCENT + 10, cy2, { width: HALF - ACCENT - 18, lineBreak: false });
-        cy2 += 13;
-      }
-      if (d.customerEmail) {
-        doc.text(d.customerEmail, rx + ACCENT + 10, cy2, { width: HALF - ACCENT - 18, lineBreak: false });
-      }
+      const metaStartY = y;
+      let lmy = metaStartY;
+      metaLeft(d.type === 'receipt' ? 'Sale No.' : 'Booking No.', d.refNumber, lmy); lmy += 14;
+      metaLeft('Date', d.date, lmy); lmy += 14;
+      if (d.returnDate)    { metaLeft('Return Date', d.returnDate, lmy); lmy += 14; }
+      if (d.days)          { metaLeft('Duration', `${d.days} day(s)`, lmy); lmy += 14; }
+      if (d.paymentMethod) { metaLeft('Payment', d.paymentMethod, lmy); lmy += 14; }
+      if (d.eventType)     { metaLeft('Event', d.eventType, lmy); lmy += 14; }
 
-      y += BOX_H + 22;
+      let rmy = metaStartY;
+      metaRight('Customer', d.customerName || 'Walk-in', rmy); rmy += 14;
+      if (d.customerPhone) { metaRight('Tel', d.customerPhone, rmy); rmy += 14; }
+      if (d.customerEmail) { metaRight('Email', d.customerEmail, rmy); rmy += 14; }
+
+      y = Math.max(lmy, rmy) + 12;
+      doc.rect(ML, y, W, 0.5).fillColor(LTGRAY).fill();
+      y += 14;
 
       // ── Items table ────────────────────────────────────────────────────────
-      const QTY_W   = 40;
-      const PRICE_W = 115;
+      const QTY_W   = 36;
+      const PRICE_W = 110;
       const TOTAL_W = 110;
       const DESC_W  = W - QTY_W - PRICE_W - TOTAL_W;
-
       const COL0 = ML;
       const COL1 = COL0 + DESC_W;
       const COL2 = COL1 + QTY_W;
       const COL3 = COL2 + PRICE_W;
 
-      // Header row
-      const TH = 28;
-      doc.rect(ML, y, W, TH).fillColor(DARK).fill();
-      // Gold accent on table header left
-      doc.rect(ML, y, ACCENT, TH).fillColor(GOLD).fill();
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(WHITE);
-      doc.text('DESCRIPTION',   COL0 + ACCENT + 6, y + 10, { width: DESC_W - ACCENT - 6, lineBreak: false });
-      doc.text('QTY',           COL1,     y + 10, { width: QTY_W,       align: 'center', lineBreak: false });
-      const priceHdr = d.type === 'receipt' ? 'UNIT PRICE' : 'PRICE / DAY';
-      doc.text(priceHdr,        COL2,     y + 10, { width: PRICE_W,     align: 'right', lineBreak: false });
-      doc.text('AMOUNT',        COL3,     y + 10, { width: TOTAL_W - 8, align: 'right', lineBreak: false });
-      y += TH;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(BLACK);
+      doc.text('DESCRIPTION', COL0, y, { width: DESC_W,  lineBreak: false });
+      doc.text('QTY',         COL1, y, { width: QTY_W,   align: 'center', lineBreak: false });
+      const priceHdr = d.type === 'receipt' ? 'UNIT PRICE' : 'PRICE/DAY';
+      doc.text(priceHdr,      COL2, y, { width: PRICE_W, align: 'right',  lineBreak: false });
+      doc.text('AMOUNT',      COL3, y, { width: TOTAL_W, align: 'right',  lineBreak: false });
+      y += 11;
+      doc.rect(ML, y, W, 1).fillColor(BLACK).fill();
+      y += 8;
 
-      const ROW_H = 26;
-      d.items.forEach((item, i) => {
-        const rowBg = i % 2 === 0 ? WHITE : LGRAY2;
-        doc.rect(ML, y, W, ROW_H).fillColor(rowBg).fill();
-        // subtle left accent for odd rows
-        if (i % 2 !== 0) doc.rect(ML, y, 2, ROW_H).fillColor(GOLD_LT).fill();
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT);
-        const nameStr = item.name.length > 46 ? item.name.slice(0, 44) + '…' : item.name;
-        doc.text(nameStr,              COL0 + ACCENT + 6, y + 8, { width: DESC_W - ACCENT - 6, lineBreak: false });
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(GRAY);
-        doc.text(String(item.qty),     COL1,     y + 8, { width: QTY_W,       align: 'center', lineBreak: false });
-        doc.font('Helvetica').fontSize(9).fillColor(GRAY);
-        doc.text(fmt(item.price),      COL2,     y + 8, { width: PRICE_W,     align: 'right', lineBreak: false });
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT);
-        doc.text(fmt(item.subtotal),   COL3,     y + 8, { width: TOTAL_W - 8, align: 'right', lineBreak: false });
+      const ROW_H = 20;
+      d.items.forEach(item => {
+        const nameStr = item.name.length > 50 ? item.name.slice(0, 48) + '…' : item.name;
+        doc.font('Helvetica').fontSize(8.5).fillColor(BLACK)
+          .text(nameStr,           COL0, y, { width: DESC_W,  lineBreak: false });
+        doc.font('Helvetica').fontSize(8.5).fillColor(DKGRAY)
+          .text(String(item.qty),  COL1, y, { width: QTY_W,   align: 'center', lineBreak: false });
+        doc.font('Helvetica').fontSize(8.5).fillColor(DKGRAY)
+          .text(fmt(item.price),   COL2, y, { width: PRICE_W, align: 'right',  lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(BLACK)
+          .text(fmt(item.subtotal), COL3, y, { width: TOTAL_W, align: 'right', lineBreak: false });
         y += ROW_H;
       });
 
-      // Bottom border of table
-      doc.rect(ML, y, W, 1.5).fillColor(GOLD).fill();
+      doc.rect(ML, y, W, 0.5).fillColor(BLACK).fill();
+      y += 14;
 
-      y += 20;
-
-      // ── Totals block ───────────────────────────────────────────────────────
-      const TB_W  = 250;
-      const TBX   = PGW - MR - TB_W;
-      const LBL_W = 130;
+      // ── Totals ─────────────────────────────────────────────────────────────
+      const TB_W  = 230;
+      const TBX   = ML + W - TB_W;
+      const LBL_W = 120;
       const VAL_W = TB_W - LBL_W;
 
-      // Outer border of totals area
       const totalsStartY = y;
-
-      const tRow = (
-        lbl: string, val: string,
-        opts: { bold?: boolean; bg?: string; fg?: string; size?: number; topBorder?: boolean } = {}
-      ) => {
-        const rh   = 24;
-        const bold = opts.bold ?? false;
-        const size = opts.size ?? 9;
-        const fg   = opts.fg ?? TEXT;
-        if (opts.bg) doc.rect(TBX, y, TB_W, rh).fillColor(opts.bg).fill();
-        if (opts.topBorder) {
-          doc.rect(TBX, y, TB_W, 0.5).fillColor(BORDER).fill();
-        }
-        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size).fillColor(fg);
-        doc.text(lbl, TBX,             y + 7, { width: LBL_W,      align: 'right', lineBreak: false });
-        doc.text(val, TBX + LBL_W,     y + 7, { width: VAL_W - 6,  align: 'right', lineBreak: false });
+      const tRow = (lbl: string, val: string, bold = false, lineAbove = false) => {
+        const rh = 18;
+        if (lineAbove) doc.rect(TBX, y, TB_W, 0.5).fillColor(LTGRAY).fill();
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 9).fillColor(BLACK);
+        doc.text(lbl, TBX,         y + 3, { width: LBL_W, align: 'right', lineBreak: false });
+        doc.text(val, TBX + LBL_W, y + 3, { width: VAL_W, align: 'right', lineBreak: false });
         y += rh;
       };
 
       if (d.discount > 0 || d.tax > 0) tRow('Subtotal', fmt(d.subtotal));
-      if (d.discount > 0)               tRow('Discount', `−${fmt(d.discount)}`, { fg: GREEN });
+      if (d.discount > 0)               tRow('Discount', `- ${fmt(d.discount)}`);
       if (d.tax > 0)                    tRow('Tax', fmt(d.tax));
-      tRow('TOTAL AMOUNT', fmt(d.total), { bold: true, bg: DARK, fg: GOLD, size: 12, topBorder: true });
-      if (d.paid > 0)                   tRow('Amount Paid', fmt(d.paid), { topBorder: true });
-      if ((d.change ?? 0) > 0.005)      tRow('Change', fmt(d.change!), { fg: GREEN });
+      tRow('TOTAL', fmt(d.total), true, true);
+      if (d.paid > 0)              tRow('Amount Paid', fmt(d.paid), false, true);
+      if ((d.change ?? 0) > 0.005) tRow('Change', fmt(d.change!));
       const balance = d.total - (d.paid ?? 0);
-      if (balance > 0.01)               tRow('Balance Due', fmt(balance), { bold: true, fg: RED, topBorder: true });
-      if ((d.fine ?? 0) > 0.005)        tRow('Late Fine', fmt(d.fine!), { fg: RED });
-      if ((d.damageCharges ?? 0) > 0.005) tRow('Damage / Lost', fmt(d.damageCharges!), { fg: RED });
+      if (balance > 0.01)          tRow('Balance Due', fmt(balance), true, true);
+      if ((d.fine ?? 0) > 0.005)   tRow('Late Fine', fmt(d.fine!));
+      if ((d.damageCharges ?? 0) > 0.005) tRow('Damage / Lost', fmt(d.damageCharges!));
 
-      // Outer stroke around totals
-      doc.rect(TBX, totalsStartY, TB_W, y - totalsStartY).strokeColor(BORDER).lineWidth(0.5).stroke();
+      doc.rect(TBX, totalsStartY, TB_W, y - totalsStartY).strokeColor(LTGRAY).lineWidth(0.5).stroke();
 
       // ── Notes ──────────────────────────────────────────────────────────────
       if (d.notes) {
         const noteY = totalsStartY;
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(GOLD)
-          .text('NOTES', ML, noteY, { lineBreak: false });
-        doc.rect(ML, noteY + 13, TBX - ML - 16, 0.5).fillColor(BORDER).fill();
-        doc.font('Helvetica').fontSize(9).fillColor(GRAY)
-          .text(d.notes, ML, noteY + 19, { width: TBX - ML - 20 });
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(GRAY)
+          .text('Notes:', ML, noteY, { lineBreak: false });
+        doc.font('Helvetica').fontSize(8.5).fillColor(BLACK)
+          .text(d.notes, ML, noteY + 13, { width: TBX - ML - 16 });
       }
 
-      // ── Footer band ────────────────────────────────────────────────────────
-      const FTR_Y = 790;
-      doc.rect(0, FTR_Y, PGW, 4).fillColor(GOLD).fill();
-      doc.rect(0, FTR_Y + 4, PGW, PGH - FTR_Y - 4).fillColor(DARK2).fill();
+      y += 20;
+      doc.rect(ML, y, W, 0.5).fillColor(LTGRAY).fill();
+      y += 12;
 
-      doc.font('Helvetica-Oblique').fontSize(9).fillColor(GOLD_LT)
-        .text(
-          `Thank you for choosing ${d.shopName}. We look forward to serving you again.`,
-          ML, FTR_Y + 14, { width: W, align: 'center' }
-        );
-
-      doc.font('Helvetica').fontSize(7.5).fillColor(GOLD)
-        .text(d.shopName.toUpperCase(), ML, FTR_Y + 30, { width: W, align: 'center' });
-
-      // Powered by Bloomtech.lk
-      doc.rect(0, FTR_Y + 46, PGW, 0.5).fillColor('#2a2a40').fill();
-      doc.font('Helvetica').fontSize(7).fillColor('#5a5a7a')
-        .text('Powered by Bloomtech.lk  ·  0779 160 704', ML, FTR_Y + 50, { width: W, align: 'center' });
+      // ── Footer ─────────────────────────────────────────────────────────────
+      doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(GRAY)
+        .text(`Thank you for choosing ${d.shopName}.`, ML, y, { width: W, align: 'center', lineBreak: false });
+      y += 13;
+      doc.font('Helvetica').fontSize(7).fillColor(LTGRAY)
+        .text('Powered by Bloomtech.lk  ·  0779 160 704', ML, y, { width: W, align: 'center', lineBreak: false });
 
       doc.end();
     } catch (err) { reject(err); }
