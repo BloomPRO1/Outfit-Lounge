@@ -35,7 +35,7 @@ function IdleScreen({ shopName, shopLogo }: { shopName: string; shopLogo: string
       className="flex-1 flex flex-col items-center justify-center relative overflow-hidden"
     >
       {/* Background layers */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0d0d14] via-[#111118] to-[#0a0a10]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-black via-black to-black" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,rgba(201,169,110,0.07)_0%,transparent_70%)]" />
 
       {/* Subtle animated ring */}
@@ -233,7 +233,7 @@ function CheckoutScreen({ total, amountPaid, change, customerName }: {
       exit={{ opacity: 0 }}
       className="flex-1 flex flex-col items-center justify-center gap-10 relative overflow-hidden"
     >
-      <div className="absolute inset-0 bg-gradient-to-b from-[#111118] via-[#0d150f] to-[#111118]" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-black to-black" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(74,222,128,0.06)_0%,transparent_70%)]" />
 
       <div className="relative z-10 flex flex-col items-center gap-8">
@@ -417,7 +417,7 @@ function FullscreenOverlay() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="absolute inset-0 z-50 flex flex-col items-center justify-center cursor-pointer"
-      style={{ background: 'rgba(10,10,16,0.97)' }}
+      style={{ background: '#000000' }}
       onClick={handleClick}
     >
       {/* Pulsing ring */}
@@ -491,7 +491,7 @@ export default function CustomerDisplayPage() {
   }, []);
 
   return (
-    <div className="h-screen bg-[#111118] text-charcoal-50 flex flex-col overflow-hidden select-none relative"
+    <div className="h-screen bg-black text-charcoal-50 flex flex-col overflow-hidden select-none relative"
          style={{ cursor: isFullscreen ? 'none' : 'default' }}>
 
       {/* Fullscreen activation overlay — shown until fullscreen is entered */}
