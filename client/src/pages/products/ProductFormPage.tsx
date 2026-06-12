@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, Plus, Trash2, CheckCircle, Package, Tag, Calendar, ShoppingBag, Pencil, Check } from 'lucide-react';
+import { Upload, X, Plus, Trash2, CheckCircle, Package, Tag, Calendar, ShoppingBag, Pencil, Check, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
@@ -520,15 +520,49 @@ export default function ProductFormPage() {
                 {(existingImages.length > 0 || imagePreviews.length > 0) && (
                   <div className="grid grid-cols-4 gap-3 mt-3">
                     {existingImages.map((img) => (
-                      <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden bg-charcoal-600">
+                      <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden bg-charcoal-600 group">
                         <img src={img.url} alt="" className="w-full h-full object-cover" />
+                        {/* Delete button */}
                         <button
-                          onClick={() => setExistingImages((prev) => prev.filter((x) => x.id !== img.id))}
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await productService.deleteImage(id!, img.id);
+                              setExistingImages((prev) => prev.filter((x) => x.id !== img.id));
+                            } catch {
+                              toast.error('Failed to delete image');
+                            }
+                          }}
                           className="absolute top-1 right-1 w-6 h-6 bg-red-500/80 rounded-full flex items-center justify-center"
                         >
                           <X size={12} className="text-white" />
                         </button>
-                        {img.is_primary && <span className="absolute bottom-1 left-1 text-xs bg-gold-600 text-charcoal-900 px-1.5 py-0.5 rounded font-medium">Primary</span>}
+                        {/* Set as primary button — shown on hover for non-primary images */}
+                        {!img.is_primary && (
+                          <button
+                            type="button"
+                            title="Set as primary"
+                            onClick={async () => {
+                              try {
+                                await productService.setImagePrimary(id!, img.id);
+                                setExistingImages((prev) =>
+                                  prev.map((x) => ({ ...x, is_primary: x.id === img.id }))
+                                );
+                                toast.success('Primary image updated');
+                              } catch {
+                                toast.error('Failed to set primary image');
+                              }
+                            }}
+                            className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 bg-charcoal-800/80 rounded-full flex items-center justify-center"
+                          >
+                            <Star size={11} className="text-gold-400" />
+                          </button>
+                        )}
+                        {img.is_primary && (
+                          <span className="absolute bottom-1 left-1 text-xs bg-gold-600 text-charcoal-900 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                            <Star size={9} fill="currentColor" /> Primary
+                          </span>
+                        )}
                       </div>
                     ))}
                     {imagePreviews.map((src, i) => (

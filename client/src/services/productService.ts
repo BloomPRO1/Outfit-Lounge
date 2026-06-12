@@ -34,6 +34,13 @@ export const productService = {
     });
     return data;
   },
+  deleteImage: async (productId: string, imageId: string) => {
+    await api.delete(`/products/${productId}/images/${imageId}`);
+  },
+  setImagePrimary: async (productId: string, imageId: string) => {
+    const { data } = await api.patch(`/products/${productId}/images/${imageId}/primary`);
+    return data;
+  },
   getCategories: async () => {
     const { data } = await api.get('/products/categories');
     return data as ProductCategory[];

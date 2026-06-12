@@ -425,6 +425,48 @@ export async function uploadProductImage(req: AuthRequest, res: Response): Promi
   res.status(201).json(result.rows[0]);
 }
 
+export async function deleteProductImage(req: AuthRequest, res: Response): Promise<void> {
+  const { id, imageId } = req.params;
+  const result = await db.query(
+    `DELETE FROM product_images WHERE id = $1 AND product_id = $2 RETURNING id, is_primary`,
+    [imageId, id]
+  );
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Image not found' });
+    return;
+  }
+  // If the deleted image was primary, promote the next image automatically
+  if (result.rows[0].is_primary) {
+    await db.query(`
+      UPDATE product_images SET is_primary = true
+      WHERE id = (
+        SELECT id FROM product_images WHERE product_id = $1
+        ORDER BY sort_order, created_at LIMIT 1
+      )
+    `, [id]);
+  }
+  res.status(204).send();
+}
+
+export async function setProductImagePrimary(req: AuthRequest, res: Response): Promise<void> {
+  const { id, imageId } = req.params;
+  // Verify the image belongs to this product
+  const check = await db.query(
+    `SELECT id FROM product_images WHERE id = $1 AND product_id = $2`,
+    [imageId, id]
+  );
+  if (!check.rows[0]) {
+    res.status(404).json({ error: 'Image not found' });
+    return;
+  }
+  await db.query(`UPDATE product_images SET is_primary = false WHERE product_id = $1`, [id]);
+  const result = await db.query(
+    `UPDATE product_images SET is_primary = true WHERE id = $1 RETURNING *`,
+    [imageId]
+  );
+  res.json(result.rows[0]);
+}
+
 export async function getCategories(_req: Request, res: Response): Promise<void> {
   const result = await db.query(`
     SELECT pc.*, COUNT(p.id) as product_count

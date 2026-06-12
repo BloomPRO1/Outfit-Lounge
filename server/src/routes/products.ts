@@ -2,7 +2,8 @@ import { Router } from 'express';
 import {
   getProducts, getProductById, getProductByBarcode,
   createProduct, updateProduct, deleteProduct,
-  uploadProductImage, getCategories, createCategory,
+  uploadProductImage, deleteProductImage, setProductImagePrimary,
+  getCategories, createCategory,
   createVariant, updateVariant, deleteVariant,
   splitVariantToRental, serveProductImage,
 } from '../controllers/productController';
@@ -31,6 +32,8 @@ router.delete('/:id', requireManagerOrAbove, deleteProduct);
 
 // Images
 router.post('/:id/images', requireManagerOrAbove, upload.single('image'), uploadProductImage);
+router.delete('/:id/images/:imageId', requireManagerOrAbove, deleteProductImage);
+router.patch('/:id/images/:imageId/primary', requireManagerOrAbove, setProductImagePrimary);
 
 // Variants
 router.post('/:id/variants', requireManagerOrAbove, createVariant);
