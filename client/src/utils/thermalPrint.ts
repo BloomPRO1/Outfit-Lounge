@@ -82,10 +82,10 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
 <body>
 
   <div class="c" style="margin-bottom:2.5mm;">
-    <img src="${logoSrc}" style="max-width:36mm;max-height:36mm;object-fit:contain;display:block;margin:0 auto;"
+    <img src="${logoSrc}" style="max-width:52mm;max-height:52mm;object-fit:contain;display:block;margin:0 auto;"
          onerror="this.style.display='none'" />
   </div>
-  <div class="c b" style="font-size:11pt;letter-spacing:0.5px;">${shop.name}</div>
+  <div class="c b" style="font-size:11pt;letter-spacing:0.5px;">${shop.name.toUpperCase()}</div>
   ${shop.address ? `<div class="c sm" style="margin-top:0.5mm;">${shop.address}</div>` : ''}
   ${shop.phone   ? `<div class="c sm">${shop.phone}</div>` : ''}
 
@@ -114,7 +114,7 @@ export function buildReceiptHTML(receipt: ThermalReceiptData, shop: ShopInfo): s
   <div class="dash"></div>
 
   <div class="c sm" style="margin-top:1.5mm;">Thank you for your business!</div>
-  <div class="c b" style="font-size:8.5pt;margin-top:1mm;">${shop.name}</div>
+  <div class="c b" style="font-size:8.5pt;margin-top:1mm;">${shop.name.toUpperCase()}</div>
 
   <div class="dash" style="margin-top:3mm;"></div>
   <div class="c" style="font-size:7.5pt;color:#666;margin-top:1mm;">Powered by <span style="font-weight:700;color:#444;">Bloomtech.lk</span></div>
@@ -207,10 +207,10 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
 <body>
 
   <div class="c" style="margin-bottom:2mm;">
-    <img src="${logoSrc}" style="max-width:36mm;max-height:36mm;object-fit:contain;display:block;margin:0 auto;"
+    <img src="${logoSrc}" style="max-width:52mm;max-height:52mm;object-fit:contain;display:block;margin:0 auto;"
          onerror="this.style.display='none'" />
   </div>
-  <div class="c b" style="font-size:11pt;letter-spacing:0.5px;">${shop.name}</div>
+  <div class="c b" style="font-size:11pt;letter-spacing:0.5px;">${shop.name.toUpperCase()}</div>
   ${shop.address ? `<div class="c sm">${shop.address}</div>` : ''}
   ${shop.phone   ? `<div class="c sm">${shop.phone}</div>` : ''}
 
@@ -264,7 +264,7 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
 
   <div class="dash" style="margin-top:3mm;"></div>
   <div class="c sm">Thank you for choosing</div>
-  <div class="c b" style="font-size:9pt;">${shop.name}</div>
+  <div class="c b" style="font-size:9pt;">${shop.name.toUpperCase()}</div>
 
   <div class="dash" style="margin-top:3mm;"></div>
   <div class="c" style="font-size:7.5pt;color:#666;margin-top:1mm;">Powered by <span style="font-weight:700;color:#444;">Bloomtech.lk</span></div>
