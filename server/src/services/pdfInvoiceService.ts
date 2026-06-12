@@ -4,6 +4,17 @@ import { db } from '../config/database';
 import path from 'path';
 import fs from 'fs';
 
+function loadLogoBuffer(): Buffer | null {
+  const candidates = [
+    path.join(__dirname, '../../../client/public/logo.jpg'),
+    path.join(__dirname, '../../../client/dist/logo.jpg'),
+  ];
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return fs.readFileSync(p); } catch { /* try next */ }
+  }
+  return null;
+}
+
 // ─── In-memory invoice store (24h TTL) ────────────────────────────────────────
 interface InvoiceEntry { buffer: Buffer; filename: string; expires: number; }
 const store = new Map<string, InvoiceEntry>();
@@ -51,7 +62,17 @@ async function buildPDF(d: PDFData): Promise<Buffer> {
       const PGW = 595;
       const ML = 50; const MR = 50; const W = PGW - ML - MR;
 
-      let y = 48;
+      let y = 40;
+
+      // ── Logo ───────────────────────────────────────────────────────────────
+      const logoBuffer = loadLogoBuffer();
+      const LOGO_SIZE = 64;
+      if (logoBuffer) {
+        try {
+          doc.image(logoBuffer, Math.round((PGW - LOGO_SIZE) / 2), y, { fit: [LOGO_SIZE, LOGO_SIZE] });
+        } catch { /* skip if corrupt */ }
+        y += LOGO_SIZE + 10;
+      }
 
       // ── Shop name & contact ────────────────────────────────────────────────
       doc.font('Helvetica-Bold').fontSize(22).fillColor(BLACK)
