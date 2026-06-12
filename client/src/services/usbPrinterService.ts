@@ -6,8 +6,21 @@ const COLS = 32; // characters per line on 80mm paper
 let dev: any = null;
 let outEp = 1; // bulk-OUT endpoint number
 
+// Auto-clear dev when the printer is physically unplugged
+if ((navigator as any).usb) {
+  (navigator as any).usb.addEventListener('disconnect', (e: any) => {
+    if (dev === e.device) dev = null;
+  });
+}
+
 /** Ask the user to pick a USB printer (one-time). Chrome remembers the permission. */
 export async function connectUsbPrinter(): Promise<string> {
+  // Release any previous device before claiming a new one
+  if (dev) {
+    try { await dev.close(); } catch { /* already closed */ }
+    dev = null;
+  }
+
   const d = await (navigator as any).usb.requestDevice({ filters: [] });
   await d.open();
   if (d.configuration === null) await d.selectConfiguration(1);
@@ -31,12 +44,24 @@ export async function connectUsbPrinter(): Promise<string> {
   return d.productName || 'USB Printer';
 }
 
+export async function disconnectUsbPrinter(): Promise<void> {
+  if (dev) {
+    try { await dev.close(); } catch { /* ignore */ }
+    dev = null;
+  }
+}
+
 export function isUsbConnected(): boolean {
   return dev !== null;
 }
 
 export function getReceiptPrinterName(): string {
   return dev?.productName || '';
+}
+
+/** Returns the underlying USB device — used to detect same-device conflicts. */
+export function getUsbDevice(): unknown {
+  return dev;
 }
 
 export async function usbPrint(receipt: ThermalReceiptData, shop: ShopInfo): Promise<void> {

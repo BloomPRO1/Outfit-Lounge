@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw, Check, Minus, MessageCircle, Zap, Cloud, Smartphone, Printer, Usb } from 'lucide-react';
-import { connectUsbPrinter, isUsbConnected, getReceiptPrinterName } from '@/services/usbPrinterService';
-import { connectLabelPrinter, isLabelConnected, getLabelPrinterName } from '@/services/labelPrinterService';
+import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw, Check, Minus, MessageCircle, Zap, Cloud, Smartphone, Printer, Usb, AlertTriangle, XCircle } from 'lucide-react';
+import { connectUsbPrinter, disconnectUsbPrinter, isUsbConnected, getReceiptPrinterName, getUsbDevice } from '@/services/usbPrinterService';
+import { connectLabelPrinter, disconnectLabelPrinter, isLabelConnected, getLabelPrinterName, getLabelDevice } from '@/services/labelPrinterService';
 import { toast } from 'sonner';
 import { settingsService } from '@/services/settingsService';
 import { permissionsService } from '@/services/permissionsService';
@@ -43,6 +43,9 @@ function PrinterSettings() {
   const [labelConnected, setLabelConnected]     = useState(isLabelConnected());
   const [labelName, setLabelName]               = useState(getLabelPrinterName());
 
+  // Detect if both slots point to the same physical device
+  const sameDevice = receiptConnected && labelConnected && getUsbDevice() === getLabelDevice();
+
   const handleConnectReceipt = async () => {
     try {
       const name = await connectUsbPrinter();
@@ -52,6 +55,13 @@ function PrinterSettings() {
     } catch {
       toast.error('Could not connect receipt printer');
     }
+  };
+
+  const handleDisconnectReceipt = async () => {
+    await disconnectUsbPrinter();
+    setReceiptConnected(false);
+    setReceiptName('');
+    toast.success('Receipt printer disconnected');
   };
 
   const handleConnectLabel = async () => {
@@ -65,6 +75,13 @@ function PrinterSettings() {
     }
   };
 
+  const handleDisconnectLabel = async () => {
+    await disconnectLabelPrinter();
+    setLabelConnected(false);
+    setLabelName('');
+    toast.success('Label printer disconnected');
+  };
+
   return (
     <div className="space-y-6 max-w-lg">
       <div>
@@ -75,31 +92,51 @@ function PrinterSettings() {
         </p>
       </div>
 
+      {/* Same-device conflict warning */}
+      {sameDevice && (
+        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-900/20 border border-red-700/40">
+          <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-red-300">
+            <strong>Both printers point to the same device.</strong> Barcode data will be sent to the receipt printer,
+            causing it to print barcodes before receipts. Disconnect the label printer and reconnect it to the correct device.
+          </p>
+        </div>
+      )}
+
       {/* Receipt printer */}
       <div className="p-4 rounded-xl border border-charcoal-500 bg-charcoal-700/40 space-y-3">
         <div className="flex items-center gap-2">
           <Printer size={16} className="text-gold-400" />
           <span className="text-sm font-medium text-charcoal-50">Receipt Printer</span>
-          <span className="text-xs text-charcoal-300">(POS sales)</span>
+          <span className="text-xs text-charcoal-300">(POS sales · ESC/POS)</span>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Usb size={13} className={receiptConnected ? 'text-emerald-400' : 'text-charcoal-400'} />
-            <span className="text-sm text-charcoal-200">
+            <span className="text-sm text-charcoal-200 font-medium">
               {receiptConnected ? receiptName || 'Connected' : 'Not connected'}
             </span>
             {receiptConnected && (
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">
-                ACTIVE
-              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">ACTIVE</span>
             )}
           </div>
-          <Button variant={receiptConnected ? 'secondary' : 'primary'} size="sm" onClick={handleConnectReceipt}>
-            {receiptConnected ? 'Reconnect' : 'Connect'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {receiptConnected && (
+              <button
+                onClick={handleDisconnectReceipt}
+                className="p-1.5 rounded-lg text-charcoal-400 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                title="Disconnect receipt printer"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
+            <Button variant={receiptConnected ? 'secondary' : 'primary'} size="sm" onClick={handleConnectReceipt}>
+              {receiptConnected ? 'Reconnect' : 'Connect'}
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-charcoal-400">
-          ESC/POS — 80 mm thermal receipt printer (e.g. POSPrinter POS-80)
+          80 mm thermal receipt printer (e.g. POS-80). Make sure you select the <strong className="text-charcoal-300">receipt printer</strong> in the browser popup — not the barcode printer.
         </p>
       </div>
 
@@ -107,37 +144,56 @@ function PrinterSettings() {
       <div className="p-4 rounded-xl border border-charcoal-500 bg-charcoal-700/40 space-y-3">
         <div className="flex items-center gap-2">
           <Printer size={16} className="text-gold-400" />
-          <span className="text-sm font-medium text-charcoal-50">Label Printer</span>
-          <span className="text-xs text-charcoal-300">(barcodes)</span>
+          <span className="text-sm font-medium text-charcoal-50">Label / Barcode Printer</span>
+          <span className="text-xs text-charcoal-300">(TSPL)</span>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Usb size={13} className={labelConnected ? 'text-emerald-400' : 'text-charcoal-400'} />
-            <span className="text-sm text-charcoal-200">
+            <span className="text-sm text-charcoal-200 font-medium">
               {labelConnected ? labelName || 'Connected' : 'Not connected'}
             </span>
             {labelConnected && (
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">
-                ACTIVE
-              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium">ACTIVE</span>
             )}
           </div>
-          <Button variant={labelConnected ? 'secondary' : 'primary'} size="sm" onClick={handleConnectLabel}>
-            {labelConnected ? 'Reconnect' : 'Connect'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {labelConnected && (
+              <button
+                onClick={handleDisconnectLabel}
+                className="p-1.5 rounded-lg text-charcoal-400 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+                title="Disconnect label printer"
+              >
+                <XCircle size={15} />
+              </button>
+            )}
+            <Button variant={labelConnected ? 'secondary' : 'primary'} size="sm" onClick={handleConnectLabel}>
+              {labelConnected ? 'Reconnect' : 'Connect'}
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-charcoal-400">
-          TSPL — 45 × 30 mm thermal label printer (generic USB thermal)
+          Thermal label printer (40×50 mm). Make sure you select the <strong className="text-charcoal-300">label printer</strong> in the browser popup — not the receipt printer.
+        </p>
+      </div>
+
+      <div className="p-3 rounded-xl bg-amber-900/15 border border-amber-700/30 space-y-1.5">
+        <p className="text-xs font-medium text-amber-300 flex items-center gap-1.5">
+          <AlertTriangle size={12} /> Switching printers
+        </p>
+        <p className="text-xs text-charcoal-300">
+          Before unplugging one printer and plugging in a different one, click the <strong className="text-charcoal-100">✕ disconnect button</strong> first.
+          This prevents barcode data from accidentally being sent to the receipt printer.
         </p>
       </div>
 
       <div className="p-3 rounded-xl bg-charcoal-600/30 border border-charcoal-500/40 space-y-1">
         <p className="text-xs font-medium text-charcoal-200">How it works</p>
         <ul className="text-xs text-charcoal-300 space-y-0.5 list-disc list-inside">
-          <li>Click <strong className="text-charcoal-100">Connect</strong> and select the printer from the browser popup (one-time)</li>
+          <li>Click <strong className="text-charcoal-100">Connect</strong> and select the correct printer from the browser popup</li>
           <li>Chrome remembers the USB permission — no re-pairing needed after restart</li>
           <li>POS receipts and barcode labels print silently to their respective printers</li>
-          <li>If a printer is disconnected, printing falls back to the browser dialog</li>
+          <li>If a printer is unplugged, it auto-disconnects — printing falls back to browser dialog</li>
         </ul>
       </div>
     </div>

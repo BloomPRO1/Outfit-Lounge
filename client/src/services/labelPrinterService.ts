@@ -4,8 +4,21 @@ import type { BarcodeItem } from '@/components/common/BarcodePrintModal';
 let dev: any = null;
 let outEp = 1;
 
+// Auto-clear dev when the printer is physically unplugged
+if ((navigator as any).usb) {
+  (navigator as any).usb.addEventListener('disconnect', (e: any) => {
+    if (dev === e.device) dev = null;
+  });
+}
+
 /** Ask the user to pick the USB label printer (one-time). Chrome remembers the permission. */
 export async function connectLabelPrinter(): Promise<string> {
+  // Release any previous device before claiming a new one
+  if (dev) {
+    try { await dev.close(); } catch { /* already closed */ }
+    dev = null;
+  }
+
   const d = await (navigator as any).usb.requestDevice({ filters: [] });
   await d.open();
   if (d.configuration === null) await d.selectConfiguration(1);
@@ -27,12 +40,24 @@ export async function connectLabelPrinter(): Promise<string> {
   return d.productName || 'USB Label Printer';
 }
 
+export async function disconnectLabelPrinter(): Promise<void> {
+  if (dev) {
+    try { await dev.close(); } catch { /* ignore */ }
+    dev = null;
+  }
+}
+
 export function isLabelConnected(): boolean {
   return dev !== null;
 }
 
 export function getLabelPrinterName(): string {
   return dev?.productName || '';
+}
+
+/** Returns the underlying USB device — used to detect same-device conflicts. */
+export function getLabelDevice(): unknown {
+  return dev;
 }
 
 /** Send TSPL label commands directly to the printer — zero dialogs. */
