@@ -53,7 +53,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
   const dataRes = await db.query(`
     SELECT p.*,
            pc.name as category_name,
-           CASE WHEN primary_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as primary_image,
+           CASE WHEN any_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as primary_image,
            COALESCE(pv_stats.variant_count, 0) as variant_count,
            COALESCE(pv_stats.total_stock, 0) as total_stock,
            COALESCE(pv_stats.total_available, 0) as total_available
@@ -62,9 +62,9 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     LEFT JOIN LATERAL (
       SELECT true as has_image FROM product_images
-      WHERE product_id = p.id AND is_primary = true
+      WHERE product_id = p.id
       LIMIT 1
-    ) primary_img ON true
+    ) any_img ON true
     LEFT JOIN LATERAL (
       SELECT
         COUNT(*)                                      AS variant_count,
@@ -132,7 +132,9 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
            pi.url as primary_image
     FROM products p
     LEFT JOIN product_categories pc ON pc.id = p.category_id
-    LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = true
+    LEFT JOIN LATERAL (
+      SELECT url FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, sort_order, created_at LIMIT 1
+    ) pi ON true
     WHERE p.barcode = $1 OR p.sku = $1
   `, [barcode]);
 
@@ -148,7 +150,9 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       LEFT JOIN product_categories pc ON pc.id = p.category_id
-      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = true
+      LEFT JOIN LATERAL (
+        SELECT url FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, sort_order, created_at LIMIT 1
+      ) pi ON true
       WHERE pv.sku = $1 OR ($2::int IS NOT NULL AND pv.label_id = $2::int)
     `, [barcode, isNaN(labelId) ? null : labelId]);
 
@@ -375,8 +379,9 @@ export async function deleteVariant(req: Request, res: Response): Promise<void> 
 
 export async function serveProductImage(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
+  // Prefer the primary image; fall back to first available image
   const result = await db.query(
-    `SELECT url FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1`,
+    `SELECT url FROM product_images WHERE product_id = $1 ORDER BY is_primary DESC, sort_order, created_at LIMIT 1`,
     [id]
   );
   if (!result.rows[0]) { res.status(404).end(); return; }
@@ -400,14 +405,22 @@ export async function uploadProductImage(req: AuthRequest, res: Response): Promi
 
   const imageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
-  if (isPrimary === 'true' || isPrimary === true) {
+  const wantsPrimary = isPrimary === 'true' || isPrimary === true;
+
+  // Auto-promote to primary if this product has no primary image yet
+  const existingPrimary = await db.query(
+    `SELECT 1 FROM product_images WHERE product_id = $1 AND is_primary = true LIMIT 1`, [id]
+  );
+  const setAsPrimary = wantsPrimary || existingPrimary.rowCount === 0;
+
+  if (setAsPrimary) {
     await db.query(`UPDATE product_images SET is_primary = false WHERE product_id = $1`, [id]);
   }
 
   const result = await db.query(`
     INSERT INTO product_images (product_id, url, is_primary)
     VALUES ($1, $2, $3) RETURNING *
-  `, [id, imageUrl, isPrimary === 'true' || isPrimary === true]);
+  `, [id, imageUrl, setAsPrimary]);
 
   res.status(201).json(result.rows[0]);
 }

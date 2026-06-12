@@ -43,7 +43,9 @@ export async function getInventory(req: Request, res: Response): Promise<void> {
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN product_categories pc ON pc.id = p.category_id
-    LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = true
+    LEFT JOIN LATERAL (
+      SELECT id FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, sort_order, created_at LIMIT 1
+    ) pi ON true
     ${whereClause}
     ORDER BY p.name, pv.size
     LIMIT $${pi} OFFSET $${pi + 1}
@@ -203,7 +205,9 @@ export async function getLowStockAlerts(_req: Request, res: Response): Promise<v
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     LEFT JOIN product_categories pc ON pc.id = p.category_id
-    LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = true
+    LEFT JOIN LATERAL (
+      SELECT id FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, sort_order, created_at LIMIT 1
+    ) pi ON true
     WHERE p.is_active = true AND pv.stock_quantity <= $1
     ORDER BY pv.stock_quantity ASC
   `, [threshold]);
