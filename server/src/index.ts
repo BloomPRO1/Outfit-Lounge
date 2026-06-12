@@ -21,6 +21,7 @@ import permissionsRoutes from './routes/permissions';
 import analyticsRoutes from './routes/analytics';
 import hrRoutes from './routes/hr';
 import promotionsRoutes from './routes/promotions';
+import promotionCodesRoutes from './routes/promotionCodes';
 import invoiceRoutes from './routes/invoices';
 import whatsappRoutes from './routes/whatsapp';
 
@@ -68,6 +69,7 @@ app.use('/api/permissions', permissionsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/promotions', promotionsRoutes);
+app.use('/api/promotion-codes', promotionCodesRoutes);
 app.use('/api/invoices', invoiceRoutes);  // Public PDF download (no auth)
 app.use('/api/whatsapp', whatsappRoutes);
 

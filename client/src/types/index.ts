@@ -322,3 +322,20 @@ export interface Promotion {
   created_by_name?: string;
   created_at: string;
 }
+
+// ─── Promotion Codes ──────────────────────────────────────────────────────────
+export type PromoCodeDiscountType = 'percentage' | 'flat_amount';
+
+export interface PromotionCode {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  discount_type: PromoCodeDiscountType;
+  discount_value: number;
+  scope: PromotionScope;
+  is_active: boolean;
+  usage_count: number;
+  created_by_name?: string;
+  created_at: string;
+}

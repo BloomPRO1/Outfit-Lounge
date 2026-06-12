@@ -14,13 +14,15 @@ import { customerService } from '@/services/customerService';
 import { productService } from '@/services/productService';
 import { settingsService } from '@/services/settingsService';
 import { calculatePromoDiscount } from '@/services/promotionService';
+import { calculateCodeDiscount } from '@/services/promotionCodeService';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Textarea from '@/components/common/Textarea';
 import PromotionSelector from '@/components/common/PromotionSelector';
+import PromoCodeInput from '@/components/common/PromoCodeInput';
 import { formatCurrency, getDaysDiff } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
-import type { Customer, Promotion } from '@/types';
+import type { Customer, Promotion, PromotionCode } from '@/types';
 
 const STEPS = ['Customer', 'Items', 'Dates', 'Payment', 'Confirm'];
 
@@ -82,6 +84,7 @@ export default function NewRentalPage() {
   const [securityDeposit, setSecurityDeposit] = useState('');
   const [securityIdNumber, setSecurityIdNumber] = useState('');
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
+  const [appliedPromoCode, setAppliedPromoCode] = useState<PromotionCode | null>(null);
   const [showRules, setShowRules] = useState(false);
 
   const { data: settings } = useQuery({
@@ -134,8 +137,9 @@ export default function NewRentalPage() {
         'rental'
       )
     : 0;
+  const promoCodeDiscount = appliedPromoCode ? calculateCodeDiscount(appliedPromoCode, totalCost) : 0;
   const manualDiscountAmt = parseFloat(manualDiscount || '0');
-  const finalTotal = Math.max(0, totalCost - manualDiscountAmt - promoDiscount);
+  const finalTotal = Math.max(0, totalCost - manualDiscountAmt - promoDiscount - promoCodeDiscount);
 
   // Broadcast rental items to customer display in real-time
   useEffect(() => {
@@ -246,6 +250,7 @@ export default function NewRentalPage() {
       advancePayment: parseFloat(advancePayment || '0'),
       discountAmount: manualDiscountAmt,
       promotionId: selectedPromotion?.id ?? null,
+      promoCode: appliedPromoCode?.code ?? null,
       eventType: finalEventType,
       notes,
       paymentMethod,
@@ -567,7 +572,13 @@ export default function NewRentalPage() {
                           <span>-{formatCurrency(promoDiscount)}</span>
                         </div>
                       )}
-                      {(manualDiscountAmt > 0 || promoDiscount > 0) && (
+                      {promoCodeDiscount > 0 && appliedPromoCode && (
+                        <div className="flex justify-between text-sm text-emerald-400">
+                          <span className="font-mono tracking-wide">{appliedPromoCode.code}</span>
+                          <span>-{formatCurrency(promoCodeDiscount)}</span>
+                        </div>
+                      )}
+                      {(manualDiscountAmt > 0 || promoDiscount > 0 || promoCodeDiscount > 0) && (
                         <div className="flex justify-between text-sm font-bold pt-1 border-t border-charcoal-500">
                           <span className="text-charcoal-100">Net Total</span>
                           <span className="text-gold-400">{formatCurrency(finalTotal)}</span>
@@ -630,6 +641,13 @@ export default function NewRentalPage() {
                       onSelect={setSelectedPromotion}
                     />
 
+                    <PromoCodeInput
+                      scope="rental"
+                      subtotal={totalCost}
+                      appliedCode={appliedPromoCode}
+                      onApply={setAppliedPromoCode}
+                    />
+
                     {/* Security / Guarantee */}
                     <div>
                       <p className="text-sm font-medium text-charcoal-200 mb-2">Security / Guarantee</p>
@@ -690,8 +708,9 @@ export default function NewRentalPage() {
                         { label: 'Event',          value: finalEventType || '—' },
                         { label: 'Items',          value: `${cartItems.length} item(s)` },
                         { label: 'Rental Cost',    value: formatCurrency(totalCost) },
-                        ...(promoDiscount > 0 || manualDiscountAmt > 0 ? [{ label: 'Net Total', value: formatCurrency(finalTotal) }] : []),
+                        ...(promoDiscount > 0 || manualDiscountAmt > 0 || promoCodeDiscount > 0 ? [{ label: 'Net Total', value: formatCurrency(finalTotal) }] : []),
                         ...(selectedPromotion ? [{ label: 'Promotion', value: selectedPromotion.name }] : []),
+                        ...(appliedPromoCode ? [{ label: 'Promo Code', value: appliedPromoCode.code }] : []),
                         { label: 'Advance Paid',   value: formatCurrency(parseFloat(advancePayment || '0')) },
                         { label: 'Balance Due',    value: formatCurrency(Math.max(0, finalTotal - parseFloat(advancePayment || '0'))) },
                         { label: 'Payment Method', value: paymentMethod.replace('_', ' ') },
@@ -828,13 +847,13 @@ export default function NewRentalPage() {
                   <span className="text-charcoal-400">Rental Cost</span>
                   <span className="text-gold-400 font-semibold">{formatCurrency(totalCost)}</span>
                 </div>
-                {(promoDiscount > 0 || manualDiscountAmt > 0) && (
+                {(promoDiscount > 0 || manualDiscountAmt > 0 || promoCodeDiscount > 0) && (
                   <div className="flex justify-between text-xs text-emerald-400">
                     <span>Discount</span>
-                    <span>-{formatCurrency(promoDiscount + manualDiscountAmt)}</span>
+                    <span>-{formatCurrency(promoDiscount + manualDiscountAmt + promoCodeDiscount)}</span>
                   </div>
                 )}
-                {(promoDiscount > 0 || manualDiscountAmt > 0) && (
+                {(promoDiscount > 0 || manualDiscountAmt > 0 || promoCodeDiscount > 0) && (
                   <div className="flex justify-between text-xs font-semibold pt-1 border-t border-charcoal-600">
                     <span className="text-charcoal-200">Net Total</span>
                     <span className="text-gold-400">{formatCurrency(finalTotal)}</span>

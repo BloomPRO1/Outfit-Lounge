@@ -13,6 +13,7 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
     amountPaid,
     notes,
     promotionId,
+    promoCode,
   } = req.body;
 
   if (!items?.length) {
@@ -116,7 +117,38 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
       `, [promotionId]);
     }
 
-    const totalDiscountAmount = discountAmount + promotionDiscount;
+    // ── Promo Code resolution ───────────────────────────────────────────────
+    let promoCodeDiscount = 0;
+    let resolvedPromoCodeId: string | null = null;
+
+    if (promoCode) {
+      const codeRes = await client.query(`
+        SELECT * FROM promotion_codes
+        WHERE UPPER(code) = UPPER($1)
+          AND is_active = true
+          AND (scope = 'pos' OR scope = 'both')
+        FOR UPDATE
+      `, [promoCode]);
+
+      if (!codeRes.rows[0]) throw new Error('Invalid or inactive promotion code.');
+      const pc = codeRes.rows[0];
+
+      if (pc.discount_type === 'percentage') {
+        promoCodeDiscount = subtotal * (parseFloat(pc.discount_value) / 100);
+      } else if (pc.discount_type === 'flat_amount') {
+        promoCodeDiscount = Math.min(parseFloat(pc.discount_value), subtotal);
+      }
+
+      promoCodeDiscount = Math.max(0, promoCodeDiscount);
+      resolvedPromoCodeId = pc.id;
+
+      await client.query(
+        `UPDATE promotion_codes SET usage_count = usage_count + 1, updated_at = NOW() WHERE id = $1`,
+        [pc.id]
+      );
+    }
+
+    const totalDiscountAmount = discountAmount + promotionDiscount + promoCodeDiscount;
     const taxAmount = subtotal * (taxRate / 100);
     const totalAmount = subtotal - totalDiscountAmount + taxAmount;
     const changeAmount = Math.max(0, (amountPaid || totalAmount) - totalAmount);
@@ -173,6 +205,14 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
         INSERT INTO promotion_usages (promotion_id, sale_id, discount_amount, used_by)
         VALUES ($1, $2, $3, $4)
       `, [resolvedPromotionId, sale.id, promotionDiscount, req.user?.id]);
+    }
+
+    // Record promo code usage
+    if (resolvedPromoCodeId && promoCodeDiscount > 0) {
+      await client.query(`
+        INSERT INTO promotion_code_usages (promotion_code_id, sale_id, discount_amount, used_by)
+        VALUES ($1, $2, $3, $4)
+      `, [resolvedPromoCodeId, sale.id, promoCodeDiscount, req.user?.id]);
     }
 
     await client.query('COMMIT');

@@ -14,6 +14,7 @@ import { productService } from '@/services/productService';
 import { posService } from '@/services/posService';
 import { customerService } from '@/services/customerService';
 import { calculatePromoDiscount } from '@/services/promotionService';
+import { calculateCodeDiscount } from '@/services/promotionCodeService';
 import { settingsService } from '@/services/settingsService';
 import { customerDisplay } from '@/services/customerDisplayChannel';
 import { useCartStore } from '@/store/cartStore';
@@ -21,11 +22,12 @@ import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Drawer from '@/components/common/Drawer';
 import PromotionSelector from '@/components/common/PromotionSelector';
+import PromoCodeInput from '@/components/common/PromoCodeInput';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
 import { buildReceiptHTML, printViaIframe } from '@/utils/thermalPrint';
 import { isUsbConnected, usbPrint } from '@/services/usbPrinterService';
-import type { ProductCategory, Promotion } from '@/types';
+import type { ProductCategory, Promotion, PromotionCode } from '@/types';
 
 const PAYMENT_METHODS = [
   { value: 'cash',           label: 'Cash',         icon: Banknote   },
@@ -50,6 +52,7 @@ export default function POSPage() {
   const [showNotes, setShowNotes] = useState(false);
   const [variantPickerProduct, setVariantPickerProduct] = useState<any | null>(null);
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
+  const [appliedPromoCode, setAppliedPromoCode] = useState<PromotionCode | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState(false);
   // WhatsApp invoice state
   const [waInvoiceSent, setWaInvoiceSent] = useState(false);
@@ -247,6 +250,7 @@ export default function POSPage() {
       clearCart();
       setCustomer(null, null);
       setSelectedPromotion(null);
+      setAppliedPromoCode(null);
       setPaymentMethod('cash');
       setAmountPaid('');
       setExtraDiscount('');
@@ -365,7 +369,8 @@ export default function POSPage() {
         1, 'pos'
       )
     : 0;
-  const total = Math.max(0, subtotal - discount - discountAmount - promoDiscount);
+  const promoCodeDiscount = appliedPromoCode ? calculateCodeDiscount(appliedPromoCode, subtotal) : 0;
+  const total = Math.max(0, subtotal - discount - discountAmount - promoDiscount - promoCodeDiscount);
   const isCash = paymentMethod === 'cash';
   const paidAmount = isCash ? parseFloat(amountPaid || String(total)) : total;
   const change = Math.max(0, paidAmount - total);
@@ -436,6 +441,7 @@ export default function POSPage() {
       })),
       discountAmount: discount + discountAmount,
       promotionId: selectedPromotion?.id ?? null,
+      promoCode: appliedPromoCode?.code ?? null,
       paymentMethod,
       amountPaid: paidAmount,
       notes,
@@ -655,7 +661,7 @@ export default function POSPage() {
                     )}
                   </h3>
                   {cartItems.length > 0 && (
-                    <button onClick={() => { clearCart(); setExtraDiscount(''); setSelectedPromotion(null); }} className="text-xs text-charcoal-300 hover:text-red-400 transition-colors">Clear</button>
+                    <button onClick={() => { clearCart(); setExtraDiscount(''); setSelectedPromotion(null); setAppliedPromoCode(null); }} className="text-xs text-charcoal-300 hover:text-red-400 transition-colors">Clear</button>
                   )}
                 </div>
                 <div className="relative">
@@ -779,6 +785,12 @@ export default function POSPage() {
                     selectedId={selectedPromotion?.id ?? null}
                     onSelect={setSelectedPromotion}
                   />
+                  <PromoCodeInput
+                    scope="pos"
+                    subtotal={subtotal}
+                    appliedCode={appliedPromoCode}
+                    onApply={setAppliedPromoCode}
+                  />
                   {/* Total */}
                   <div className="flex justify-between items-center pt-1 border-t border-charcoal-600">
                     <span className="text-sm text-charcoal-200">
@@ -835,6 +847,12 @@ export default function POSPage() {
                       <div className="flex justify-between text-emerald-400">
                         <span className="truncate mr-2">{selectedPromotion.name}</span>
                         <span className="flex-shrink-0">-{formatCurrency(promoDiscount)}</span>
+                      </div>
+                    )}
+                    {promoCodeDiscount > 0 && appliedPromoCode && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span className="truncate mr-2 font-mono tracking-wide">{appliedPromoCode.code}</span>
+                        <span className="flex-shrink-0">-{formatCurrency(promoCodeDiscount)}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-bold text-base pt-0.5">

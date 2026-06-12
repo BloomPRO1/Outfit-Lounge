@@ -2,14 +2,15 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Percent, Plus, Pencil, Trash2, Eye, EyeOff,
-  Tag, TrendingDown, Clock, AlertCircle,
+  Tag, TrendingDown, Clock, AlertCircle, Hash,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { promotionService, getPromoDiscountLabel } from '@/services/promotionService';
+import { promotionCodeService } from '@/services/promotionCodeService';
 import { productService } from '@/services/productService';
 import { usePermissions } from '@/hooks/usePermissions';
-import type { Promotion, PromotionType, PromotionScope } from '@/types';
+import type { Promotion, PromotionType, PromotionScope, PromotionCode, PromoCodeDiscountType } from '@/types';
 import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
@@ -51,6 +52,22 @@ const EMPTY_FORM: PromoForm = {
   start_date: '', end_date: '', is_active: true,
 };
 
+interface CodeForm {
+  code: string;
+  name: string;
+  description: string;
+  discount_type: PromoCodeDiscountType | '';
+  discount_value: string;
+  scope: PromotionScope;
+  is_active: boolean;
+}
+
+const EMPTY_CODE_FORM: CodeForm = {
+  code: '', name: '', description: '',
+  discount_type: '', discount_value: '',
+  scope: 'both', is_active: true,
+};
+
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 const TYPE_BADGE: Record<PromotionType, { label: string; color: string }> = {
   percentage:  { label: 'Percentage',  color: 'text-gold-400 bg-gold-700/20 border border-gold-700/30' },
@@ -82,6 +99,9 @@ export default function PromotionsPage() {
   const { hasPermission } = usePermissions();
   const canWrite = hasPermission('promotions', 'write');
 
+  const [activeTab, setActiveTab] = useState<'promotions' | 'codes'>('promotions');
+
+  // ── Promotions state ────────────────────────────────────────────────────────
   const [scopeFilter,  setScopeFilter]  = useState<ScopeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showForm, setShowForm] = useState(false);
@@ -91,9 +111,21 @@ export default function PromotionsPage() {
   const [variantSearch, setVariantSearch] = useState('');
   const [variantResults, setVariantResults] = useState<any[]>([]);
 
+  // ── Codes state ─────────────────────────────────────────────────────────────
+  const [showCodeForm, setShowCodeForm] = useState(false);
+  const [editingCodeId, setEditingCodeId] = useState<string | null>(null);
+  const [codeForm, setCodeForm] = useState<CodeForm>(EMPTY_CODE_FORM);
+  const [codeFormError, setCodeFormError] = useState('');
+
   const { data: promotions = [], isLoading } = useQuery({
     queryKey: ['promotions'],
     queryFn: promotionService.getAll,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: codes = [], isLoading: codesLoading } = useQuery({
+    queryKey: ['promotion-codes'],
+    queryFn: promotionCodeService.getAll,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -119,6 +151,8 @@ export default function PromotionsPage() {
     qc.invalidateQueries({ queryKey: ['promotions'] });
     qc.invalidateQueries({ queryKey: ['promotions-active'] });
   };
+
+  const invalidateCodes = () => qc.invalidateQueries({ queryKey: ['promotion-codes'] });
 
   const createMut = useMutation({
     mutationFn: promotionService.create,
@@ -257,6 +291,94 @@ export default function PromotionsPage() {
 
   const isSaving = createMut.isPending || updateMut.isPending;
 
+  // ── Codes mutations ────────────────────────────────────────────────────────
+  const createCodeMut = useMutation({
+    mutationFn: promotionCodeService.create,
+    onSuccess: () => { toast.success('Promotion code created!'); invalidateCodes(); closeCodeForm(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create code'),
+  });
+  const updateCodeMut = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: any }) => promotionCodeService.update(id, payload),
+    onSuccess: () => { toast.success('Promotion code updated!'); invalidateCodes(); closeCodeForm(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update code'),
+  });
+  const toggleCodeMut = useMutation({
+    mutationFn: promotionCodeService.toggle,
+    onSuccess: () => invalidateCodes(),
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to toggle code'),
+  });
+  const deleteCodeMut = useMutation({
+    mutationFn: promotionCodeService.delete,
+    onSuccess: () => { toast.success('Code removed'); invalidateCodes(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to delete code'),
+  });
+
+  const isCodeSaving = createCodeMut.isPending || updateCodeMut.isPending;
+
+  // ── Code form helpers ──────────────────────────────────────────────────────
+  function openCreateCode() {
+    setEditingCodeId(null);
+    setCodeForm(EMPTY_CODE_FORM);
+    setCodeFormError('');
+    setShowCodeForm(true);
+  }
+  function openEditCode(c: PromotionCode) {
+    setEditingCodeId(c.id);
+    setCodeForm({
+      code: c.code,
+      name: c.name,
+      description: c.description ?? '',
+      discount_type: c.discount_type,
+      discount_value: String(c.discount_value),
+      scope: c.scope,
+      is_active: c.is_active,
+    });
+    setCodeFormError('');
+    setShowCodeForm(true);
+  }
+  function closeCodeForm() {
+    setShowCodeForm(false);
+    setEditingCodeId(null);
+    setCodeForm(EMPTY_CODE_FORM);
+    setCodeFormError('');
+  }
+  function setCodeField(key: keyof CodeForm, value: any) {
+    setCodeForm(f => ({ ...f, [key]: value }));
+  }
+
+  function validateCodeForm(): string | null {
+    if (!codeForm.code.trim())         return 'Code is required';
+    if (!codeForm.name.trim())         return 'Name is required';
+    if (!codeForm.discount_type)       return 'Discount type is required';
+    if (!codeForm.discount_value || parseFloat(codeForm.discount_value) <= 0) return 'Discount value must be greater than 0';
+    if (codeForm.discount_type === 'percentage') {
+      const v = parseFloat(codeForm.discount_value);
+      if (v > 100) return 'Percentage cannot exceed 100';
+    }
+    return null;
+  }
+
+  function handleCodeSubmit() {
+    const err = validateCodeForm();
+    if (err) { setCodeFormError(err); return; }
+
+    const payload: any = {
+      code:           codeForm.code.trim().toUpperCase(),
+      name:           codeForm.name.trim(),
+      description:    codeForm.description.trim() || null,
+      discount_type:  codeForm.discount_type,
+      discount_value: parseFloat(codeForm.discount_value),
+      scope:          codeForm.scope,
+      is_active:      codeForm.is_active,
+    };
+
+    if (editingCodeId) {
+      updateCodeMut.mutate({ id: editingCodeId, payload });
+    } else {
+      createCodeMut.mutate(payload);
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="p-6 space-y-6">
@@ -267,11 +389,46 @@ export default function PromotionsPage() {
           <p className="text-charcoal-300 text-sm mt-0.5">Create and manage discount promotions for POS and Rentals</p>
         </div>
         {canWrite && (
-          <Button onClick={openCreate} className="btn-gold flex items-center gap-2">
-            <Plus size={16} /> New Promotion
-          </Button>
+          activeTab === 'promotions' ? (
+            <Button onClick={openCreate} className="btn-gold flex items-center gap-2">
+              <Plus size={16} /> New Promotion
+            </Button>
+          ) : (
+            <Button onClick={openCreateCode} className="btn-gold flex items-center gap-2">
+              <Plus size={16} /> New Code
+            </Button>
+          )
         )}
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-charcoal-700/50 rounded-xl border border-charcoal-600/30 w-fit">
+        <button
+          onClick={() => setActiveTab('promotions')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            activeTab === 'promotions'
+              ? 'bg-gold-700/30 text-gold-400 border border-gold-700/30'
+              : 'text-charcoal-300 hover:text-charcoal-100'
+          )}
+        >
+          <Percent size={14} /> Promotions
+        </button>
+        <button
+          onClick={() => setActiveTab('codes')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            activeTab === 'codes'
+              ? 'bg-gold-700/30 text-gold-400 border border-gold-700/30'
+              : 'text-charcoal-300 hover:text-charcoal-100'
+          )}
+        >
+          <Hash size={14} /> Promo Codes
+        </button>
+      </div>
+
+      {/* ── Promotions Tab ── */}
+      {activeTab === 'promotions' && (<>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -613,6 +770,237 @@ export default function PromotionsPage() {
           </div>
         </div>
       </Modal>
+      </>)}
+
+      {/* ── Codes Tab ── */}
+      {activeTab === 'codes' && (<>
+
+        {/* Codes Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <StatCard title="Active Codes" value={codes.filter(c => c.is_active).length} icon={<Hash size={20} />} color="gold" loading={codesLoading} />
+          <StatCard title="Total Used" value={codes.reduce((s, c) => s + (c.usage_count || 0), 0)} icon={<TrendingDown size={20} />} color="blue" loading={codesLoading} />
+        </div>
+
+        {/* Codes Table */}
+        <Card>
+          {codesLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-14 bg-charcoal-600/30 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : codes.length === 0 ? (
+            <EmptyState
+              icon={<Hash size={32} className="text-charcoal-400" />}
+              title="No promotion codes yet"
+              description={canWrite ? 'Create your first promotion code to get started' : 'No codes have been created'}
+              action={canWrite ? { label: 'New Code', onClick: openCreateCode } : undefined}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-charcoal-600/30">
+                    {['Code', 'Name', 'Discount', 'Scope', 'Usage', 'Status', ''].map(h => (
+                      <th key={h} className="text-left py-3 px-3 text-charcoal-300 font-medium text-xs uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {codes.map((c) => (
+                    <motion.tr
+                      key={c.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="border-b border-charcoal-600/20 hover:bg-charcoal-600/10 transition-colors"
+                    >
+                      <td className="py-3 px-3">
+                        <span className="font-mono font-bold text-gold-400 tracking-widest">{c.code}</span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <p className="font-medium text-charcoal-50">{c.name}</p>
+                        {c.description && <p className="text-xs text-charcoal-400 mt-0.5 line-clamp-1">{c.description}</p>}
+                      </td>
+                      <td className="py-3 px-3 text-charcoal-100">
+                        {c.discount_type === 'percentage' ? `${c.discount_value}% off` : `LKR ${c.discount_value} off`}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={cn('text-xs px-2 py-1 rounded-lg font-medium capitalize', SCOPE_BADGE[c.scope])}>{c.scope}</span>
+                      </td>
+                      <td className="py-3 px-3 text-charcoal-200">{c.usage_count} times</td>
+                      <td className="py-3 px-3">
+                        {c.is_active ? (
+                          <span className="text-xs px-2 py-1 rounded-lg font-medium text-emerald-400 bg-emerald-900/20 border border-emerald-700/30">Active</span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded-lg font-medium text-charcoal-300 bg-charcoal-600/30 border border-charcoal-500/30">Inactive</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        {canWrite && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openEditCode(c)}
+                              className="p-1.5 rounded-lg text-charcoal-300 hover:text-gold-400 hover:bg-gold-700/10 transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => toggleCodeMut.mutate(c.id)}
+                              className="p-1.5 rounded-lg text-charcoal-300 hover:text-sky-400 hover:bg-sky-900/10 transition-colors"
+                              title={c.is_active ? 'Deactivate' : 'Activate'}
+                            >
+                              {c.is_active ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Remove this promotion code?')) deleteCodeMut.mutate(c.id);
+                              }}
+                              className="p-1.5 rounded-lg text-charcoal-300 hover:text-red-400 hover:bg-red-900/10 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        {/* Code Form Modal */}
+        <Modal
+          open={showCodeForm}
+          onClose={closeCodeForm}
+          title={editingCodeId ? 'Edit Promotion Code' : 'New Promotion Code'}
+          size="md"
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeCodeForm}>Cancel</Button>
+              <Button onClick={handleCodeSubmit} disabled={isCodeSaving} className="btn-gold">
+                {isCodeSaving ? 'Saving…' : editingCodeId ? 'Save Changes' : 'Create Code'}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {codeFormError && (
+              <div className="flex items-center gap-2 p-3 bg-red-900/20 border border-red-700/30 rounded-xl text-sm text-red-400">
+                <AlertCircle size={14} />
+                {codeFormError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-charcoal-100">
+                  Code <span className="text-red-400">*</span>
+                </label>
+                <input
+                  className="input-dark uppercase tracking-widest font-mono text-sm"
+                  placeholder="e.g. SAVE500"
+                  value={codeForm.code}
+                  onChange={e => setCodeField('code', e.target.value.toUpperCase().replace(/\s/g, ''))}
+                  disabled={!!editingCodeId}
+                />
+                {!editingCodeId && <p className="text-xs text-charcoal-400">Letters and numbers only, no spaces</p>}
+              </div>
+              <Input
+                label="Name"
+                required
+                value={codeForm.name}
+                onChange={e => setCodeField('name', e.target.value)}
+                placeholder="e.g. Holiday Discount"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-charcoal-100">Description</label>
+              <textarea
+                value={codeForm.description}
+                onChange={e => setCodeField('description', e.target.value)}
+                rows={2}
+                placeholder="Optional description…"
+                className="input-dark resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-charcoal-100">Discount Type <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'percentage',  label: 'Percentage Off' },
+                  { value: 'flat_amount', label: 'Flat Amount Off' },
+                ].map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => setCodeField('discount_type', o.value)}
+                    className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                      codeForm.discount_type === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                    )}
+                  >{o.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {codeForm.discount_type && (
+              <Input
+                label={codeForm.discount_type === 'percentage' ? 'Discount %' : 'Discount Amount (LKR)'}
+                required
+                type="number"
+                min="0.01"
+                max={codeForm.discount_type === 'percentage' ? '100' : undefined}
+                step="0.01"
+                value={codeForm.discount_value}
+                onChange={e => setCodeField('discount_value', e.target.value)}
+                placeholder={codeForm.discount_type === 'percentage' ? 'e.g. 15' : 'e.g. 500'}
+              />
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-charcoal-100">Applies To <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'both',   label: 'POS & Rentals' },
+                  { value: 'pos',    label: 'POS Only' },
+                  { value: 'rental', label: 'Rentals Only' },
+                ].map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => setCodeField('scope', o.value as PromotionScope)}
+                    className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
+                      codeForm.scope === o.value ? 'border-gold-500 bg-gold-700/15 text-gold-400' : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                    )}
+                  >{o.label}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <input
+                id="code_is_active"
+                type="checkbox"
+                checked={codeForm.is_active}
+                onChange={e => setCodeField('is_active', e.target.checked)}
+                className="w-4 h-4 accent-gold-500 rounded"
+              />
+              <label htmlFor="code_is_active" className="text-sm text-charcoal-100 cursor-pointer">
+                Active (cashiers can apply this code)
+              </label>
+            </div>
+
+            <div className="p-3 bg-charcoal-700/40 border border-charcoal-600/30 rounded-xl">
+              <p className="text-xs text-charcoal-300 flex items-center gap-1.5">
+                <Tag size={11} />
+                Promotion codes never expire — deactivate to stop usage.
+              </p>
+            </div>
+          </div>
+        </Modal>
+      </>)}
+
     </div>
   );
 }

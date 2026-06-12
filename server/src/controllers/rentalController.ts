@@ -150,7 +150,7 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
     customerId, rentalStartDate, eventDate, rentalEndDate,
     items, advancePayment,
     discountAmount, notes, eventType, paymentMethod,
-    promotionId,
+    promotionId, promoCode,
     securityType, securityDeposit, securityIdNumber,
   } = req.body;
 
@@ -244,7 +244,38 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
       `, [promotionId]);
     }
 
-    const totalDiscountAmount = (discountAmount || 0) + promotionDiscount;
+    // ── Promo Code resolution ───────────────────────────────────────────────
+    let promoCodeDiscount = 0;
+    let resolvedPromoCodeId: string | null = null;
+
+    if (promoCode) {
+      const codeRes = await client.query(`
+        SELECT * FROM promotion_codes
+        WHERE UPPER(code) = UPPER($1)
+          AND is_active = true
+          AND (scope = 'rental' OR scope = 'both')
+        FOR UPDATE
+      `, [promoCode]);
+
+      if (!codeRes.rows[0]) throw new Error('Invalid or inactive promotion code.');
+      const pc = codeRes.rows[0];
+
+      if (pc.discount_type === 'percentage') {
+        promoCodeDiscount = totalCost * (parseFloat(pc.discount_value) / 100);
+      } else if (pc.discount_type === 'flat_amount') {
+        promoCodeDiscount = Math.min(parseFloat(pc.discount_value), totalCost);
+      }
+
+      promoCodeDiscount = Math.max(0, promoCodeDiscount);
+      resolvedPromoCodeId = pc.id;
+
+      await client.query(
+        `UPDATE promotion_codes SET usage_count = usage_count + 1, updated_at = NOW() WHERE id = $1`,
+        [pc.id]
+      );
+    }
+
+    const totalDiscountAmount = (discountAmount || 0) + promotionDiscount + promoCodeDiscount;
 
     const rentalRes = await client.query(`
       INSERT INTO rentals (
@@ -307,6 +338,14 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
         INSERT INTO promotion_usages (promotion_id, rental_id, discount_amount, used_by)
         VALUES ($1, $2, $3, $4)
       `, [resolvedPromotionId, rental.id, promotionDiscount, req.user?.id]);
+    }
+
+    // Record promo code usage
+    if (resolvedPromoCodeId && promoCodeDiscount > 0) {
+      await client.query(`
+        INSERT INTO promotion_code_usages (promotion_code_id, rental_id, discount_amount, used_by)
+        VALUES ($1, $2, $3, $4)
+      `, [resolvedPromoCodeId, rental.id, promoCodeDiscount, req.user?.id]);
     }
 
     await client.query('COMMIT');
