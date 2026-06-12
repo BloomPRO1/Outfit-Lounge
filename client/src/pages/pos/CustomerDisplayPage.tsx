@@ -515,9 +515,9 @@ export default function CustomerDisplayPage() {
       </div>
 
       {/* Global footer */}
-      <div className="flex-shrink-0 bg-charcoal-900/80 border-t border-charcoal-700/30 py-1.5 text-center">
-        <p className="text-charcoal-600 text-[10px] tracking-[0.25em] uppercase">
-          Powered by <span className="text-gold-700/70">Bloomtech.lk</span>
+      <div className="flex-shrink-0 bg-charcoal-900/80 border-t border-charcoal-700/30 py-3 text-center">
+        <p className="text-charcoal-400 text-sm tracking-[0.3em] uppercase font-medium">
+          Powered by <span className="text-gold-400 font-semibold">Bloomtech.lk</span>
         </p>
       </div>
     </div>
