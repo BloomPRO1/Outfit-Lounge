@@ -56,7 +56,7 @@ function IdleScreen({ shopName, shopLogo }: { shopName: string; shopLogo: string
           <motion.img
             src={shopLogo}
             alt={shopName}
-            className="h-36 w-auto object-contain drop-shadow-2xl"
+            className="h-72 w-auto object-contain drop-shadow-2xl"
             animate={{ y: [0, -6, 0] }}
             transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
           />
@@ -118,7 +118,7 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName, 
       <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {shopLogo && (
-            <img src={shopLogo} alt={shopName} className="h-9 w-auto object-contain" />
+            <img src={shopLogo} alt={shopName} className="h-18 w-auto object-contain" />
           )}
           <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
         </div>
@@ -317,7 +317,7 @@ function RentalScreen({ items, total, customerName, startDate, endDate, shopName
       <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {shopLogo && (
-            <img src={shopLogo} alt={shopName} className="h-9 w-auto object-contain" />
+            <img src={shopLogo} alt={shopName} className="h-18 w-auto object-contain" />
           )}
           <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
         </div>
