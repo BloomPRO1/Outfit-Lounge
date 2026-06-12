@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ShoppingBag, CalendarDays, Maximize2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import type { DisplayCartItem, DisplayRentalItem } from '@/services/customerDisplayChannel';
+import logoDataUri from '@/assets/logoBase64';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DisplayMsg =
@@ -453,7 +454,7 @@ function FullscreenOverlay() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CustomerDisplayPage() {
   const [shopName, setShopName] = useState('THE OUTFIT LOUNGE');
-  const [shopLogo, setShopLogo] = useState('');
+  const [shopLogo, setShopLogo] = useState(logoDataUri);
   const [screen, setScreen] = useState<DisplayMsg>({ type: 'idle' });
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -474,7 +475,7 @@ export default function CustomerDisplayPage() {
       const msg = e.data;
       if (msg.type === 'shop_info') {
         setShopName(msg.shopName || 'THE OUTFIT LOUNGE');
-        setShopLogo(msg.shopLogo || '');
+        setShopLogo(msg.shopLogo || logoDataUri);
         return;
       }
       setScreen(msg);
