@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import sharp from 'sharp';
 import { db } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { getPagination, paginatedResponse } from '../utils/pagination';
@@ -76,7 +77,7 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     db.query(`
       SELECT p.*,
              pc.name as category_name,
-             CASE WHEN any_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as primary_image,
+             CASE WHEN any_img.has_image THEN '/api/products/' || p.id::text || '/image?size=300' ELSE NULL END as primary_image,
              COALESCE(pv_stats.variant_count, 0) as variant_count,
              COALESCE(pv_stats.total_stock, 0) as total_stock,
              COALESCE(pv_stats.total_available, 0) as total_available
@@ -386,16 +387,24 @@ export async function deleteVariant(req: Request, res: Response): Promise<void> 
   res.json({ message: 'Variant deleted successfully' });
 }
 
-// In-memory cache so 24 concurrent image requests per product grid page
-// don't all hit the DB. Entries expire after 10 minutes.
+// In-memory image cache keyed by `productId:size` (size=0 means full resolution).
+// Thumbnails are generated once with sharp and cached as WebP — no DB hit after that.
 const _imgCache = new Map<string, { mime: string; buf: Buffer; at: number }>();
 const IMG_TTL = 10 * 60 * 1000;
 
+function _evictProduct(productId: string) {
+  for (const key of _imgCache.keys()) {
+    if (key.startsWith(`${productId}:`)) _imgCache.delete(key);
+  }
+}
+
 export async function serveProductImage(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
+  const size = Math.min(parseInt(req.query.size as string) || 0, 1200);
+  const cacheKey = `${id}:${size}`;
 
   const now = Date.now();
-  const hit = _imgCache.get(id);
+  const hit = _imgCache.get(cacheKey);
   if (hit && now - hit.at < IMG_TTL) {
     res.set('Content-Type', hit.mime);
     res.set('Cache-Control', 'public, max-age=86400');
@@ -411,14 +420,28 @@ export async function serveProductImage(req: Request, res: Response): Promise<vo
   const url: string = result.rows[0].url;
   const match = url.match(/^data:([^;]+);base64,(.+)$/s);
   if (!match) { res.status(404).end(); return; }
-  const [, mime, b64] = match;
-  const buf = Buffer.from(b64, 'base64');
 
-  _imgCache.set(id, { mime, buf, at: now });
+  const rawBuf = Buffer.from(match[2], 'base64');
+  let outBuf: Buffer;
+  let outMime: string;
 
-  res.set('Content-Type', mime);
+  if (size > 0) {
+    // Resize to thumbnail and convert to WebP — this is what makes grid loading fast
+    outBuf = await sharp(rawBuf)
+      .resize(size, size, { fit: 'cover', position: 'center' })
+      .webp({ quality: 82 })
+      .toBuffer();
+    outMime = 'image/webp';
+  } else {
+    outBuf = rawBuf;
+    outMime = match[1];
+  }
+
+  _imgCache.set(cacheKey, { mime: outMime, buf: outBuf, at: now });
+
+  res.set('Content-Type', outMime);
   res.set('Cache-Control', 'public, max-age=86400');
-  res.send(buf);
+  res.send(outBuf);
 }
 
 export async function uploadProductImage(req: AuthRequest, res: Response): Promise<void> {
@@ -449,7 +472,7 @@ export async function uploadProductImage(req: AuthRequest, res: Response): Promi
     VALUES ($1, $2, $3) RETURNING *
   `, [id, imageUrl, setAsPrimary]);
 
-  _imgCache.delete(id);
+  _evictProduct(id);
   res.status(201).json(result.rows[0]);
 }
 
@@ -473,7 +496,7 @@ export async function deleteProductImage(req: AuthRequest, res: Response): Promi
       )
     `, [id]);
   }
-  _imgCache.delete(id);
+  _evictProduct(id);
   res.status(204).send();
 }
 

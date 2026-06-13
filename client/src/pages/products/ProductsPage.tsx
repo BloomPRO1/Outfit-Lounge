@@ -240,7 +240,7 @@ export default function ProductsPage() {
                 {data.data.map((product) => (
                   <div
                     key={product.id}
-                    className="relative bg-charcoal-600/50 border border-charcoal-500 rounded-xl overflow-hidden cursor-pointer hover:border-gold-700/40 hover:shadow-gold transition-all duration-200 group"
+                    className="relative bg-charcoal-600/50 border border-charcoal-500 rounded-xl overflow-hidden cursor-pointer hover:border-gold-700/40 hover:shadow-gold transition-[border-color,box-shadow] duration-200 group"
                     onClick={() => navigate(`/products/${product.id}`)}
                   >
                     <button
