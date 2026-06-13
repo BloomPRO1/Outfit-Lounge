@@ -118,7 +118,7 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName, 
       <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {shopLogo && (
-            <img src={shopLogo} alt={shopName} className="h-18 w-auto object-contain" />
+            <img src={shopLogo} alt={shopName} className="h-10 w-auto object-contain" />
           )}
           <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
         </div>
@@ -139,7 +139,8 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName, 
             <thead className="sticky top-0 z-10">
               <tr className="bg-charcoal-800/90 border-b border-charcoal-600/60 backdrop-blur-sm">
                 <th className="text-left px-6 py-3.5 text-charcoal-400 font-medium text-xs uppercase tracking-widest w-10">#</th>
-                <th className="text-left px-6 py-3.5 text-charcoal-400 font-medium text-xs uppercase tracking-widest">Item</th>
+                <th className="w-14" />
+                <th className="text-left px-4 py-3.5 text-charcoal-400 font-medium text-xs uppercase tracking-widest">Item</th>
                 <th className="text-right px-6 py-3.5 text-charcoal-400 font-medium text-xs uppercase tracking-widest w-20">Qty</th>
                 <th className="text-right px-6 py-3.5 text-charcoal-400 font-medium text-xs uppercase tracking-widest w-36">Unit Price</th>
                 <th className="text-right px-6 py-3.5 text-charcoal-400 font-medium text-xs uppercase tracking-widest w-36">Amount</th>
@@ -149,7 +150,7 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName, 
               <AnimatePresence>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-24 text-center text-charcoal-500 text-sm">
+                    <td colSpan={6} className="py-24 text-center text-charcoal-500 text-sm">
                       Waiting for items…
                     </td>
                   </tr>
@@ -162,8 +163,16 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName, 
                     transition={{ delay: i * 0.04 }}
                     className="border-b border-charcoal-700/40 hover:bg-charcoal-800/30 transition-colors"
                   >
-                    <td className="px-6 py-4 text-charcoal-500 text-sm">{i + 1}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-3 text-charcoal-500 text-sm">{i + 1}</td>
+                    <td className="py-3 pl-2">
+                      <div className="w-12 h-12 rounded-lg bg-charcoal-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {item.image
+                          ? <img src={item.image} alt={item.productName} className="w-full h-full object-cover" />
+                          : <ShoppingBag size={18} className="text-charcoal-400" strokeWidth={1.5} />
+                        }
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
                       <p className="font-medium text-charcoal-50 text-base leading-tight">{item.productName}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {item.variantLabel && (
@@ -174,9 +183,9 @@ function CartScreen({ items, subtotal, discount, total, customerName, shopName, 
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right text-charcoal-50 font-semibold text-lg">{item.quantity}</td>
-                    <td className="px-6 py-4 text-right text-charcoal-300 text-sm">{fmt(item.unitPrice)}</td>
-                    <td className="px-6 py-4 text-right text-charcoal-50 font-semibold">{fmt(item.subtotal)}</td>
+                    <td className="px-6 py-3 text-right text-charcoal-50 font-semibold text-lg">{item.quantity}</td>
+                    <td className="px-6 py-3 text-right text-charcoal-300 text-sm">{fmt(item.unitPrice)}</td>
+                    <td className="px-6 py-3 text-right text-charcoal-50 font-semibold">{fmt(item.subtotal)}</td>
                   </motion.tr>
                 ))}
               </AnimatePresence>
@@ -317,7 +326,7 @@ function RentalScreen({ items, total, customerName, startDate, endDate, shopName
       <div className="flex-shrink-0 bg-charcoal-800 border-b border-charcoal-600/60 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {shopLogo && (
-            <img src={shopLogo} alt={shopName} className="h-18 w-auto object-contain" />
+            <img src={shopLogo} alt={shopName} className="h-10 w-auto object-contain" />
           )}
           <span className="font-display text-xl font-semibold text-gold-400 tracking-wide">{shopName}</span>
         </div>
