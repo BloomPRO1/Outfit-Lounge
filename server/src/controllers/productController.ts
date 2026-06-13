@@ -426,12 +426,19 @@ export async function serveProductImage(req: Request, res: Response): Promise<vo
   let outMime: string;
 
   if (size > 0) {
-    // Resize to thumbnail and convert to WebP — this is what makes grid loading fast
-    outBuf = await sharp(rawBuf)
-      .resize(size, size, { fit: 'cover', position: 'center' })
-      .webp({ quality: 82 })
-      .toBuffer();
-    outMime = 'image/webp';
+    try {
+      // Convert to sRGB first so CMYK/unusual-profile images don't fail WebP conversion
+      outBuf = await sharp(rawBuf)
+        .toColorspace('srgb')
+        .resize(size, size, { fit: 'cover', position: 'center' })
+        .webp({ quality: 82 })
+        .toBuffer();
+      outMime = 'image/webp';
+    } catch {
+      // Fall back to original image bytes if sharp can't handle this format
+      outBuf = rawBuf;
+      outMime = match[1];
+    }
   } else {
     outBuf = rawBuf;
     outMime = match[1];
