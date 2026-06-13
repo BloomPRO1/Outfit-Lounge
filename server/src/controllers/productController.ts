@@ -42,53 +42,62 @@ export async function getProducts(req: Request, res: Response): Promise<void> {
     params.push(active === 'true');
   }
 
-  const countRes = await db.query<{ count: string }>(
-    `SELECT COUNT(*) FROM products p ${whereClause}`,
-    params
-  );
+  const withVariants = includeVariants === 'true';
+
+  // Run COUNT and data fetch in parallel — cuts one serial DB round-trip
+  const variantStatsSQL = withVariants
+    ? `SELECT
+         COUNT(*)                                      AS variant_count,
+         COALESCE(SUM(stock_quantity), 0)              AS total_stock,
+         COALESCE(SUM(available_for_rent), 0)          AS total_available,
+         COALESCE(
+           json_agg(
+             json_build_object(
+               'id', id, 'sku', sku, 'label_id', label_id, 'size', size, 'color', color,
+               'selling_price', selling_price,
+               'rental_price_per_day', rental_price_per_day,
+               'stock_quantity', stock_quantity,
+               'available_for_rent', available_for_rent
+             ) ORDER BY size, color
+           ), '[]'
+         ) AS variants
+       FROM product_variants WHERE product_id = p.id`
+    : `SELECT
+         COUNT(*)                             AS variant_count,
+         COALESCE(SUM(stock_quantity), 0)     AS total_stock,
+         COALESCE(SUM(available_for_rent), 0) AS total_available
+       FROM product_variants WHERE product_id = p.id`;
+
+  const [countRes, dataRes] = await Promise.all([
+    db.query<{ count: string }>(
+      `SELECT COUNT(*) FROM products p ${whereClause}`,
+      params
+    ),
+    db.query(`
+      SELECT p.*,
+             pc.name as category_name,
+             CASE WHEN any_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as primary_image,
+             COALESCE(pv_stats.variant_count, 0) as variant_count,
+             COALESCE(pv_stats.total_stock, 0) as total_stock,
+             COALESCE(pv_stats.total_available, 0) as total_available
+             ${withVariants ? ', pv_stats.variants' : ''}
+      FROM products p
+      LEFT JOIN product_categories pc ON pc.id = p.category_id
+      LEFT JOIN LATERAL (
+        SELECT true as has_image FROM product_images
+        WHERE product_id = p.id
+        LIMIT 1
+      ) any_img ON true
+      LEFT JOIN LATERAL (
+        ${variantStatsSQL}
+      ) pv_stats ON true
+      ${whereClause}
+      ORDER BY p.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `, [...params, limit, offset]),
+  ]);
+
   const total = parseInt(countRes.rows[0].count);
-
-  const variantsSelect = includeVariants === 'true' ? ', pv_stats.variants' : '';
-
-  const dataRes = await db.query(`
-    SELECT p.*,
-           pc.name as category_name,
-           CASE WHEN any_img.has_image THEN '/api/products/' || p.id::text || '/image' ELSE NULL END as primary_image,
-           COALESCE(pv_stats.variant_count, 0) as variant_count,
-           COALESCE(pv_stats.total_stock, 0) as total_stock,
-           COALESCE(pv_stats.total_available, 0) as total_available
-           ${variantsSelect}
-    FROM products p
-    LEFT JOIN product_categories pc ON pc.id = p.category_id
-    LEFT JOIN LATERAL (
-      SELECT true as has_image FROM product_images
-      WHERE product_id = p.id
-      LIMIT 1
-    ) any_img ON true
-    LEFT JOIN LATERAL (
-      SELECT
-        COUNT(*)                                      AS variant_count,
-        COALESCE(SUM(stock_quantity), 0)              AS total_stock,
-        COALESCE(SUM(available_for_rent), 0)          AS total_available,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', id, 'sku', sku, 'label_id', label_id, 'size', size, 'color', color,
-              'selling_price', selling_price,
-              'rental_price_per_day', rental_price_per_day,
-              'stock_quantity', stock_quantity,
-              'available_for_rent', available_for_rent
-            ) ORDER BY size, color
-          ), '[]'
-        ) AS variants
-      FROM product_variants
-      WHERE product_id = p.id
-    ) pv_stats ON true
-    ${whereClause}
-    ORDER BY p.created_at DESC
-    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-  `, [...params, limit, offset]);
-
   res.json(paginatedResponse(dataRes.rows, total, { page, limit, offset }));
 }
 

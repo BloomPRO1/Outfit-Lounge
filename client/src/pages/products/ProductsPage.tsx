@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useListKeyNav } from '@/hooks/useListKeyNav';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Plus, Package, Grid, List, Tag, Barcode, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -30,11 +30,18 @@ export default function ProductsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (search === '') { setDebouncedSearch(''); return; }
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => productService.delete(id),
@@ -50,14 +57,16 @@ export default function ProductsPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', { search, categoryFilter, typeFilter, page }],
+    queryKey: ['products', { search: debouncedSearch, categoryFilter, typeFilter, page }],
     queryFn: () => productService.getAll({
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       category: categoryFilter || undefined,
       type: typeFilter || undefined,
       page,
       limit: 24,
     }),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 
   const products = data?.data || [];
