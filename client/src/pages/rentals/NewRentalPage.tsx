@@ -192,11 +192,12 @@ export default function NewRentalPage() {
   };
 
   const addToCart = (variant: any, productName: string, lateFinePerDay = 0, image?: string) => {
-    const existing = cartItems.find((i) => i.variantId === variant.id);
-    if (existing) {
-      setCartItems(cartItems.map((i) => i.variantId === variant.id ? { ...i, quantity: i.quantity + 1 } : i));
-    } else {
-      setCartItems([...cartItems, {
+    setCartItems((prev) => {
+      const existing = prev.find((i) => i.variantId === variant.id);
+      if (existing) {
+        return prev.map((i) => i.variantId === variant.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [...prev, {
         variantId: variant.id,
         productName,
         variantInfo: [variant.size, variant.color].filter(Boolean).join(' / '),
@@ -205,8 +206,8 @@ export default function NewRentalPage() {
         lateFinePerDay: parseFloat(String(lateFinePerDay || 0)),
         quantity: 1,
         image,
-      }]);
-    }
+      }];
+    });
     setProductSearch('');
     setShowProductResults(false);
     setTimeout(() => searchRef.current?.focus(), 50);
@@ -401,7 +402,7 @@ export default function NewRentalPage() {
                         ref={searchRef}
                         value={productSearch}
                         onChange={(e) => { setProductSearch(e.target.value); setShowProductResults(true); }}
-                        onFocus={() => setShowProductResults(true)}
+                        onFocus={() => productSearch.length > 0 && setShowProductResults(true)}
                         onBlur={() => setTimeout(() => setShowProductResults(false), 150)}
                         onKeyDown={handleSearchKeyDown}
                         placeholder="Search or scan barcode..."

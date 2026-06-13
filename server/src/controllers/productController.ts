@@ -139,11 +139,11 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
 
   const res2 = await db.query(`
     SELECT p.*, pc.name as category_name,
-           pi.url as primary_image
+           CASE WHEN pi.has_image THEN '/api/products/' || p.id::text || '/image?size=300' ELSE NULL END as primary_image
     FROM products p
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     LEFT JOIN LATERAL (
-      SELECT url FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, sort_order, created_at LIMIT 1
+      SELECT 1 as has_image FROM product_images WHERE product_id = p.id LIMIT 1
     ) pi ON true
     WHERE p.barcode = $1 OR p.sku = $1
   `, [barcode]);
@@ -156,12 +156,13 @@ export async function getProductByBarcode(req: Request, res: Response): Promise<
              p.late_fine_per_day,
              p.selling_price as product_selling_price,
              p.rental_price_per_day as product_rental_price_per_day,
-             pc.name as category_name, pi.url as primary_image
+             pc.name as category_name,
+             CASE WHEN pi.has_image THEN '/api/products/' || p.id::text || '/image?size=300' ELSE NULL END as primary_image
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       LEFT JOIN product_categories pc ON pc.id = p.category_id
       LEFT JOIN LATERAL (
-        SELECT url FROM product_images WHERE product_id = p.id ORDER BY is_primary DESC, sort_order, created_at LIMIT 1
+        SELECT 1 as has_image FROM product_images WHERE product_id = p.id LIMIT 1
       ) pi ON true
       WHERE pv.sku = $1 OR ($2::int IS NOT NULL AND pv.label_id = $2::int)
     `, [barcode, isNaN(labelId) ? null : labelId]);
