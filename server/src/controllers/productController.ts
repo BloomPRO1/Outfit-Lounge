@@ -656,13 +656,16 @@ export async function splitVariantToRental(req: AuthRequest, res: Response, next
       return;
     }
 
-    // Does the rent variant already exist?
+    // Does the rent variant already exist? Check by both size/color AND the -R SKU pattern
+    const rentSku = `${src.sku}-R`;
     const existRes = await client.query(
       `SELECT * FROM product_variants
        WHERE product_id = $1
-         AND size IS NOT DISTINCT FROM $2
-         AND color IS NOT DISTINCT FROM $3`,
-      [productId, rentSize, rentColor]
+         AND (
+           (size IS NOT DISTINCT FROM $2 AND color IS NOT DISTINCT FROM $3)
+           OR sku = $4
+         )`,
+      [productId, rentSize, rentColor, rentSku]
     );
 
     let rentVariant: any;
@@ -678,8 +681,7 @@ export async function splitVariantToRental(req: AuthRequest, res: Response, next
       );
       rentVariant = upd.rows[0];
     } else {
-      // Create brand-new rent variant — gets its own auto-incremented label_id
-      const rentSku = generateVariantSKU(src.product_sku, rentSize, rentColor);
+      // Create brand-new rent variant using source SKU + "-R" suffix (avoids color-truncation collision)
       const ins = await client.query(
         `INSERT INTO product_variants
            (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
