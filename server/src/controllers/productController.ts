@@ -386,9 +386,23 @@ export async function deleteVariant(req: Request, res: Response): Promise<void> 
   res.json({ message: 'Variant deleted successfully' });
 }
 
+// In-memory cache so 24 concurrent image requests per product grid page
+// don't all hit the DB. Entries expire after 10 minutes.
+const _imgCache = new Map<string, { mime: string; buf: Buffer; at: number }>();
+const IMG_TTL = 10 * 60 * 1000;
+
 export async function serveProductImage(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
-  // Prefer the primary image; fall back to first available image
+
+  const now = Date.now();
+  const hit = _imgCache.get(id);
+  if (hit && now - hit.at < IMG_TTL) {
+    res.set('Content-Type', hit.mime);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(hit.buf);
+    return;
+  }
+
   const result = await db.query(
     `SELECT url FROM product_images WHERE product_id = $1 ORDER BY is_primary DESC, sort_order, created_at LIMIT 1`,
     [id]
@@ -398,9 +412,13 @@ export async function serveProductImage(req: Request, res: Response): Promise<vo
   const match = url.match(/^data:([^;]+);base64,(.+)$/s);
   if (!match) { res.status(404).end(); return; }
   const [, mime, b64] = match;
+  const buf = Buffer.from(b64, 'base64');
+
+  _imgCache.set(id, { mime, buf, at: now });
+
   res.set('Content-Type', mime);
   res.set('Cache-Control', 'public, max-age=86400');
-  res.send(Buffer.from(b64, 'base64'));
+  res.send(buf);
 }
 
 export async function uploadProductImage(req: AuthRequest, res: Response): Promise<void> {
@@ -431,6 +449,7 @@ export async function uploadProductImage(req: AuthRequest, res: Response): Promi
     VALUES ($1, $2, $3) RETURNING *
   `, [id, imageUrl, setAsPrimary]);
 
+  _imgCache.delete(id);
   res.status(201).json(result.rows[0]);
 }
 
@@ -454,6 +473,7 @@ export async function deleteProductImage(req: AuthRequest, res: Response): Promi
       )
     `, [id]);
   }
+  _imgCache.delete(id);
   res.status(204).send();
 }
 

@@ -2,8 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useListKeyNav } from '@/hooks/useListKeyNav';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Plus, Package, Grid, List, Tag, Barcode, Trash2 } from 'lucide-react';
+import { Plus, Package, Grid, List, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
 import Button from '@/components/common/Button';
@@ -100,7 +99,7 @@ export default function ProductsPage() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-charcoal-600 flex items-center justify-center overflow-hidden flex-shrink-0">
             {p.primary_image ? (
-              <img src={p.primary_image} alt={p.name} className="w-full h-full object-cover" />
+              <img src={p.primary_image} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             ) : (
               <Package size={16} className="text-charcoal-200" />
             )}
@@ -239,10 +238,8 @@ export default function ProductsPage() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {data.data.map((product) => (
-                  <motion.div
+                  <div
                     key={product.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
                     className="relative bg-charcoal-600/50 border border-charcoal-500 rounded-xl overflow-hidden cursor-pointer hover:border-gold-700/40 hover:shadow-gold transition-all duration-200 group"
                     onClick={() => navigate(`/products/${product.id}`)}
                   >
@@ -255,7 +252,7 @@ export default function ProductsPage() {
                     </button>
                     <div className="aspect-square bg-charcoal-600 flex items-center justify-center overflow-hidden">
                       {product.primary_image ? (
-                        <img src={product.primary_image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        <img src={product.primary_image} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <Package size={28} className="text-charcoal-300" />
                       )}
@@ -271,7 +268,7 @@ export default function ProductsPage() {
                         </span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}
