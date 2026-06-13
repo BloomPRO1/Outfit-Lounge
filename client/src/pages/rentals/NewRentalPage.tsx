@@ -68,6 +68,7 @@ export default function NewRentalPage() {
   const [productSearch, setProductSearch] = useState('');
   const [showProductResults, setShowProductResults] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const cartListRef = useRef<HTMLDivElement>(null);
 
   const [rentalStartDate, setRentalStartDate] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -168,10 +169,12 @@ export default function NewRentalPage() {
     // Read from DOM directly to avoid stale React state (barcode scanners fire keystrokes rapidly)
     const query = (e.target as HTMLInputElement).value.trim();
     if (!query) return;
+    // Close dropdown immediately — don't let it overlap the cart while the API is in flight
+    setShowProductResults(false);
     try {
       const result = await productService.getByBarcode(query);
       if (result.type === 'variant') {
-        const avail = result.available_for_rent ?? result.stock_quantity ?? 0;
+        const avail = result.available_for_rent != null ? result.available_for_rent : (result.stock_quantity ?? 0);
         if (avail <= 0) { toast.error('No rental stock available for this item'); return; }
         // Use variant price first, fall back to product-level price
         const variantWithFallback = {
@@ -181,13 +184,16 @@ export default function NewRentalPage() {
         addToCart(variantWithFallback, result.product_name, result.late_fine_per_day ?? 0, result.primary_image);
         toast.success(`Added: ${result.product_name}${result.size ? ' · ' + result.size : ''}`);
       } else if (result.type === 'product') {
-        const variant = (result.variants || []).find((v: any) => (v.available_for_rent ?? v.stock_quantity ?? 0) > 0);
+        const variant = (result.variants || []).find((v: any) => {
+          const a = v.available_for_rent != null ? v.available_for_rent : (v.stock_quantity ?? 0);
+          return a > 0;
+        });
         if (!variant) { toast.error('No rental stock available for this item'); return; }
         addToCart(variant, result.name, result.late_fine_per_day ?? 0, result.primary_image);
         toast.success(`Added: ${result.name}`);
       }
     } catch {
-      toast.error('Product not found for SKU: ' + (e.target as HTMLInputElement).value.trim());
+      toast.error('Product not found for barcode: ' + query);
     }
   };
 
@@ -210,7 +216,11 @@ export default function NewRentalPage() {
     });
     setProductSearch('');
     setShowProductResults(false);
-    setTimeout(() => searchRef.current?.focus(), 50);
+    // Scroll cart into view so the newly added item is always visible, then restore focus
+    setTimeout(() => {
+      cartListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      searchRef.current?.focus({ preventScroll: true });
+    }, 80);
   };
 
   // Auto-add when barcode/SKU exactly matches a variant in search results
@@ -447,7 +457,7 @@ export default function NewRentalPage() {
                     {cartItems.length === 0 ? (
                       <div className="py-10 text-center text-charcoal-200 text-sm">No items added yet. Search above.</div>
                     ) : (
-                      <div className="space-y-2">
+                      <div ref={cartListRef} className="space-y-2">
                         {cartItems.map((item) => (
                           <div key={item.variantId} className="flex items-center gap-3 p-3 bg-charcoal-600/50 rounded-xl">
                             <div className="w-10 h-10 rounded-lg bg-charcoal-600 flex-shrink-0 overflow-hidden flex items-center justify-center">

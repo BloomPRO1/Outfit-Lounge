@@ -3,6 +3,8 @@ import { Bell, LogOut, ChevronDown, Menu } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/utils/cn';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/services/api';
 
 const ROUTE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -28,6 +30,15 @@ export default function Header({ onMenuClick, sidebarCollapsed }: HeaderProps) {
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  const { data: unreadCount } = useQuery({
+    queryKey: ['notification-unread-count'],
+    queryFn: async () => {
+      const { data } = await api.get('/notifications/logs', { params: { status: 'pending', limit: 1 } });
+      return (data?.pagination?.total ?? 0) as number;
+    },
+    refetchInterval: 60_000,
+  });
+
   const title = Object.entries(ROUTE_TITLES).find(([path]) =>
     location.pathname.startsWith(path)
   )?.[1] || 'Dashboard';
@@ -52,9 +63,15 @@ export default function Header({ onMenuClick, sidebarCollapsed }: HeaderProps) {
 
       <div className="flex items-center gap-2">
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl text-charcoal-200 hover:bg-charcoal-600 hover:text-charcoal-50 transition-colors">
+        <button
+          onClick={() => navigate('/notifications')}
+          className="relative p-2 rounded-xl text-charcoal-200 hover:bg-charcoal-600 hover:text-charcoal-50 transition-colors"
+          title="Notifications"
+        >
           <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-gold-600" />
+          {(unreadCount ?? 0) > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-gold-600" />
+          )}
         </button>
 
         {/* User menu */}
