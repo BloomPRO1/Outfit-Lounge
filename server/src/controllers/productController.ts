@@ -216,9 +216,15 @@ export async function createProduct(req: AuthRequest, res: Response, next: NextF
 
     const product = productRes.rows[0];
 
-    // Create variants
+    // Create variants — deduplicate SKUs within this batch
+    const usedVariantSkus = new Set<string>();
     for (const variant of variants) {
-      const variantSku = generateVariantSKU(sku, variant.size, variant.color);
+      let variantSku = generateVariantSKU(sku, variant.size, variant.color);
+      let suffix = 1;
+      while (usedVariantSkus.has(variantSku)) {
+        variantSku = `${generateVariantSKU(sku, variant.size, variant.color)}-${suffix++}`;
+      }
+      usedVariantSkus.add(variantSku);
       await client.query(`
         INSERT INTO product_variants (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -556,14 +562,29 @@ export async function createVariant(req: AuthRequest, res: Response): Promise<vo
     return;
   }
 
-  const variantSku = generateVariantSKU(productRes.rows[0].sku, size, color);
+  // Build a unique SKU — append a counter if the base SKU is already taken
+  const baseSku = generateVariantSKU(productRes.rows[0].sku, size, color);
+  let variantSku = baseSku;
+  let suffix = 1;
+  while (true) {
+    const exists = await db.query(`SELECT 1 FROM product_variants WHERE sku = $1`, [variantSku]);
+    if (!exists.rows[0]) break;
+    variantSku = `${baseSku}-${suffix++}`;
+  }
 
-  const result = await db.query(`
-    INSERT INTO product_variants (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
-  `, [productId, variantSku, size, color, material, sellingPrice, rentalPricePerDay, stockQuantity || 0, availableForRent || 0]);
-
-  res.status(201).json(result.rows[0]);
+  try {
+    const result = await db.query(`
+      INSERT INTO product_variants (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+    `, [productId, variantSku, size, color, material, sellingPrice, rentalPricePerDay, stockQuantity || 0, availableForRent || 0]);
+    res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'A variant with this size and color already exists' });
+    } else {
+      throw err;
+    }
+  }
 }
 
 export async function updateVariant(req: AuthRequest, res: Response): Promise<void> {
