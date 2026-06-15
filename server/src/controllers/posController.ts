@@ -26,9 +26,15 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
   try {
     await client.query('BEGIN');
 
-    // Generate sale number
-    const countRes = await client.query(`SELECT COUNT(*) FROM sales`);
-    const seq = parseInt(countRes.rows[0].count) + 1;
+    // Generate sale number using MAX sequence for current month so that
+    // deleting sales never causes duplicate number collisions.
+    const prefix = `SALE-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-`;
+    const seqRes = await client.query(
+      `SELECT COALESCE(MAX(CAST(SPLIT_PART(sale_number, '-', 3) AS INTEGER)), 0) + 1 AS next_seq
+       FROM sales WHERE sale_number LIKE $1`,
+      [`${prefix}%`],
+    );
+    const seq = parseInt(seqRes.rows[0].next_seq);
     const saleNumber = generateSaleNumber(seq);
 
     // Calculate totals
