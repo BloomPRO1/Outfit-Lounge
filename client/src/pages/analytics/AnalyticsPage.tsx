@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Wallet, Plus, Trash2,
-  BarChart2, ChevronDown, FileDown, Table2,
+  BarChart2, ChevronDown, FileDown, Table2, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { analyticsService } from '@/services/analyticsService';
@@ -105,6 +105,7 @@ export default function AnalyticsPage() {
   const [activeQuick, setActiveQuick] = useState('Last 12M');
   const [showAddForm, setShowAddForm] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [dailyPdfLoading, setDailyPdfLoading] = useState(false);
 
   // Daily sales date range (defaults to last 30 days)
   const [dailyFrom, setDailyFrom] = useState(() => {
@@ -203,6 +204,61 @@ export default function AnalyticsPage() {
     a.download = `daily_sales_${dailyFrom}_to_${dailyTo}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadDailyPDF = async () => {
+    const rows: any[] = dailySalesData?.data || [];
+    if (!rows.length) { toast.error('No daily sales data to download'); return; }
+    setDailyPdfLoading(true);
+    try {
+      const doc = createDoc();
+      const logo = await loadLogo();
+      const periodLabel = `${dailyFrom} — ${dailyTo}`;
+
+      let y = await addHeader(doc, logo, 'Daily Sales Report', periodLabel);
+
+      // Totals per payment method
+      const totCash  = rows.reduce((s: number, r: any) => s + (r.cash  || 0), 0);
+      const totCard  = rows.reduce((s: number, r: any) => s + (r.card  || 0), 0);
+      const totMob   = rows.reduce((s: number, r: any) => s + (r.mobile_payment  || 0), 0);
+      const totBank  = rows.reduce((s: number, r: any) => s + (r.bank_transfer   || 0), 0);
+      const grandTotal = totCash + totCard + totMob + totBank;
+
+      y = addSectionTitle(doc, 'Payment Method Totals', y);
+      y = addStatCards(doc, [
+        { label: 'Cash',          value: formatCurrency(totCash) },
+        { label: 'Card',          value: formatCurrency(totCard) },
+        { label: 'Mobile Pay',    value: formatCurrency(totMob)  },
+        { label: 'Bank Transfer', value: formatCurrency(totBank) },
+      ], y);
+      y = addStatCards(doc, [
+        { label: 'Grand Total', value: formatCurrency(grandTotal), color: [180, 140, 80] },
+      ], y);
+
+      y = addSectionTitle(doc, 'Daily Breakdown', y);
+      addTable(doc,
+        ['Date', 'Cash', 'Card', 'Mobile Pay', 'Bank Transfer', 'Total'],
+        rows.map((r: any) => {
+          const total = (r.cash || 0) + (r.card || 0) + (r.mobile_payment || 0) + (r.bank_transfer || 0);
+          return [
+            r.day,
+            formatCurrency(r.cash || 0),
+            formatCurrency(r.card || 0),
+            formatCurrency(r.mobile_payment || 0),
+            formatCurrency(r.bank_transfer || 0),
+            formatCurrency(total),
+          ];
+        }),
+        y,
+      );
+
+      addFooter(doc);
+      doc.save(`daily_sales_report_${dailyFrom}_to_${dailyTo}.pdf`);
+    } catch (err: any) {
+      toast.error('Failed to generate PDF: ' + err.message);
+    } finally {
+      setDailyPdfLoading(false);
+    }
   };
 
   const { summary, monthlyData = [], capitalByCategory = [] } = analytics || {};
@@ -428,7 +484,10 @@ export default function AnalyticsPage() {
               className="bg-charcoal-700 border border-charcoal-500 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:ring-1 focus:ring-gold-600 outline-none"
             />
             <Button variant="secondary" size="sm" icon={<Table2 size={13} />} onClick={downloadDailyCSV}>
-              Download CSV
+              CSV
+            </Button>
+            <Button variant="secondary" size="sm" icon={<FileText size={13} />} onClick={downloadDailyPDF} loading={dailyPdfLoading}>
+              PDF Report
             </Button>
           </div>
         </div>
