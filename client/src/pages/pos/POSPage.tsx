@@ -969,6 +969,7 @@ export default function POSPage() {
                     className="flex-1"
                     onClick={handleCheckout}
                     loading={checkoutMutation.isPending}
+                    disabled={isCash && !amountPaid.trim()}
                     icon={<CheckCircle size={16} />}
                   >
                     Complete Sale
