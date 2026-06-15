@@ -1,4 +1,4 @@
-import logoDataUri from '@/assets/logoBase64';
+import logoDataUri from '@/assets/receiptLogoBase64';
 
 export interface ThermalReceiptData {
   saleNumber: string;
