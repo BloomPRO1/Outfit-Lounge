@@ -4,23 +4,7 @@ import { db } from '../config/database';
 import { env } from '../config/env';
 import path from 'path';
 import fs from 'fs';
-
-function loadLogoBuffer(): Buffer | null {
-  const candidates = [
-    // Server-local copy — always present regardless of deployment layout
-    path.join(__dirname, '../assets/logo.jpg'),
-    path.join(__dirname, '../../assets/logo.jpg'),
-    // Client public folder (dev layout)
-    path.join(__dirname, '../../../client/public/logo.jpg'),
-    path.join(process.cwd(), 'client/public/logo.jpg'),
-    path.join(process.cwd(), '../client/public/logo.jpg'),
-    path.join(__dirname, '../../../client/dist/logo.jpg'),
-  ];
-  for (const p of candidates) {
-    try { if (fs.existsSync(p)) return fs.readFileSync(p); } catch { /* try next */ }
-  }
-  return null;
-}
+import { logoBuffer as embeddedLogo } from '../assets/logoBuffer';
 
 // ─── Disk storage for persistent invoice PDFs ────────────────────────────────
 function getInvoiceDir(): string {
@@ -92,14 +76,11 @@ async function buildPDF(d: PDFData): Promise<Buffer> {
       let y = 40;
 
       // ── Logo ───────────────────────────────────────────────────────────────
-      const logoBuffer = loadLogoBuffer();
       const LOGO_SIZE = 64;
-      if (logoBuffer) {
-        try {
-          doc.image(logoBuffer, Math.round((PGW - LOGO_SIZE) / 2), y, { fit: [LOGO_SIZE, LOGO_SIZE] });
-        } catch { /* skip if corrupt */ }
+      try {
+        doc.image(embeddedLogo, Math.round((PGW - LOGO_SIZE) / 2), y, { fit: [LOGO_SIZE, LOGO_SIZE] });
         y += LOGO_SIZE + 10;
-      }
+      } catch { /* skip if image fails */ }
 
       // ── Shop name & contact ────────────────────────────────────────────────
       doc.font('Helvetica-Bold').fontSize(22).fillColor(BLACK)

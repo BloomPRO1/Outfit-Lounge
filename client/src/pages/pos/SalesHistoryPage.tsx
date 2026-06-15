@@ -18,15 +18,33 @@ export default function SalesHistoryPage() {
     const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0];
   });
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
-  const [sendingId, setSendingId]       = useState<string | null>(null);
-  const [phoneInputId, setPhoneInputId] = useState<string | null>(null);
-  const [phoneValue, setPhoneValue]     = useState('');
-  const [sentIds, setSentIds]           = useState<Set<string>>(new Set());
+  const [sendingId, setSendingId]         = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [phoneInputId, setPhoneInputId]   = useState<string | null>(null);
+  const [phoneValue, setPhoneValue]       = useState('');
+  const [sentIds, setSentIds]             = useState<Set<string>>(new Set());
 
   const { data: sales, isLoading } = useQuery({
     queryKey: ['pos-sales-history', dateFrom, dateTo],
     queryFn: () => posService.getSales({ fromDate: dateFrom, toDate: dateTo }),
   });
+
+  const handleDownloadPDF = async (sale: any) => {
+    setDownloadingId(sale.id);
+    try {
+      const res = await api.get(`/invoices/sale/${sale.id}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sale.sale_number}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download PDF');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleSend = async (sale: any) => {
     setSendingId(sale.id);
@@ -133,18 +151,16 @@ export default function SalesHistoryPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* PDF download — only if file is stored */}
-                    {sale.invoice_pdf_path && (
-                      <a
-                        href={`/uploads/${sale.invoice_pdf_path}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 h-8 text-xs rounded-lg bg-charcoal-600 hover:bg-charcoal-500 text-charcoal-200 hover:text-charcoal-50 transition-colors border border-charcoal-500/60"
-                      >
-                        <Download size={13} />
-                        PDF
-                      </a>
-                    )}
+                    {/* PDF download — always available, generated on demand */}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Download size={13} />}
+                      loading={downloadingId === sale.id}
+                      onClick={() => handleDownloadPDF(sale)}
+                    >
+                      PDF
+                    </Button>
 
                     {/* WhatsApp send */}
                     {sentIds.has(sale.id) ? (
