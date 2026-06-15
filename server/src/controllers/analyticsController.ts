@@ -123,6 +123,41 @@ export async function getAnalytics(req: Request, res: Response): Promise<void> {
   });
 }
 
+export async function getDailySalesByPayment(req: Request, res: Response): Promise<void> {
+  const { fromDate, toDate } = req.query as Record<string, string>;
+
+  const now = new Date();
+  const to = toDate || now.toISOString().split('T')[0];
+  const from30 = new Date(now);
+  from30.setDate(from30.getDate() - 29);
+  const from = fromDate || from30.toISOString().split('T')[0];
+
+  const rows = await db.query(`
+    SELECT
+      DATE(created_at)::text AS day,
+      payment_method,
+      COALESCE(SUM(total_amount), 0)::float AS amount
+    FROM sales
+    WHERE DATE(created_at) BETWEEN $1 AND $2
+      AND status = 'completed'
+    GROUP BY DATE(created_at), payment_method
+    ORDER BY day ASC
+  `, [from, to]);
+
+  // Pivot into per-day objects
+  const dayMap: Record<string, any> = {};
+  for (const row of rows.rows as any[]) {
+    if (!dayMap[row.day]) {
+      dayMap[row.day] = { day: row.day, cash: 0, card: 0, mobile_payment: 0, bank_transfer: 0 };
+    }
+    const method = row.payment_method as string;
+    if (method in dayMap[row.day]) dayMap[row.day][method] = row.amount;
+  }
+
+  const data = Object.values(dayMap).sort((a: any, b: any) => a.day.localeCompare(b.day));
+  res.json({ data, from, to });
+}
+
 export async function listCapital(req: Request, res: Response): Promise<void> {
   const { page, limit, offset } = getPagination(req.query);
   const { fromDate, toDate } = req.query as Record<string, string>;

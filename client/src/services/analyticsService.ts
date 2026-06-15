@@ -17,4 +17,8 @@ export const analyticsService = {
     const { data } = await api.delete(`/analytics/capital/${id}`);
     return data;
   },
+  getDailySales: async (fromDate?: string, toDate?: string) => {
+    const { data } = await api.get('/analytics/daily-sales', { params: { fromDate, toDate } });
+    return data as { data: any[]; from: string; to: string };
+  },
 };

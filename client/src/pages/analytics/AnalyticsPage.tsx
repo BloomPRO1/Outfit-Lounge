@@ -47,6 +47,13 @@ const CHART_COLORS = {
   profit_neg: '#f87171',
 };
 
+const PAYMENT_COLORS: Record<string, string> = {
+  cash:          '#c9a96e',
+  card:          '#60a5fa',
+  mobile_payment:'#4ade80',
+  bank_transfer: '#a78bfa',
+};
+
 const QUICK_RANGES = [
   { label: 'This Month', months: 0 },
   { label: 'Last 3M', months: 2 },
@@ -99,6 +106,12 @@ export default function AnalyticsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  // Daily sales date range (defaults to last 30 days)
+  const [dailyFrom, setDailyFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().split('T')[0];
+  });
+  const [dailyTo, setDailyTo] = useState(new Date().toISOString().split('T')[0]);
+
   // Chart refs for PDF capture
   const barChartRef    = useRef<HTMLDivElement>(null);
   const lineChartRef   = useRef<HTMLDivElement>(null);
@@ -119,6 +132,11 @@ export default function AnalyticsPage() {
   const { data: capitalList, isLoading: capitalLoading } = useQuery({
     queryKey: ['analytics-capital', fromMonth, toMonth],
     queryFn: () => analyticsService.listCapital({ fromDate: `${fromMonth}-01`, toDate: `${toMonth}-31` }),
+  });
+
+  const { data: dailySalesData } = useQuery({
+    queryKey: ['analytics-daily-sales', dailyFrom, dailyTo],
+    queryFn: () => analyticsService.getDailySales(dailyFrom, dailyTo),
   });
 
   const addMutation = useMutation({
@@ -188,6 +206,11 @@ export default function AnalyticsPage() {
   const netProfit = summary?.netProfit ?? 0;
   const isProfit = netProfit >= 0;
 
+  const dailyChartData = (dailySalesData?.data || []).map((row: any) => ({
+    ...row,
+    label: new Date(row.day + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+  }));
+
   const downloadPDF = async () => {
     setPdfLoading(true);
     try {
@@ -206,7 +229,7 @@ export default function AnalyticsPage() {
       ], y);
 
       if (barChartRef.current) {
-        y = addSectionTitle(doc, 'Revenue vs Business Expenses', y);
+        y = addSectionTitle(doc, 'Daily Sales by Payment Method', y);
         const img = await captureChart(barChartRef.current);
         if (img) y = await addChartImage(doc, img, y, 70);
       }
@@ -349,39 +372,52 @@ export default function AnalyticsPage() {
         />
       </div>
 
-      {/* Revenue vs Capital Bar Chart */}
+      {/* Daily Sales by Payment Method */}
       <div ref={barChartRef}>
       <Card>
-        <h3 className="font-semibold text-charcoal-50 mb-5">Revenue vs Business Expenses</h3>
-        {chartData.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <h3 className="font-semibold text-charcoal-50">Daily Sales by Payment Method</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-charcoal-300">From</span>
+            <input
+              type="date" value={dailyFrom}
+              onChange={e => setDailyFrom(e.target.value)}
+              className="bg-charcoal-700 border border-charcoal-500 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:ring-1 focus:ring-gold-600 outline-none"
+            />
+            <span className="text-xs text-charcoal-300">To</span>
+            <input
+              type="date" value={dailyTo}
+              onChange={e => setDailyTo(e.target.value)}
+              className="bg-charcoal-700 border border-charcoal-500 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:ring-1 focus:ring-gold-600 outline-none"
+            />
+          </div>
+        </div>
+        {dailyChartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={chartData} barGap={2}>
+            <BarChart data={dailyChartData} barGap={1} barCategoryGap="25%">
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a38" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: '#7a7a8c', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="label" tick={{ fill: '#7a7a8c', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis
                 tick={{ fill: '#7a7a8c', fontSize: 11 }} axisLine={false} tickLine={false}
-                tickFormatter={(v) => `${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
               />
               <Tooltip
                 contentStyle={customTooltipStyle}
                 formatter={(v: number, name: string) => [
                   formatCurrency(v),
-                  name === 'revenue' ? 'Revenue' : name === 'capital' ? 'Expenses' : 'Profit',
+                  name === 'cash' ? 'Cash' : name === 'card' ? 'Card' : name === 'mobile_payment' ? 'Mobile Pay' : 'Bank Transfer',
                 ]}
               />
-              <Legend formatter={(v) => v === 'revenue' ? 'Revenue' : v === 'capital' ? 'Expenses' : 'Profit'} />
-              <Bar dataKey="revenue" fill={CHART_COLORS.revenue} radius={[4, 4, 0, 0]} maxBarSize={32} />
-              <Bar dataKey="capital" fill={CHART_COLORS.capital} radius={[4, 4, 0, 0]} maxBarSize={32} />
-              <Bar dataKey="profit" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                {chartData.map((entry: any, i: number) => (
-                  <Cell key={i} fill={entry.profit >= 0 ? CHART_COLORS.profit_pos : CHART_COLORS.profit_neg} />
-                ))}
-              </Bar>
+              <Legend formatter={(v) => v === 'cash' ? 'Cash' : v === 'card' ? 'Card' : v === 'mobile_payment' ? 'Mobile Pay' : 'Bank Transfer'} />
+              <Bar dataKey="cash"           fill={PAYMENT_COLORS.cash}           radius={[3, 3, 0, 0]} maxBarSize={20} />
+              <Bar dataKey="card"           fill={PAYMENT_COLORS.card}           radius={[3, 3, 0, 0]} maxBarSize={20} />
+              <Bar dataKey="mobile_payment" fill={PAYMENT_COLORS.mobile_payment} radius={[3, 3, 0, 0]} maxBarSize={20} />
+              <Bar dataKey="bank_transfer"  fill={PAYMENT_COLORS.bank_transfer}  radius={[3, 3, 0, 0]} maxBarSize={20} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
           <div className="h-48 flex items-center justify-center text-charcoal-200 text-sm">
-            No data for this period
+            No sales in this date range
           </div>
         )}
       </Card>
