@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Package, Users, Calendar, ShoppingCart,
   ArchiveX, RotateCcw, BarChart3, BarChart2, Bell, Settings,
-  ChevronLeft, ChevronRight, Briefcase, Banknote, Receipt, Percent, CalendarCheck2,
+  ChevronLeft, ChevronRight, Briefcase, Banknote, Receipt, Percent, CalendarCheck2, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
@@ -12,6 +12,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, module: 'dashboard' },
   { path: '/pos', label: 'POS', icon: ShoppingCart, highlight: true, module: 'pos' },
+  { path: '/sales', label: 'Sales History', icon: ClipboardList, module: 'pos' },
   { path: '/rentals', label: 'Rentals', icon: Calendar, module: 'rentals' },
   { path: '/availability', label: 'Availability', icon: CalendarCheck2, module: 'rentals' },
   { path: '/returns', label: 'Returns', icon: RotateCcw, module: 'returns' },

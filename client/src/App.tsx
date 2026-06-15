@@ -15,6 +15,7 @@ import NewRentalPage from './pages/rentals/NewRentalPage';
 import RentalDetailPage from './pages/rentals/RentalDetailPage';
 import AvailabilityPage from './pages/rentals/AvailabilityPage';
 import POSPage from './pages/pos/POSPage';
+import SalesHistoryPage from './pages/pos/SalesHistoryPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 import ReturnsPage from './pages/returns/ReturnsPage';
 import ReportsPage from './pages/reports/ReportsPage';
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="/availability"       element={<ModuleRoute module="rentals" element={<AvailabilityPage />} />} />
 
           <Route path="/pos"          element={<ModuleRoute module="pos"           element={<POSPage />} />} />
+          <Route path="/sales"        element={<ModuleRoute module="pos"           element={<SalesHistoryPage />} />} />
           <Route path="/inventory"    element={<ModuleRoute module="inventory"     element={<InventoryPage />} />} />
           <Route path="/returns"      element={<ModuleRoute module="returns"       element={<ReturnsPage />} />} />
           <Route path="/promotions"   element={<ModuleRoute module="promotions"    element={<PromotionsPage />} />} />
