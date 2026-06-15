@@ -6,7 +6,7 @@ import {
   Search, Barcode, ShoppingCart, Plus, Minus, Trash2,
   Package, X, Printer, CheckCircle, Tag, User, Monitor,
   Banknote, CreditCard, Smartphone, Building2, ChevronLeft,
-  StickyNote, MessageCircle, CheckCircle2,
+  StickyNote, MessageCircle, CheckCircle2, UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/services/api';
@@ -21,6 +21,7 @@ import { useCartStore } from '@/store/cartStore';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Drawer from '@/components/common/Drawer';
+import Textarea from '@/components/common/Textarea';
 import PromotionSelector from '@/components/common/PromotionSelector';
 import PromoCodeInput from '@/components/common/PromoCodeInput';
 import { formatCurrency } from '@/utils/formatters';
@@ -51,6 +52,8 @@ export default function POSPage() {
   const [notes, setNotes] = useState('');
   const [showNotes, setShowNotes] = useState(false);
   const [variantPickerProduct, setVariantPickerProduct] = useState<any | null>(null);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [addCustomerForm, setAddCustomerForm] = useState({ name: '', phone: '', whatsapp: '', email: '', address: '', notes: '' });
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
   const [appliedPromoCode, setAppliedPromoCode] = useState<PromotionCode | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState(false);
@@ -234,6 +237,24 @@ export default function POSPage() {
     queryFn: () => customerService.search(customerSearch),
     enabled: customerSearch.length > 1,
   });
+
+  const createCustomerMutation = useMutation({
+    mutationFn: customerService.create,
+    onSuccess: (customer: any) => {
+      toast.success('Customer added!');
+      setCustomer(customer.id, customer.name);
+      setCustomerSearch('');
+      setShowAddCustomer(false);
+      setAddCustomerForm({ name: '', phone: '', whatsapp: '', email: '', address: '', notes: '' });
+      qc.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to create customer'),
+  });
+
+  const handleAddCustomer = () => {
+    if (!addCustomerForm.name.trim()) { toast.error('Name is required'); return; }
+    createCustomerMutation.mutate(addCustomerForm);
+  };
 
   const checkoutMutation = useMutation({
     mutationFn: posService.checkout,
@@ -664,27 +685,36 @@ export default function POSPage() {
                     <button onClick={() => { clearCart(); setExtraDiscount(''); setSelectedPromotion(null); setAppliedPromoCode(null); }} className="text-xs text-charcoal-300 hover:text-red-400 transition-colors">Clear</button>
                   )}
                 </div>
-                <div className="relative">
-                  <Input
-                    value={customerSearch || customerName || ''}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="Customer (optional)..."
-                    icon={<User size={14} />}
-                    className="text-sm"
-                    iconRight={customerId ? <button onClick={() => { setCustomer(null, null); setCustomerSearch(''); }}><X size={14} /></button> : undefined}
-                  />
-                  {customerSearch.length > 1 && customerResults && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-20 overflow-hidden">
-                      {customerResults.map((c: any) => (
-                        <button key={c.id} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-charcoal-600 transition-colors"
-                          onClick={() => { setCustomer(c.id, c.name); setCustomerSearch(''); }}
-                        >
-                          <span className="text-sm text-charcoal-50">{c.name}</span>
-                          <span className="text-xs text-charcoal-200 ml-auto">{c.phone}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      value={customerSearch || customerName || ''}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      placeholder="Customer (optional)..."
+                      icon={<User size={14} />}
+                      className="text-sm"
+                      iconRight={customerId ? <button onClick={() => { setCustomer(null, null); setCustomerSearch(''); }}><X size={14} /></button> : undefined}
+                    />
+                    {customerSearch.length > 1 && customerResults && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-charcoal-700 border border-charcoal-500 rounded-xl shadow-card z-20 overflow-hidden">
+                        {customerResults.map((c: any) => (
+                          <button key={c.id} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-charcoal-600 transition-colors"
+                            onClick={() => { setCustomer(c.id, c.name); setCustomerSearch(''); }}
+                          >
+                            <span className="text-sm text-charcoal-50">{c.name}</span>
+                            <span className="text-xs text-charcoal-200 ml-auto">{c.phone}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { setAddCustomerForm({ name: customerSearch, phone: '', whatsapp: '', email: '', address: '', notes: '' }); setShowAddCustomer(true); }}
+                    title="Add new customer"
+                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-charcoal-600 hover:bg-charcoal-500 border border-charcoal-500/60 text-charcoal-300 hover:text-gold-400 transition-colors"
+                  >
+                    <UserPlus size={16} />
+                  </button>
                 </div>
               </div>
 
@@ -1023,6 +1053,32 @@ export default function POSPage() {
         </AnimatePresence>,
         document.body
       )}
+
+      {/* ─── Add Customer Drawer ─── */}
+      <Drawer
+        open={showAddCustomer}
+        onClose={() => setShowAddCustomer(false)}
+        title="Add Customer"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowAddCustomer(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleAddCustomer} loading={createCustomerMutation.isPending}>
+              Add Customer
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Full Name" value={addCustomerForm.name} onChange={(e) => setAddCustomerForm({ ...addCustomerForm, name: e.target.value })} placeholder="Customer name" required />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Phone" type="tel" value={addCustomerForm.phone} onChange={(e) => setAddCustomerForm({ ...addCustomerForm, phone: e.target.value })} placeholder="+94712345678" />
+            <Input label="WhatsApp" type="tel" value={addCustomerForm.whatsapp} onChange={(e) => setAddCustomerForm({ ...addCustomerForm, whatsapp: e.target.value })} placeholder="+94712345678" />
+          </div>
+          <Input label="Email" type="email" value={addCustomerForm.email} onChange={(e) => setAddCustomerForm({ ...addCustomerForm, email: e.target.value })} placeholder="customer@email.com" />
+          <Textarea label="Address" value={addCustomerForm.address} onChange={(e) => setAddCustomerForm({ ...addCustomerForm, address: e.target.value })} placeholder="Full address..." rows={2} />
+          <Textarea label="Notes" value={addCustomerForm.notes} onChange={(e) => setAddCustomerForm({ ...addCustomerForm, notes: e.target.value })} placeholder="Any additional notes..." rows={2} />
+        </div>
+      </Drawer>
 
       {/* ─── Receipt Drawer ─── */}
       <Drawer open={showReceipt} onClose={handleCloseReceipt} title="Receipt">
