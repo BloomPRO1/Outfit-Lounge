@@ -171,42 +171,33 @@ export default function POSPage() {
     displayWinRef.current = w;
   };
 
-  // Auto-open strategy:
-  //   1. Try immediately on mount. If window-management permission was already
-  //      granted (user clicked Allow before), getSecondaryScreen() resolves
-  //      instantly and the popup opens on the correct screen.
-  //   2. If blocked (popup returns null), wait for the operator's first
-  //      interaction — barcode scan or tap — then open via openCustomerDisplay()
-  //      which will prompt for permission and position correctly.
+  // Customer display auto-open strategy:
+  //   Pre-fetch screen info in the background (no gesture needed).
+  //   Open the popup SYNCHRONOUSLY on the operator's first keydown or pointerdown
+  //   so that Chrome propagates transient user-activation to the popup window.
+  //   The popup's own useEffect then calls requestFullscreen() while it still has
+  //   that inherited activation — no tap on the display required.
   useEffect(() => {
-    let cancelled = false;
-    const tryAutoOpen = async () => {
-      // Permission already granted → resolve coords silently, no prompt.
-      const screen = await getSecondaryScreen().catch(() => null);
-      if (cancelled) return;
-      const w = window.open('/customer-display', 'customer-display', buildFeatures(screen));
-      if (w) {
-        displayWinRef.current = w;
-        // The popup was opened without a user gesture (from useEffect), so the browser
-        // blocks requestFullscreen() inside it. On the first real gesture on the POS side
-        // (key press / barcode scan / mouse click) we call fullscreen cross-window while
-        // we have transient activation — same-origin popups allow this.
-        const fsOnGesture = () => {
-          try { if (!w.closed) w.document.documentElement.requestFullscreen().catch(() => {}); }
-          catch { /* cross-window call may fail if popup was closed */ }
-        };
-        document.addEventListener('keydown',     fsOnGesture, { once: true, capture: true });
-        document.addEventListener('pointerdown', fsOnGesture, { once: true, capture: true });
+    let screenInfo: { left: number; top: number; width: number; height: number } | null = null;
+    getSecondaryScreen().then(s => { screenInfo = s; }).catch(() => {});
+
+    const openOnFirstGesture = () => {
+      // Synchronous window.open inside the gesture handler — activation is preserved.
+      if (displayWinRef.current && !displayWinRef.current.closed) {
+        displayWinRef.current.focus();
         return;
       }
-
-      // Popup was blocked — open on first operator interaction (which grants gesture context).
-      const openOnFirstGesture = () => { openCustomerDisplay(); };
-      document.addEventListener('keydown',     openOnFirstGesture, { once: true, capture: true });
-      document.addEventListener('pointerdown', openOnFirstGesture, { once: true, capture: true });
+      const w = window.open('/customer-display', 'customer-display', buildFeatures(screenInfo));
+      if (w) displayWinRef.current = w;
     };
-    tryAutoOpen();
-    return () => { cancelled = true; };
+
+    document.addEventListener('keydown',     openOnFirstGesture, { once: true, capture: true });
+    document.addEventListener('pointerdown', openOnFirstGesture, { once: true, capture: true });
+
+    return () => {
+      document.removeEventListener('keydown',     openOnFirstGesture, { capture: true });
+      document.removeEventListener('pointerdown', openOnFirstGesture, { capture: true });
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

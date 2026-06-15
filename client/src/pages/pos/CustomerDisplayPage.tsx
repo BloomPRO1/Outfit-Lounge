@@ -448,18 +448,19 @@ export default function CustomerDisplayPage() {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFsChange);
 
-    // Try auto-fullscreen — succeeds when opened from a user-gesture context.
-    document.documentElement.requestFullscreen().catch(() => {});
-
-    // When the operator clicks this window (taskbar, window frame, etc.) the
-    // browser fires a focus event with user-activation, so requestFullscreen()
-    // succeeds without any additional tap on the display itself.
-    const onWindowFocus = () => {
+    // Try fullscreen immediately (succeeds when popup was opened from a gesture).
+    const tryFs = () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
     };
-    window.addEventListener('focus', onWindowFocus);
+    tryFs();
+    // Retry once after a short settle — some Chrome versions need a tick.
+    const retryTimer = setTimeout(tryFs, 200);
+
+    // Also enter fullscreen whenever this window regains focus (e.g. clicking
+    // its taskbar button), which carries user-activation.
+    window.addEventListener('focus', tryFs);
 
     // BroadcastChannel for real-time POS updates
     const channel = new BroadcastChannel('pos-customer-display');
@@ -478,7 +479,8 @@ export default function CustomerDisplayPage() {
 
     return () => {
       document.removeEventListener('fullscreenchange', onFsChange);
-      window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('focus', tryFs);
+      clearTimeout(retryTimer);
       channel.close();
     };
   }, []);
