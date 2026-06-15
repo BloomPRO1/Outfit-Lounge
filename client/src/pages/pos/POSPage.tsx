@@ -185,7 +185,20 @@ export default function POSPage() {
       const screen = await getSecondaryScreen().catch(() => null);
       if (cancelled) return;
       const w = window.open('/customer-display', 'customer-display', buildFeatures(screen));
-      if (w) { displayWinRef.current = w; return; }
+      if (w) {
+        displayWinRef.current = w;
+        // The popup was opened without a user gesture (from useEffect), so the browser
+        // blocks requestFullscreen() inside it. On the first real gesture on the POS side
+        // (key press / barcode scan / mouse click) we call fullscreen cross-window while
+        // we have transient activation — same-origin popups allow this.
+        const fsOnGesture = () => {
+          try { if (!w.closed) w.document.documentElement.requestFullscreen().catch(() => {}); }
+          catch { /* cross-window call may fail if popup was closed */ }
+        };
+        document.addEventListener('keydown',     fsOnGesture, { once: true, capture: true });
+        document.addEventListener('pointerdown', fsOnGesture, { once: true, capture: true });
+        return;
+      }
 
       // Popup was blocked — open on first operator interaction (which grants gesture context).
       const openOnFirstGesture = () => { openCustomerDisplay(); };

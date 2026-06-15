@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Wallet, Plus, Trash2,
-  BarChart2, ChevronDown, FileDown,
+  BarChart2, ChevronDown, FileDown, Table2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { analyticsService } from '@/services/analyticsService';
@@ -187,6 +187,24 @@ export default function AnalyticsPage() {
     });
   };
 
+  const downloadDailyCSV = () => {
+    const rows = dailySalesData?.data || [];
+    if (!rows.length) { toast.error('No daily sales data to download'); return; }
+    const header = ['Date', 'Cash (LKR)', 'Card (LKR)', 'Mobile Payment (LKR)', 'Bank Transfer (LKR)', 'Total (LKR)'];
+    const lines = rows.map((r: any) => {
+      const total = (r.cash || 0) + (r.card || 0) + (r.mobile_payment || 0) + (r.bank_transfer || 0);
+      return [r.day, r.cash || 0, r.card || 0, r.mobile_payment || 0, r.bank_transfer || 0, total.toFixed(2)].join(',');
+    });
+    const csv = [header.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `daily_sales_${dailyFrom}_to_${dailyTo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const { summary, monthlyData = [], capitalByCategory = [] } = analytics || {};
 
   // Build chart data with formatted month labels
@@ -232,6 +250,25 @@ export default function AnalyticsPage() {
         y = addSectionTitle(doc, 'Daily Sales by Payment Method', y);
         const img = await captureChart(barChartRef.current);
         if (img) y = await addChartImage(doc, img, y, 70);
+      }
+
+      if (dailySalesData?.data?.length) {
+        y = addSectionTitle(doc, 'Daily Breakdown', y);
+        y = addTable(doc,
+          ['Date', 'Cash (LKR)', 'Card (LKR)', 'Mobile Pay (LKR)', 'Bank Transfer (LKR)', 'Total (LKR)'],
+          dailySalesData.data.map((r: any) => {
+            const total = (r.cash || 0) + (r.card || 0) + (r.mobile_payment || 0) + (r.bank_transfer || 0);
+            return [
+              r.day,
+              formatCurrency(r.cash || 0),
+              formatCurrency(r.card || 0),
+              formatCurrency(r.mobile_payment || 0),
+              formatCurrency(r.bank_transfer || 0),
+              formatCurrency(total),
+            ];
+          }),
+          y,
+        );
       }
 
       if (lineChartRef.current) {
@@ -377,7 +414,7 @@ export default function AnalyticsPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <h3 className="font-semibold text-charcoal-50">Daily Sales by Payment Method</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-charcoal-300">From</span>
             <input
               type="date" value={dailyFrom}
@@ -390,6 +427,9 @@ export default function AnalyticsPage() {
               onChange={e => setDailyTo(e.target.value)}
               className="bg-charcoal-700 border border-charcoal-500 rounded-lg px-2 py-1 text-xs text-charcoal-100 focus:ring-1 focus:ring-gold-600 outline-none"
             />
+            <Button variant="secondary" size="sm" icon={<Table2 size={13} />} onClick={downloadDailyCSV}>
+              Download CSV
+            </Button>
           </div>
         </div>
         {dailyChartData.length > 0 ? (
