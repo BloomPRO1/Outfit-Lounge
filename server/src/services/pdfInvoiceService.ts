@@ -7,7 +7,13 @@ import fs from 'fs';
 
 function loadLogoBuffer(): Buffer | null {
   const candidates = [
+    // Server-local copy — always present regardless of deployment layout
+    path.join(__dirname, '../assets/logo.jpg'),
+    path.join(__dirname, '../../assets/logo.jpg'),
+    // Client public folder (dev layout)
     path.join(__dirname, '../../../client/public/logo.jpg'),
+    path.join(process.cwd(), 'client/public/logo.jpg'),
+    path.join(process.cwd(), '../client/public/logo.jpg'),
     path.join(__dirname, '../../../client/dist/logo.jpg'),
   ];
   for (const p of candidates) {
