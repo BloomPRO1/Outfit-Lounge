@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { generateSaleNumber } from '../utils/generateSKU';
+import { generatePOSInvoicePDF } from '../services/pdfInvoiceService';
 
 export async function checkout(req: AuthRequest, res: Response): Promise<void> {
   const {
@@ -216,6 +217,11 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
     }
 
     await client.query('COMMIT');
+
+    // Pre-generate and persist the PDF so it's ready for future WhatsApp sharing
+    generatePOSInvoicePDF(sale.id).catch(err =>
+      console.error('[PDF pre-gen] Failed for sale', sale.id, err)
+    );
 
     // Fetch customer contact details for receipt (used by frontend for WhatsApp/SMS)
     let customerPhone: string | null = null;

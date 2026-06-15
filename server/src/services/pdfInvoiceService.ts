@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../config/database';
+import { env } from '../config/env';
 import path from 'path';
 import fs from 'fs';
 
@@ -15,8 +16,28 @@ function loadLogoBuffer(): Buffer | null {
   return null;
 }
 
+// ─── Disk storage for persistent invoice PDFs ────────────────────────────────
+function getInvoiceDir(): string {
+  const dir = path.join(process.cwd(), env.UPLOAD_DIR, 'invoices');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function saveInvoiceToDisk(buffer: Buffer, filename: string): string {
+  fs.writeFileSync(path.join(getInvoiceDir(), filename), buffer);
+  return `invoices/${filename}`;
+}
+
+export function loadInvoiceFromDisk(relativePath: string): Buffer | null {
+  try {
+    const fullPath = path.join(process.cwd(), env.UPLOAD_DIR, relativePath);
+    if (fs.existsSync(fullPath)) return fs.readFileSync(fullPath);
+  } catch {}
+  return null;
+}
+
 // ─── In-memory invoice store (24h TTL) ────────────────────────────────────────
-interface InvoiceEntry { buffer: Buffer; filename: string; expires: number; }
+interface InvoiceEntry { buffer: Buffer; filename: string; expires: number; filePath?: string; }
 const store = new Map<string, InvoiceEntry>();
 
 export function getStoredInvoice(token: string): InvoiceEntry | null {
@@ -249,6 +270,25 @@ async function getShopSettings() {
 
 // ─── Public generators ────────────────────────────────────────────────────────
 export async function generatePOSInvoicePDF(saleId: string): Promise<string> {
+  // Return cached disk copy if already stored
+  try {
+    const cached = await db.query('SELECT invoice_pdf_path FROM sales WHERE id = $1', [saleId]);
+    const existingPath: string | null = cached.rows[0]?.invoice_pdf_path || null;
+    if (existingPath) {
+      const diskBuffer = loadInvoiceFromDisk(existingPath);
+      if (diskBuffer) {
+        const token = uuidv4();
+        store.set(token, {
+          buffer: diskBuffer,
+          filename: path.basename(existingPath),
+          expires: Date.now() + 24 * 60 * 60 * 1000,
+          filePath: existingPath,
+        });
+        return token;
+      }
+    }
+  } catch { /* column may not exist yet during migration */ }
+
   const shop = await getShopSettings();
 
   const res = await db.query(`
@@ -297,12 +337,17 @@ export async function generatePOSInvoicePDF(saleId: string): Promise<string> {
     change:   parseFloat(r0.change_amount || '0'),
   });
 
+  const filename = `Receipt_${r0.sale_number.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
+  let filePath: string | undefined;
+  try {
+    filePath = saveInvoiceToDisk(buffer, filename);
+    await db.query('UPDATE sales SET invoice_pdf_path = $1 WHERE id = $2', [filePath, saleId]);
+  } catch (err) {
+    console.error('[PDF] Failed to persist to disk:', err);
+  }
+
   const token = uuidv4();
-  store.set(token, {
-    buffer,
-    filename: `Receipt_${r0.sale_number.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`,
-    expires: Date.now() + 24 * 60 * 60 * 1000,
-  });
+  store.set(token, { buffer, filename, expires: Date.now() + 24 * 60 * 60 * 1000, filePath });
   return token;
 }
 
@@ -370,11 +415,15 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
     damageCharges: damageCharges > 0 ? damageCharges : undefined,
   });
 
+  const filename = `Invoice_${r0.booking_number.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`;
+  let filePath: string | undefined;
+  try {
+    filePath = saveInvoiceToDisk(buffer, filename);
+  } catch (err) {
+    console.error('[PDF] Failed to persist rental invoice to disk:', err);
+  }
+
   const token = uuidv4();
-  store.set(token, {
-    buffer,
-    filename: `Invoice_${r0.booking_number.replace(/[^a-zA-Z0-9-]/g, '_')}.pdf`,
-    expires: Date.now() + 24 * 60 * 60 * 1000,
-  });
+  store.set(token, { buffer, filename, expires: Date.now() + 24 * 60 * 60 * 1000, filePath });
   return token;
 }

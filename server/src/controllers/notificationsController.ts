@@ -193,11 +193,17 @@ export async function sendInvoice(req: AuthRequest, res: Response): Promise<void
 
     // ── WhatsApp with PDF ──────────────────────────────────────────────────────
     if (channel === 'whatsapp') {
-      // Generate PDF
+      // Generate PDF (loads from disk cache for POS sales if already stored)
       const token = type === 'pos'
         ? await generatePOSInvoicePDF(referenceId)
         : await generateRentalInvoicePDF(referenceId);
-      const pdfUrl = baseUrl ? `${baseUrl}/api/invoices/download/${token}` : null;
+      const entry = getStoredInvoice(token);
+      // Prefer permanent /uploads URL so the link never expires
+      const pdfUrl = baseUrl
+        ? (entry?.filePath
+            ? `${baseUrl}/uploads/${entry.filePath}`
+            : `${baseUrl}/api/invoices/download/${token}`)
+        : null;
 
       // QR Scan mode → send directly via connected Baileys session
       if (waMode === 'qr_scan') {
