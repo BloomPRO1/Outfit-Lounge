@@ -158,6 +158,32 @@ export async function getDailySalesByPayment(req: Request, res: Response): Promi
   res.json({ data, from, to });
 }
 
+export async function getDailySalesDetail(req: Request, res: Response): Promise<void> {
+  const { fromDate, toDate } = req.query as Record<string, string>;
+
+  const now = new Date();
+  const to = toDate || now.toISOString().split('T')[0];
+  const from30 = new Date(now);
+  from30.setDate(from30.getDate() - 29);
+  const from = fromDate || from30.toISOString().split('T')[0];
+
+  const rows = await db.query(`
+    SELECT
+      DATE(s.created_at)::text AS day,
+      s.sale_number,
+      COALESCE(c.name, 'Walk-in') AS customer_name,
+      s.payment_method,
+      s.total_amount::float AS total_amount
+    FROM sales s
+    LEFT JOIN customers c ON c.id = s.customer_id
+    WHERE DATE(s.created_at) BETWEEN $1 AND $2
+      AND s.status = 'completed'
+    ORDER BY s.created_at ASC
+  `, [from, to]);
+
+  res.json({ data: rows.rows, from, to });
+}
+
 export async function listCapital(req: Request, res: Response): Promise<void> {
   const { page, limit, offset } = getPagination(req.query);
   const { fromDate, toDate } = req.query as Record<string, string>;

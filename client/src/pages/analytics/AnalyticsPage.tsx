@@ -140,6 +140,11 @@ export default function AnalyticsPage() {
     queryFn: () => analyticsService.getDailySales(dailyFrom, dailyTo),
   });
 
+  const { data: dailySalesDetail } = useQuery({
+    queryKey: ['analytics-daily-sales-detail', dailyFrom, dailyTo],
+    queryFn: () => analyticsService.getDailySalesDetail(dailyFrom, dailyTo),
+  });
+
   const addMutation = useMutation({
     mutationFn: analyticsService.addCapital,
     onSuccess: () => {
@@ -207,8 +212,8 @@ export default function AnalyticsPage() {
   };
 
   const downloadDailyPDF = async () => {
-    const rows: any[] = dailySalesData?.data || [];
-    if (!rows.length) { toast.error('No daily sales data to download'); return; }
+    const sales: any[] = dailySalesDetail?.data || [];
+    if (!sales.length) { toast.error('No daily sales data to download'); return; }
     setDailyPdfLoading(true);
     try {
       const doc = createDoc();
@@ -217,38 +222,23 @@ export default function AnalyticsPage() {
 
       let y = await addHeader(doc, logo, 'Daily Sales Report', periodLabel);
 
-      // Totals per payment method
-      const totCash  = rows.reduce((s: number, r: any) => s + (r.cash  || 0), 0);
-      const totCard  = rows.reduce((s: number, r: any) => s + (r.card  || 0), 0);
-      const totMob   = rows.reduce((s: number, r: any) => s + (r.mobile_payment  || 0), 0);
-      const totBank  = rows.reduce((s: number, r: any) => s + (r.bank_transfer   || 0), 0);
-      const grandTotal = totCash + totCard + totMob + totBank;
+      const grandTotal = sales.reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
 
-      y = addSectionTitle(doc, 'Payment Method Totals', y);
       y = addStatCards(doc, [
-        { label: 'Cash',          value: formatCurrency(totCash) },
-        { label: 'Card',          value: formatCurrency(totCard) },
-        { label: 'Mobile Pay',    value: formatCurrency(totMob)  },
-        { label: 'Bank Transfer', value: formatCurrency(totBank) },
-      ], y);
-      y = addStatCards(doc, [
-        { label: 'Grand Total', value: formatCurrency(grandTotal), color: [180, 140, 80] },
+        { label: 'Total Sales',  value: String(sales.length) },
+        { label: 'Grand Total',  value: formatCurrency(grandTotal), color: [180, 140, 80] },
       ], y);
 
       y = addSectionTitle(doc, 'Daily Breakdown', y);
       addTable(doc,
-        ['Date', 'Cash', 'Card', 'Mobile Pay', 'Bank Transfer', 'Total'],
-        rows.map((r: any) => {
-          const total = (r.cash || 0) + (r.card || 0) + (r.mobile_payment || 0) + (r.bank_transfer || 0);
-          return [
-            r.day,
-            formatCurrency(r.cash || 0),
-            formatCurrency(r.card || 0),
-            formatCurrency(r.mobile_payment || 0),
-            formatCurrency(r.bank_transfer || 0),
-            formatCurrency(total),
-          ];
-        }),
+        ['Date', 'Sale #', 'Customer', 'Payment Method', 'Amount'],
+        sales.map((r: any) => [
+          r.day,
+          r.sale_number || '—',
+          r.customer_name || 'Walk-in',
+          (r.payment_method || '').replace(/_/g, ' '),
+          formatCurrency(r.total_amount || 0),
+        ]),
         y,
       );
 
@@ -308,21 +298,17 @@ export default function AnalyticsPage() {
         if (img) y = await addChartImage(doc, img, y, 70);
       }
 
-      if (dailySalesData?.data?.length) {
+      if (dailySalesDetail?.data?.length) {
         y = addSectionTitle(doc, 'Daily Breakdown', y);
         y = addTable(doc,
-          ['Date', 'Cash (LKR)', 'Card (LKR)', 'Mobile Pay (LKR)', 'Bank Transfer (LKR)', 'Total (LKR)'],
-          dailySalesData.data.map((r: any) => {
-            const total = (r.cash || 0) + (r.card || 0) + (r.mobile_payment || 0) + (r.bank_transfer || 0);
-            return [
-              r.day,
-              formatCurrency(r.cash || 0),
-              formatCurrency(r.card || 0),
-              formatCurrency(r.mobile_payment || 0),
-              formatCurrency(r.bank_transfer || 0),
-              formatCurrency(total),
-            ];
-          }),
+          ['Date', 'Sale #', 'Customer', 'Payment Method', 'Amount (LKR)'],
+          dailySalesDetail.data.map((r: any) => [
+            r.day,
+            r.sale_number || '—',
+            r.customer_name || 'Walk-in',
+            (r.payment_method || '').replace(/_/g, ' '),
+            formatCurrency(r.total_amount || 0),
+          ]),
           y,
         );
       }

@@ -21,4 +21,8 @@ export const analyticsService = {
     const { data } = await api.get('/analytics/daily-sales', { params: { fromDate, toDate } });
     return data as { data: any[]; from: string; to: string };
   },
+  getDailySalesDetail: async (fromDate?: string, toDate?: string) => {
+    const { data } = await api.get('/analytics/daily-sales-detail', { params: { fromDate, toDate } });
+    return data as { data: any[]; from: string; to: string };
+  },
 };

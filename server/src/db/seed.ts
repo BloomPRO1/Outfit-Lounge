@@ -154,7 +154,7 @@ async function seed() {
       { key: 'shop_name', value: 'The Outfit Lounge', category: 'shop', label: 'Shop Name' },
       { key: 'shop_address', value: '2nd Floor, 6 Station Road, Homagama.', category: 'shop', label: 'Shop Address' },
       { key: 'shop_phone', value: '+94 77 845 1180', category: 'shop', label: 'Shop Phone' },
-      { key: 'shop_email', value: 'hello@theoutfitlounge.com', category: 'shop', label: 'Shop Email' },
+      { key: 'shop_email', value: 'info@theoutfitlounge.com', category: 'shop', label: 'Shop Email' },
       { key: 'currency', value: 'LKR', category: 'shop', label: 'Currency' },
       { key: 'currency_symbol', value: 'LKR', category: 'shop', label: 'Currency Symbol' },
       { key: 'tax_rate', value: '0', category: 'shop', label: 'Tax Rate (%)' },
