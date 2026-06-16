@@ -222,11 +222,22 @@ export default function AnalyticsPage() {
 
       let y = await addHeader(doc, logo, 'Daily Sales Report', periodLabel);
 
-      const grandTotal = sales.reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
+      const totCash  = sales.filter((r: any) => r.payment_method === 'cash').reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
+      const totCard  = sales.filter((r: any) => r.payment_method === 'card').reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
+      const totMob   = sales.filter((r: any) => r.payment_method === 'mobile_payment').reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
+      const totBank  = sales.filter((r: any) => r.payment_method === 'bank_transfer').reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
+      const grandTotal = totCash + totCard + totMob + totBank;
 
+      y = addSectionTitle(doc, 'Payment Method Totals', y);
       y = addStatCards(doc, [
-        { label: 'Total Sales',  value: String(sales.length) },
-        { label: 'Grand Total',  value: formatCurrency(grandTotal), color: [180, 140, 80] },
+        { label: 'Cash',          value: formatCurrency(totCash) },
+        { label: 'Card',          value: formatCurrency(totCard) },
+        { label: 'Mobile Pay',    value: formatCurrency(totMob) },
+        { label: 'Bank Transfer', value: formatCurrency(totBank) },
+      ], y);
+      y = addStatCards(doc, [
+        { label: 'Total Sales',   value: String(sales.length) },
+        { label: 'Grand Total',   value: formatCurrency(grandTotal), color: [180, 140, 80] },
       ], y);
 
       y = addSectionTitle(doc, 'Daily Breakdown', y);
