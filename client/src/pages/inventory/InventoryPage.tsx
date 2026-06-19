@@ -98,6 +98,8 @@ export default function InventoryPage() {
     ? Math.max(0, selectedVariant.stock_quantity - selectedVariant.available_for_rent)
     : 0;
 
+  const isBothSaleVariant = selectedVariant?.product_type === 'both' && !selectedVariant?.sku?.endsWith('-R');
+
   const rows: any[] = data?.data || [];
 
   return (
@@ -175,6 +177,8 @@ export default function InventoryPage() {
                 </tr>
               ) : rows.map((item) => {
                 const fs = Math.max(0, item.stock_quantity - item.available_for_rent);
+                const isBothSale = item.product_type === 'both' && !item.sku?.endsWith('-R');
+                const isBothRent = item.product_type === 'both' && item.sku?.endsWith('-R');
                 return (
                   <tr key={item.id} className="table-row">
                     {/* Product */}
@@ -187,7 +191,11 @@ export default function InventoryPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-charcoal-50">{item.product_name}</p>
-                          <p className="text-xs text-charcoal-200">{[item.size, item.color].filter(Boolean).join(' · ') || item.sku}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs text-charcoal-200">{[item.size, item.color].filter(Boolean).join(' · ') || item.sku}</p>
+                            {isBothSale && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium">Sale Pool</span>}
+                            {isBothRent && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 font-medium">Rent Pool</span>}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -287,6 +295,17 @@ export default function InventoryPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Warning for both-type sale variants */}
+          {isBothSaleVariant && (
+            <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+              <AlertTriangle size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-300 leading-relaxed">
+                This is the <strong>sale pool</strong> of a Rent &amp; Sale product. Its paired rent variant is tracked separately.
+                Only adjust stock here if you are physically adding or removing sale units — do not use this to undo a "Transfer to Rent".
+              </p>
             </div>
           )}
 
