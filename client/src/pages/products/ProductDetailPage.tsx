@@ -304,7 +304,7 @@ export default function ProductDetailPage() {
                 <tr className="border-b border-charcoal-500 text-left">
                   {[
                     'SKU', 'Size', 'Color', 'Material', 'Selling Price', 'Rental/Day',
-                    'Stock', 'Available', 'Damaged',
+                    'Stock', 'For Rent', 'Damaged',
                     ...(product.type === 'both' ? ['Mode'] : []),
                     'Actions',
                   ].map((h) => (
