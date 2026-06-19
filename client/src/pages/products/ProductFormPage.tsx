@@ -164,10 +164,13 @@ export default function ProductFormPage() {
       toast.error('Please enter at least size or color');
       return;
     }
-    // For 'both' type, always start with 0 in rent pool — transfer later via Product Detail
+    // 'both': start with 0 in rent pool — transfer later via Product Detail
+    // 'rental': all stock is available for rent
     const variantToAdd = form.type === 'both'
       ? { ...newVariant, availableForRent: 0 }
-      : newVariant;
+      : form.type === 'rental'
+        ? { ...newVariant, availableForRent: newVariant.stockQuantity }
+        : newVariant;
     setVariants((prev) => [...prev, variantToAdd]);
     setNewVariant({ size: '', color: '', material: '', stockQuantity: 0, availableForRent: 0, sellingPrice: '', rentalPricePerDay: '' });
   };
@@ -187,10 +190,13 @@ export default function ProductFormPage() {
         ...v,
         sellingPrice: v.sellingPrice ? parseFloat(v.sellingPrice) : undefined,
         rentalPricePerDay: v.rentalPricePerDay ? parseFloat(v.rentalPricePerDay) : undefined,
-        // 'both' type: non-rent variants start with 0; rent variants ('-R' suffix) keep their allocation
+        // 'both': non-rent variants start with 0; rent variants ('-R' suffix) keep their allocation
+        // 'rental': all stock is available for rent
         availableForRent: form.type === 'both'
           ? (v.color?.endsWith('-R') || v.size?.endsWith('-R') ? v.availableForRent : 0)
-          : v.availableForRent,
+          : form.type === 'rental'
+            ? v.stockQuantity
+            : v.availableForRent,
       })),
     };
 
@@ -428,9 +434,6 @@ export default function ProductFormPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input label="Stock Qty" type="number" min="0" value={newVariant.stockQuantity} onChange={(e) => setNewVariant({ ...newVariant, stockQuantity: parseInt(e.target.value) || 0 })} />
-                  {form.type === 'rental' && (
-                    <Input label="Available for Rent" type="number" min="0" value={newVariant.availableForRent} onChange={(e) => setNewVariant({ ...newVariant, availableForRent: parseInt(e.target.value) || 0 })} />
-                  )}
                 </div>
                 {form.type === 'both' && (
                   <p className="text-xs text-charcoal-300 bg-charcoal-700/50 rounded-lg px-3 py-2">

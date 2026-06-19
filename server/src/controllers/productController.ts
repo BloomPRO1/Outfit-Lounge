@@ -233,7 +233,7 @@ export async function createProduct(req: AuthRequest, res: Response, next: NextF
         variant.sellingPrice || sellingPrice || null,
         variant.rentalPricePerDay || rentalPricePerDay || null,
         variant.stockQuantity || 0,
-        variant.availableForRent || 0,
+        type === 'rental' ? (variant.stockQuantity || 0) : (variant.availableForRent || 0),
       ]);
     }
 
@@ -285,8 +285,13 @@ export async function updateProduct(req: AuthRequest, res: Response, next: NextF
     }
 
     const productSku = result.rows[0].sku;
+    const resolvedType = result.rows[0].type;
 
     for (const variant of variants) {
+      const resolvedAvailableForRent = resolvedType === 'rental'
+        ? (variant.stockQuantity ?? null)
+        : (variant.availableForRent ?? null);
+
       if (variant.id) {
         // Update existing variant
         await client.query(`
@@ -303,7 +308,7 @@ export async function updateProduct(req: AuthRequest, res: Response, next: NextF
         `, [
           variant.size || null, variant.color || null, variant.material || null,
           variant.sellingPrice || null, variant.rentalPricePerDay || null,
-          variant.stockQuantity ?? null, variant.availableForRent ?? null,
+          variant.stockQuantity ?? null, resolvedAvailableForRent,
           variant.id, id,
         ]);
       } else {
@@ -317,7 +322,7 @@ export async function updateProduct(req: AuthRequest, res: Response, next: NextF
           variant.sellingPrice || sellingPrice || null,
           variant.rentalPricePerDay || rentalPricePerDay || null,
           variant.stockQuantity || 0,
-          variant.availableForRent || 0,
+          resolvedType === 'rental' ? (variant.stockQuantity || 0) : (variant.availableForRent || 0),
         ]);
       }
     }
@@ -556,11 +561,12 @@ export async function createVariant(req: AuthRequest, res: Response): Promise<vo
   const { id: productId } = req.params;
   const { size, color, material, sellingPrice, rentalPricePerDay, stockQuantity, availableForRent } = req.body;
 
-  const productRes = await db.query(`SELECT sku FROM products WHERE id = $1`, [productId]);
+  const productRes = await db.query(`SELECT sku, type FROM products WHERE id = $1`, [productId]);
   if (!productRes.rows[0]) {
     res.status(404).json({ error: 'Product not found' });
     return;
   }
+  const productType = productRes.rows[0].type;
 
   // Build a unique SKU — append a counter if the base SKU is already taken
   const baseSku = generateVariantSKU(productRes.rows[0].sku, size, color);
@@ -576,7 +582,8 @@ export async function createVariant(req: AuthRequest, res: Response): Promise<vo
     const result = await db.query(`
       INSERT INTO product_variants (product_id, sku, size, color, material, selling_price, rental_price_per_day, stock_quantity, available_for_rent)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
-    `, [productId, variantSku, size, color, material, sellingPrice, rentalPricePerDay, stockQuantity || 0, availableForRent || 0]);
+    `, [productId, variantSku, size, color, material, sellingPrice, rentalPricePerDay, stockQuantity || 0,
+      productType === 'rental' ? (stockQuantity || 0) : (availableForRent || 0)]);
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
     if (err.code === '23505') {
