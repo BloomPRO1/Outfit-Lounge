@@ -134,13 +134,30 @@ export async function getDailySalesByPayment(req: Request, res: Response): Promi
 
   const rows = await db.query(`
     SELECT
-      DATE(created_at)::text AS day,
+      day,
       payment_method,
-      COALESCE(SUM(total_amount), 0)::float AS amount
-    FROM sales
-    WHERE DATE(created_at) BETWEEN $1 AND $2
-      AND status = 'completed'
-    GROUP BY DATE(created_at), payment_method
+      COALESCE(SUM(amount), 0)::float AS amount
+    FROM (
+      SELECT
+        DATE(created_at)::text AS day,
+        payment_method,
+        total_amount AS amount
+      FROM sales
+      WHERE DATE(created_at) BETWEEN $1 AND $2
+        AND status = 'completed'
+
+      UNION ALL
+
+      SELECT
+        DATE(p.created_at)::text AS day,
+        p.payment_method,
+        p.amount
+      FROM payments p
+      JOIN rentals r ON r.id = p.rental_id
+      WHERE DATE(p.created_at) BETWEEN $1 AND $2
+        AND p.payment_type NOT IN ('fine', 'refund')
+    ) combined
+    GROUP BY day, payment_method
     ORDER BY day ASC
   `, [from, to]);
 
@@ -178,7 +195,22 @@ export async function getDailySalesDetail(req: Request, res: Response): Promise<
     LEFT JOIN customers c ON c.id = s.customer_id
     WHERE DATE(s.created_at) BETWEEN $1 AND $2
       AND s.status = 'completed'
-    ORDER BY s.created_at ASC
+
+    UNION ALL
+
+    SELECT
+      DATE(p.created_at)::text AS day,
+      r.booking_number AS sale_number,
+      c.name AS customer_name,
+      p.payment_method,
+      p.amount::float AS total_amount
+    FROM payments p
+    JOIN rentals r ON r.id = p.rental_id
+    JOIN customers c ON c.id = r.customer_id
+    WHERE DATE(p.created_at) BETWEEN $1 AND $2
+      AND p.payment_type NOT IN ('fine', 'refund')
+
+    ORDER BY day ASC
   `, [from, to]);
 
   res.json({ data: rows.rows, from, to });
