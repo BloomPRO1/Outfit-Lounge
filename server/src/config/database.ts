@@ -1,5 +1,11 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool, PoolClient, types } from 'pg';
 import { env } from './env';
+
+// Return DATE columns as plain "YYYY-MM-DD" strings instead of Date objects.
+// pg's default parser creates new Date(y, m, d) at LOCAL midnight, which
+// serialises to a different UTC day when the server timezone ≠ UTC, causing
+// the browser to display dates shifted by ±1 day.
+types.setTypeParser(1082, val => val);
 
 const pool = new Pool({
   connectionString: env.DATABASE_URL,

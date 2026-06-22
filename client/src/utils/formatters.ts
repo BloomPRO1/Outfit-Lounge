@@ -10,14 +10,13 @@ export function formatNumber(num: number): string {
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  const date = new Date(dateStr);
-  return date.toLocaleString('en-MY', {
+  return new Date(dateStr).toLocaleString('en-MY', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -35,12 +34,14 @@ export function formatRelativeDate(dateStr: string): string {
   return formatDate(dateStr);
 }
 
+function toLocalMidnight(d: string | Date): Date {
+  if (d instanceof Date) { const c = new Date(d); c.setHours(0, 0, 0, 0); return c; }
+  const [y, m, day] = d.split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, day);
+}
+
 export function getDaysDiff(from: string | Date, to: string | Date): number {
-  const a = new Date(from);
-  const b = new Date(to);
-  a.setHours(0, 0, 0, 0);
-  b.setHours(0, 0, 0, 0);
-  return Math.ceil((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+  return Math.ceil((toLocalMidnight(to).getTime() - toLocalMidnight(from).getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export function getRentalDays(startDate: string, endDate: string): number {

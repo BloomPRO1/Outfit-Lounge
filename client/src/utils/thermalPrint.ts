@@ -157,11 +157,15 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const logoSrc = shop.logoUrl || logoDataUri;
 
+  const parseLocalDate = (iso: string) => {
+    const [y, m, d] = iso.split('T')[0].split('-').map(Number);
+    return new Date(y, m - 1, d);
+  };
   const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    parseLocalDate(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  const start = new Date(data.rentalStartDate);
-  const end   = new Date(data.rentalEndDate);
+  const start = parseLocalDate(data.rentalStartDate);
+  const end   = parseLocalDate(data.rentalEndDate);
   const days  = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 
   const itemsHTML = data.items.map(item => {

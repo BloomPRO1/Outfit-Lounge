@@ -100,18 +100,27 @@ const KANBAN_COLS = [
 const STATUSES = ['reserved', 'ready_for_pickup', 'picked_up', 'returned', 'late_return', 'completed', 'cancelled'];
 
 // ─── Urgency badge helper ─────────────────────────────────────────────────────
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getUrgencyLabel(rental: Rental): { label: string; cls: string } | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   if (rental.status === 'late_return') {
-    const end = new Date(rental.rental_end_date);
+    const end = parseLocalDate(rental.rental_end_date);
     const days = Math.ceil((today.getTime() - end.getTime()) / 86400000);
     return { label: `${days}d overdue`, cls: 'bg-red-500/20 text-red-300 border-red-500/30' };
   }
 
   if (rental.status === 'picked_up') {
-    const end = new Date(rental.rental_end_date);
+    const end = parseLocalDate(rental.rental_end_date);
     const diff = Math.ceil((end.getTime() - today.getTime()) / 86400000);
     if (diff < 0)  return { label: `${Math.abs(diff)}d overdue`, cls: 'bg-red-500/20 text-red-300 border-red-500/30' };
     if (diff === 0) return { label: 'Due today',  cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
@@ -121,7 +130,7 @@ function getUrgencyLabel(rental: Rental): { label: string; cls: string } | null 
   }
 
   if (rental.status === 'reserved' || rental.status === 'ready_for_pickup') {
-    const start = new Date(rental.rental_start_date);
+    const start = parseLocalDate(rental.rental_start_date);
     const diff = Math.ceil((start.getTime() - today.getTime()) / 86400000);
     if (diff === 0) return { label: 'Pickup today',    cls: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
     if (diff === 1) return { label: 'Pickup tomorrow', cls: 'bg-blue-500/20 text-blue-300 border-blue-500/30' };
@@ -321,7 +330,7 @@ function CalendarView({ rentals, onRentalClick }: {
   rentals: Rental[];
   onRentalClick: (r: Rental) => void;
 }) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDateStr(new Date());
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -380,7 +389,7 @@ function CalendarView({ rentals, onRentalClick }: {
           style={{ gridTemplateRows: `repeat(${numRows}, 1fr)` }}
         >
           {cells.map(cell => {
-            const dayStr     = cell.toISOString().slice(0, 10);
+            const dayStr     = localDateStr(cell);
             const inMonth    = cell.getMonth() === monthNum;
             const isToday    = dayStr === todayStr;
             const isSelected = dayStr === selectedDate;
@@ -639,8 +648,7 @@ export default function RentalsPage() {
   const lateCount      = allRentals.filter(r => r.status === 'late_return').length;
   const pickedUpCount  = allRentals.filter(r => r.status === 'picked_up').length;
   const dueTodayCount  = allRentals.filter(r => {
-    const today = new Date().toISOString().slice(0, 10);
-    return r.status === 'picked_up' && r.rental_end_date.slice(0, 10) === today;
+    return r.status === 'picked_up' && r.rental_end_date.slice(0, 10) === localDateStr(new Date());
   }).length;
 
   return (
