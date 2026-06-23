@@ -80,9 +80,6 @@ export default function NewRentalPage() {
   const [advancePayment, setAdvancePayment] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [manualDiscount, setManualDiscount] = useState('');
-  const [securityType, setSecurityType] = useState<'none' | 'deposit' | 'id_card'>('none');
-  const [securityDeposit, setSecurityDeposit] = useState('');
-  const [securityIdNumber, setSecurityIdNumber] = useState('');
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
   const [appliedPromoCode, setAppliedPromoCode] = useState<PromotionCode | null>(null);
   const [showRules, setShowRules] = useState(false);
@@ -255,9 +252,6 @@ export default function NewRentalPage() {
       eventType: finalEventType,
       notes,
       paymentMethod,
-      securityType: securityType !== 'none' ? securityType : undefined,
-      securityDeposit: securityType === 'deposit' ? parseFloat(securityDeposit || '0') : undefined,
-      securityIdNumber: securityType === 'id_card' ? securityIdNumber : undefined,
     });
   };
 
@@ -649,47 +643,9 @@ export default function NewRentalPage() {
                       onApply={setAppliedPromoCode}
                     />
 
-                    {/* Security / Guarantee */}
-                    <div>
-                      <p className="text-sm font-medium text-charcoal-200 mb-2">Security / Guarantee</p>
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        {[
-                          { value: 'none',     label: 'None' },
-                          { value: 'deposit',  label: 'Cash Deposit' },
-                          { value: 'id_card',  label: 'ID Card' },
-                        ].map(o => (
-                          <button key={o.value} type="button"
-                            onClick={() => setSecurityType(o.value as typeof securityType)}
-                            className={cn('px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all text-center',
-                              securityType === o.value
-                                ? 'border-gold-500 bg-gold-700/15 text-gold-400'
-                                : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
-                            )}>
-                            {o.label}
-                          </button>
-                        ))}
-                      </div>
-                      {securityType === 'deposit' && (
-                        <Input
-                          label="Deposit Amount (LKR)"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={securityDeposit}
-                          onChange={(e) => setSecurityDeposit(e.target.value)}
-                          placeholder="0.00"
-                          hint="Refundable on return"
-                        />
-                      )}
-                      {securityType === 'id_card' && (
-                        <Input
-                          label="ID Card / NIC Number"
-                          value={securityIdNumber}
-                          onChange={(e) => setSecurityIdNumber(e.target.value)}
-                          placeholder="Enter NIC or Passport number"
-                          hint="Returned to customer when items are back"
-                        />
-                      )}
+                    <div className="flex items-start gap-2.5 p-3 bg-charcoal-600/30 border border-charcoal-500/40 rounded-xl text-xs text-charcoal-300">
+                      <Shield size={13} className="flex-shrink-0 mt-0.5 text-charcoal-400" />
+                      Security deposit or ID card (NIC) will be collected at pickup time.
                     </div>
                   </motion.div>
                 )}
@@ -715,8 +671,6 @@ export default function NewRentalPage() {
                         { label: 'Advance Paid',   value: formatCurrency(parseFloat(advancePayment || '0')) },
                         { label: 'Balance Due',    value: formatCurrency(Math.max(0, finalTotal - parseFloat(advancePayment || '0'))) },
                         { label: 'Payment Method', value: paymentMethod.replace('_', ' ') },
-                        ...(securityType === 'deposit' && securityDeposit ? [{ label: 'Security Deposit', value: formatCurrency(parseFloat(securityDeposit)) }] : []),
-                        ...(securityType === 'id_card' && securityIdNumber ? [{ label: 'ID Card Held', value: securityIdNumber }] : []),
                       ].map(({ label, value }) => (
                         <div key={label} className="p-3 bg-charcoal-600/50 rounded-xl">
                           <p className="text-xs text-charcoal-200">{label}</p>

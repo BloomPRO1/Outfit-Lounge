@@ -324,12 +324,14 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
       `, [item.variantId, item.quantity || 1, rental.id, req.user?.id]);
     }
 
-    // Record advance payment
+    // Record advance payment — use 'full_payment' if the paid amount covers the net total
     if (advancePayment > 0) {
+      const netTotal = totalCost - totalDiscountAmount;
+      const paidType = advancePayment >= netTotal ? 'full_payment' : 'advance';
       await client.query(`
         INSERT INTO payments (rental_id, amount, payment_method, payment_type, created_by)
-        VALUES ($1, $2, $3, 'advance', $4)
-      `, [rental.id, advancePayment, paymentMethod || 'cash', req.user?.id]);
+        VALUES ($1, $2, $3, $4, $5)
+      `, [rental.id, advancePayment, paymentMethod || 'cash', paidType, req.user?.id]);
     }
 
     // Record promotion usage
@@ -405,7 +407,7 @@ function fmtTime(t: string): string {
 
 export async function updateRentalStatus(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params;
-  const { status, notes, pickupTime } = req.body;
+  const { status, notes, pickupTime, securityType, securityDeposit, securityIdNumber } = req.body;
 
   const validStatuses = ['reserved', 'ready_for_pickup', 'picked_up', 'returned', 'late_return', 'completed', 'cancelled'];
   if (!validStatuses.includes(status)) {
@@ -417,10 +419,23 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
   try {
     await client.query('BEGIN');
 
-    const result = await client.query(`
-      UPDATE rentals SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
-      WHERE id = $3 RETURNING *
-    `, [status, notes, id]);
+    let result;
+    if (status === 'picked_up' && securityType && securityType !== 'none') {
+      result = await client.query(`
+        UPDATE rentals
+        SET status = $1, notes = COALESCE($2, notes),
+            security_type = $4,
+            security_deposit = CASE WHEN $4 = 'deposit' THEN $5::numeric ELSE security_deposit END,
+            security_id_number = CASE WHEN $4 = 'id_card' THEN $6 ELSE security_id_number END,
+            updated_at = NOW()
+        WHERE id = $3 RETURNING *
+      `, [status, notes, id, securityType, securityDeposit || 0, securityIdNumber || null]);
+    } else {
+      result = await client.query(`
+        UPDATE rentals SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
+        WHERE id = $3 RETURNING *
+      `, [status, notes, id]);
+    }
 
     if (!result.rows[0]) {
       await client.query('ROLLBACK');

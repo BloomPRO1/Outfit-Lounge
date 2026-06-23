@@ -105,6 +105,9 @@ export default function RentalDetailPage() {
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
   const [statusNotes, setStatusNotes] = useState('');
   const [pickupTime, setPickupTime] = useState('');
+  const [securityType, setSecurityType] = useState<'none' | 'deposit' | 'id_card'>('none');
+  const [securityDeposit, setSecurityDeposit] = useState('');
+  const [securityIdNumber, setSecurityIdNumber] = useState('');
   const [payment, setPayment] = useState({ amount: '', paymentMethod: 'cash', paymentType: 'balance', notes: '' });
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
 
@@ -120,14 +123,25 @@ export default function RentalDetailPage() {
     enabled: !!id,
   });
 
+  const resetStatusModal = () => {
+    setConfirmStatus(null);
+    setStatusNotes('');
+    setPickupTime('');
+    setSecurityType('none');
+    setSecurityDeposit('');
+    setSecurityIdNumber('');
+  };
+
   const updateStatusMutation = useMutation({
     mutationFn: ({ status, notes, pickupTime: pt }: { status: string; notes?: string; pickupTime?: string }) =>
-      rentalService.updateStatus(id!, status, notes, pt),
+      rentalService.updateStatus(id!, status, notes, pt,
+        status === 'picked_up' && securityType !== 'none'
+          ? { securityType, securityDeposit: parseFloat(securityDeposit || '0'), securityIdNumber }
+          : undefined
+      ),
     onSuccess: () => {
       toast.success('Status updated!');
-      setConfirmStatus(null);
-      setStatusNotes('');
-      setPickupTime('');
+      resetStatusModal();
       qc.invalidateQueries({ queryKey: ['rental', id] });
       qc.invalidateQueries({ queryKey: ['rentals'] });
     },
@@ -162,9 +176,9 @@ export default function RentalDetailPage() {
   const isTerminal = rental.status === 'completed' || isCancelled;
   const currentStepIdx = getStepIndex(rental.status);
 
-  // Only advance/balance/rental payments count toward rental balance
+  // Only advance/full_payment/balance/rental payments count toward rental balance
   const rentalPayments = (rental.payments || []).reduce((sum: number, p: any) => {
-    if (['advance', 'balance', 'rental'].includes(p.payment_type)) return sum + parseFloat(p.amount);
+    if (['advance', 'full_payment', 'balance', 'rental'].includes(p.payment_type)) return sum + parseFloat(p.amount);
     if (p.payment_type === 'refund') return sum - parseFloat(p.amount);
     return sum;
   }, 0);
@@ -585,12 +599,12 @@ export default function RentalDetailPage() {
       {/* ── Confirm Status Modal ─────────────────────────────────────────────── */}
       <Modal
         open={!!confirmStatus}
-        onClose={() => { setConfirmStatus(null); setStatusNotes(''); setPickupTime(''); }}
+        onClose={resetStatusModal}
         title={confirmStatus ? (NEXT_ACTION_LABELS[confirmStatus] ?? 'Update Status') : ''}
         variant="dialog"
         footer={
           <>
-            <Button variant="ghost" onClick={() => { setConfirmStatus(null); setStatusNotes(''); setPickupTime(''); }}>Cancel</Button>
+            <Button variant="ghost" onClick={resetStatusModal}>Cancel</Button>
             <Button
               variant={confirmStatus === 'cancelled' ? 'secondary' : 'primary'}
               className={confirmStatus === 'cancelled' ? 'border-red-500/40 text-red-400 hover:bg-red-900/20' : ''}
@@ -622,6 +636,49 @@ export default function RentalDetailPage() {
               onChange={(e) => setPickupTime(e.target.value)}
               hint="This time will be included in the notification sent to the customer"
             />
+          )}
+          {confirmStatus === 'picked_up' && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-charcoal-100">Security / Guarantee</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'none',    label: 'None' },
+                  { value: 'deposit', label: 'Cash Deposit' },
+                  { value: 'id_card', label: 'ID Card (NIC)' },
+                ].map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => setSecurityType(o.value as typeof securityType)}
+                    className={cn('px-2 py-2 rounded-xl border-2 text-xs font-medium transition-all text-center',
+                      securityType === o.value
+                        ? 'border-gold-500 bg-gold-700/15 text-gold-400'
+                        : 'border-charcoal-500 text-charcoal-300 hover:border-charcoal-400 hover:text-charcoal-100'
+                    )}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {securityType === 'deposit' && (
+                <Input
+                  label="Deposit Amount (LKR)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={securityDeposit}
+                  onChange={(e) => setSecurityDeposit(e.target.value)}
+                  placeholder="0.00"
+                  hint="Refundable on return"
+                />
+              )}
+              {securityType === 'id_card' && (
+                <Input
+                  label="ID Card / NIC Number"
+                  value={securityIdNumber}
+                  onChange={(e) => setSecurityIdNumber(e.target.value)}
+                  placeholder="Enter NIC or Passport number"
+                  hint="Returned to customer when items are back"
+                />
+              )}
+            </div>
           )}
           <Input
             label="Notes (optional)"

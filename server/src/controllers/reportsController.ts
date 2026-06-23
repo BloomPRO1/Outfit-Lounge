@@ -8,17 +8,22 @@ export async function getDashboardStats(_req: Request, res: Response): Promise<v
 
     const [todaySales, monthRevenue, activeRentals, pendingReturns, lowStock, recentBookings, upcomingReturns] = await Promise.all([
       db.query(`
-        SELECT COALESCE(SUM(total_amount), 0) as total, COUNT(*) as count
-        FROM sales WHERE DATE(created_at) = $1 AND status = 'completed'
+        SELECT
+          COALESCE(SUM(s.total_amount), 0) +
+          COALESCE((SELECT SUM(p.amount) FROM payments p
+            WHERE DATE(p.created_at) = $1
+            AND p.payment_type NOT IN ('refund')), 0) AS total,
+          COUNT(s.id) AS count
+        FROM sales s
+        WHERE DATE(s.created_at) = $1 AND s.status = 'completed'
       `, [today]),
 
       db.query(`
         SELECT
           COALESCE(SUM(s.total_amount), 0) +
           COALESCE((SELECT SUM(p.amount) FROM payments p
-            JOIN rentals r ON r.id = p.rental_id
             WHERE DATE(p.created_at) >= $1
-            AND p.payment_type IN ('balance','advance','fine')), 0) as revenue
+            AND p.payment_type NOT IN ('refund')), 0) AS revenue
         FROM sales s
         WHERE DATE(s.created_at) >= $1 AND s.status = 'completed'
       `, [startOfMonth]),
