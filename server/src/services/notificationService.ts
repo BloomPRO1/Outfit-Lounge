@@ -409,13 +409,20 @@ export function buildBookingConfirmationMessage(data: {
   securityDeposit?: number;
   securityIdNumber?: string | null;
 }): string {
-  const balance = data.totalCost - data.advancePaid;
+  const balance = Math.max(0, data.totalCost - data.advancePaid);
+  const isFullPayment = data.advancePaid > 0 && balance === 0;
   let securityLine = '';
   if (data.securityType === 'deposit' && data.securityDeposit) {
     securityLine = `🔒 Security Deposit: LKR ${data.securityDeposit.toFixed(2)}\n`;
   } else if (data.securityType === 'id_card' && data.securityIdNumber) {
     securityLine = `🪪 ID Card Held: ${data.securityIdNumber}\n`;
   }
+  const paymentLine = data.advancePaid > 0
+    ? isFullPayment
+      ? `✅ Fully Paid: LKR ${data.advancePaid.toFixed(2)}\n`
+      : `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
+        `💰 Balance Payment: LKR ${balance.toFixed(2)}\n`
+    : '';
   return (
     `Dear ${data.customerName},\n` +
     `Your full suit rental booking #${data.bookingNumber} has been successfully confirmed.\n\n` +
@@ -423,8 +430,7 @@ export function buildBookingConfirmationMessage(data: {
     `🎉 Event Date: ${data.eventDate}\n` +
     `📅 Return Date: ${data.endDate}\n` +
     `💰 Total Amount: LKR ${data.totalCost.toFixed(2)}\n` +
-    `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
-    `💰 Balance Payment: LKR ${balance.toFixed(2)}\n` +
+    paymentLine +
     securityLine +
     `\nThank you for choosing THE OUTFIT LOUNGE\n` +
     `We look forward to serving you.`
@@ -439,14 +445,18 @@ export function buildReadyForPickupMessage(data: {
   advancePaid: number;
   balanceAmount: number;
 }): string {
+  const isFullyPaid = data.balanceAmount <= 0;
+  const paymentLine = isFullyPaid
+    ? `✅ Fully Paid\n`
+    : `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
+      `💰 Remaining Balance: LKR ${data.balanceAmount.toFixed(2)}\n`;
   return (
     `Dear ${data.customerName},\n` +
     `Your full suit rental booking #${data.bookingNumber} is now ready for pickup.\n\n` +
     `🕒 Pickup Date & Time: ${data.pickupDate}\n` +
     `📅 Return Date: ${data.returnDate}\n` +
-    `💰 Advance Paid: LKR ${data.advancePaid.toFixed(2)}\n` +
-    `💰 Remaining Balance: LKR ${data.balanceAmount.toFixed(2)}\n\n` +
-    `Please visit THE OUTFIT LOUNGE at your convenience.\n` +
+    paymentLine +
+    `\nPlease visit THE OUTFIT LOUNGE at your convenience.\n` +
     `Thank you for choosing us.`
   );
 }
