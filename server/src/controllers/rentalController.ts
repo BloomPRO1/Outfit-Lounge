@@ -424,9 +424,9 @@ export async function updateRentalStatus(req: AuthRequest, res: Response): Promi
       result = await client.query(`
         UPDATE rentals
         SET status = $1, notes = COALESCE($2, notes),
-            security_type = $4,
-            security_deposit = CASE WHEN $4 = 'deposit' THEN $5::numeric ELSE security_deposit END,
-            security_id_number = CASE WHEN $4 = 'id_card' THEN $6 ELSE security_id_number END,
+            security_type = $4::text,
+            security_deposit = CASE WHEN $4::text = 'deposit' THEN $5::numeric ELSE security_deposit END,
+            security_id_number = CASE WHEN $4::text = 'id_card' THEN $6::text ELSE security_id_number END,
             updated_at = NOW()
         WHERE id = $3 RETURNING *
       `, [status, notes, id, securityType, securityDeposit || 0, securityIdNumber || null]);

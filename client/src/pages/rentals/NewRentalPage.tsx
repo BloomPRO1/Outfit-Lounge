@@ -137,6 +137,8 @@ export default function NewRentalPage() {
   const promoCodeDiscount = appliedPromoCode ? calculateCodeDiscount(appliedPromoCode, totalCost) : 0;
   const manualDiscountAmt = parseFloat(manualDiscount || '0');
   const finalTotal = Math.max(0, totalCost - manualDiscountAmt - promoDiscount - promoCodeDiscount);
+  const advancePaidAmt = parseFloat(advancePayment || '0');
+  const isFullPayment = advancePaidAmt > 0 && advancePaidAmt >= finalTotal;
 
   // Broadcast rental items to customer display in real-time
   useEffect(() => {
@@ -606,14 +608,14 @@ export default function NewRentalPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <Input
-                        label="Advance Payment (LKR)"
+                        label={isFullPayment ? 'Full Payment (LKR)' : 'Advance Payment (LKR)'}
                         type="number"
                         step="0.01"
                         min="0"
                         value={advancePayment}
                         onChange={(e) => setAdvancePayment(e.target.value)}
                         placeholder="0.00"
-                        hint="Amount paid now"
+                        hint={isFullPayment ? 'Fully paid' : 'Amount paid now'}
                       />
                       <Input
                         label="Manual Discount (LKR)"
@@ -668,8 +670,8 @@ export default function NewRentalPage() {
                         ...(promoDiscount > 0 || manualDiscountAmt > 0 || promoCodeDiscount > 0 ? [{ label: 'Net Total', value: formatCurrency(finalTotal) }] : []),
                         ...(selectedPromotion ? [{ label: 'Promotion', value: selectedPromotion.name }] : []),
                         ...(appliedPromoCode ? [{ label: 'Promo Code', value: appliedPromoCode.code }] : []),
-                        { label: 'Advance Paid',   value: formatCurrency(parseFloat(advancePayment || '0')) },
-                        { label: 'Balance Due',    value: formatCurrency(Math.max(0, finalTotal - parseFloat(advancePayment || '0'))) },
+                        { label: isFullPayment ? 'Full Payment' : 'Advance Paid', value: formatCurrency(advancePaidAmt) },
+                        ...(!isFullPayment ? [{ label: 'Balance Due', value: formatCurrency(Math.max(0, finalTotal - advancePaidAmt)) }] : []),
                         { label: 'Payment Method', value: paymentMethod.replace('_', ' ') },
                       ].map(({ label, value }) => (
                         <div key={label} className="p-3 bg-charcoal-600/50 rounded-xl">
@@ -814,16 +816,23 @@ export default function NewRentalPage() {
                     <span className="text-gold-400">{formatCurrency(finalTotal)}</span>
                   </div>
                 )}
-                {advancePayment && parseFloat(advancePayment) > 0 && (
+                {advancePaidAmt > 0 && (
                   <>
                     <div className="flex justify-between text-xs">
-                      <span className="text-charcoal-400">Advance Paid</span>
-                      <span className="text-emerald-400">{formatCurrency(parseFloat(advancePayment))}</span>
+                      <span className="text-charcoal-400">{isFullPayment ? 'Full Payment' : 'Advance Paid'}</span>
+                      <span className="text-emerald-400">{formatCurrency(advancePaidAmt)}</span>
                     </div>
-                    <div className="flex justify-between text-xs pt-1 border-t border-charcoal-600">
-                      <span className="text-charcoal-200 font-medium">Balance Due</span>
-                      <span className="text-charcoal-50 font-semibold">{formatCurrency(Math.max(0, finalTotal - parseFloat(advancePayment)))}</span>
-                    </div>
+                    {isFullPayment ? (
+                      <div className="flex justify-between text-xs pt-1 border-t border-charcoal-600">
+                        <span className="text-emerald-400 font-medium">Fully Paid</span>
+                        <span className="text-emerald-400 font-semibold">✓</span>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between text-xs pt-1 border-t border-charcoal-600">
+                        <span className="text-charcoal-200 font-medium">Balance Due</span>
+                        <span className="text-charcoal-50 font-semibold">{formatCurrency(Math.max(0, finalTotal - advancePaidAmt))}</span>
+                      </div>
+                    )}
                   </>
                 )}
                 {paymentMethod && (
