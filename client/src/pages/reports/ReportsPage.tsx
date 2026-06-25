@@ -4,10 +4,11 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown, Receipt, FileSpreadsheet } from 'lucide-react';
+import { BarChart2, TrendingUp, Package, AlertTriangle, Download, AlertCircle, FileDown, Receipt, FileSpreadsheet, Banknote } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { reportService } from '@/services/reportService';
+import { cashSessionService, type CashSession } from '@/services/cashSessionService';
 import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
 import Select from '@/components/common/Select';
@@ -49,6 +50,7 @@ const TABS = [
   { key: 'inventory', label: 'Inventory', icon: Package },
   { key: 'fines',     label: 'Fines',     icon: AlertTriangle },
   { key: 'expenses',  label: 'Expenses',  icon: Receipt },
+  { key: 'cash',      label: 'Cash',      icon: Banknote },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
@@ -139,6 +141,15 @@ export default function ReportsPage() {
     queryFn: () => reportService.getExpensesReport({ fromDate: dateFrom, toDate: dateTo }),
     staleTime: 60_000,
     enabled: activeTab === 'expenses',
+  });
+
+  const { data: cashSessions = [], isLoading: cashLoading, error: cashError } = useQuery({
+    queryKey: ['cash-sessions-report', dateFrom, dateTo],
+    queryFn: () => cashSessionService.list({ date: undefined }),
+    staleTime: 60_000,
+    enabled: activeTab === 'cash',
+    select: (rows: CashSession[]) =>
+      rows.filter(r => r.opened_at.slice(0, 10) >= dateFrom && r.opened_at.slice(0, 10) <= dateTo),
   });
 
   const exportCSV = (data: any[], filename: string) => {
@@ -407,6 +418,40 @@ export default function ReportsPage() {
         }
       }
 
+      if (activeTab === 'cash') {
+        const sessions = cashSessions;
+        let y = await addHeader(doc, logo, 'Daily Cash Report', dateRangeLabel);
+        const totalOpen  = sessions.filter((s: CashSession) => s.status === 'open').length;
+        const totalClose = sessions.filter((s: CashSession) => s.status === 'closed').length;
+        const totalOpening = sessions.reduce((sum: number, s: CashSession) => sum + Number(s.opening_balance), 0);
+        const totalClosing = sessions.filter((s: CashSession) => s.closing_balance != null)
+          .reduce((sum: number, s: CashSession) => sum + Number(s.closing_balance), 0);
+        y = addStatCards(doc, [
+          { label: 'Total Sessions', value: String(sessions.length) },
+          { label: 'Closed',         value: String(totalClose) },
+          { label: 'Still Open',     value: String(totalOpen) },
+          { label: 'Total Closing',  value: formatCurrency(totalClosing) },
+        ], y);
+        y = addSectionTitle(doc, 'Session Detail', y);
+        addTable(doc,
+          ['Date', 'Cashier', 'Opening (LKR)', 'Closing (LKR)', 'Difference', 'Status'],
+          sessions.map((s: CashSession) => {
+            const diff = s.closing_balance != null
+              ? Number(s.closing_balance) - Number(s.opening_balance)
+              : null;
+            return [
+              s.opened_at.slice(0, 10),
+              (s as any).user_name || s.user_id,
+              formatCurrency(Number(s.opening_balance)),
+              s.closing_balance != null ? formatCurrency(Number(s.closing_balance)) : '—',
+              diff != null ? (diff >= 0 ? `+${formatCurrency(diff)}` : `-${formatCurrency(Math.abs(diff))}`) : '—',
+              s.status,
+            ];
+          }),
+          y,
+        );
+      }
+
       if (activeTab === 'expenses') {
         let y = await addHeader(doc, logo, 'Expenses Report', dateRangeLabel);
         const es = expensesData?.summary;
@@ -508,7 +553,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* Date Range (sales / rentals / fines) */}
-      {(activeTab === 'sales' || activeTab === 'rentals' || activeTab === 'fines' || activeTab === 'expenses') && (
+      {(activeTab === 'sales' || activeTab === 'rentals' || activeTab === 'fines' || activeTab === 'expenses' || activeTab === 'cash') && (
         <Card>
           <div className="flex flex-wrap items-end gap-4">
             <div>
@@ -830,6 +875,130 @@ export default function ReportsPage() {
               )}
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* ── Cash ─────────────────────────────────────────────── */}
+      {activeTab === 'cash' && (
+        <div className="space-y-5">
+          {cashError && <ErrorBanner message={(cashError as any)?.message || 'Unknown error'} />}
+
+          {cashLoading ? (
+            <><LoadingCards count={4} /><div className="h-48 bg-charcoal-600 rounded-2xl animate-pulse" /></>
+          ) : (
+            <>
+              {/* Summary cards */}
+              {(() => {
+                const totalOpen    = cashSessions.filter(s => s.status === 'open').length;
+                const totalClosed  = cashSessions.filter(s => s.status === 'closed').length;
+                const totalOpening = cashSessions.reduce((sum, s) => sum + Number(s.opening_balance), 0);
+                const totalClosing = cashSessions.filter(s => s.closing_balance != null)
+                  .reduce((sum, s) => sum + Number(s.closing_balance), 0);
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: 'Total Sessions',   value: String(cashSessions.length),      color: 'text-charcoal-50' },
+                      { label: 'Closed',           value: String(totalClosed),               color: 'text-emerald-400' },
+                      { label: 'Still Open',       value: String(totalOpen),                 color: totalOpen > 0 ? 'text-amber-400' : 'text-charcoal-50' },
+                      { label: 'Total Closing Cash', value: formatCurrency(totalClosing),    color: 'text-gold-400' },
+                    ].map(({ label, value, color }) => (
+                      <Card key={label}>
+                        <p className="text-xs text-charcoal-200">{label}</p>
+                        <p className={`text-xl font-bold mt-1 ${color}`}>{value}</p>
+                      </Card>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Sessions table */}
+              <Card padding="none">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-charcoal-600">
+                  <h4 className="text-sm font-semibold text-charcoal-100">Cash Sessions by Cashier</h4>
+                  <Button variant="ghost" size="sm" icon={<Download size={13} />}
+                    onClick={() => exportCSV(
+                      cashSessions.map(s => ({
+                        date:             s.opened_at.slice(0, 10),
+                        cashier:          (s as any).user_name || s.user_id,
+                        role:             (s as any).user_role || '',
+                        opening_balance:  s.opening_balance,
+                        closing_balance:  s.closing_balance ?? '',
+                        difference:       s.closing_balance != null ? Number(s.closing_balance) - Number(s.opening_balance) : '',
+                        status:           s.status,
+                        opened_at:        s.opened_at,
+                        closed_at:        s.closed_at ?? '',
+                        notes:            s.notes ?? '',
+                      })),
+                      'cash_sessions'
+                    )}>
+                    Export CSV
+                  </Button>
+                </div>
+
+                {cashSessions.length === 0 ? (
+                  <div className="py-14 text-center text-charcoal-200 text-sm">No cash sessions in this date range</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-charcoal-600 bg-charcoal-800/60">
+                          {['Date', 'Cashier', 'Opening Balance', 'Closing Balance', 'Difference', 'Status', 'Notes'].map(h => (
+                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-charcoal-300 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cashSessions.map((s) => {
+                          const diff = s.closing_balance != null
+                            ? Number(s.closing_balance) - Number(s.opening_balance)
+                            : null;
+                          return (
+                            <tr key={s.id} className="border-b border-charcoal-700/50 hover:bg-charcoal-700/30 transition-colors">
+                              <td className="px-4 py-3 text-charcoal-100 whitespace-nowrap">
+                                {new Date(s.opened_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-charcoal-50">{(s as any).user_name || '—'}</p>
+                                <p className="text-xs text-charcoal-300 capitalize">{(s as any).user_role?.replace('_', ' ') || ''}</p>
+                              </td>
+                              <td className="px-4 py-3 font-medium text-charcoal-100">
+                                {formatCurrency(Number(s.opening_balance))}
+                              </td>
+                              <td className="px-4 py-3 font-medium">
+                                {s.closing_balance != null
+                                  ? <span className="text-charcoal-100">{formatCurrency(Number(s.closing_balance))}</span>
+                                  : <span className="text-charcoal-400 italic text-xs">Not closed</span>}
+                              </td>
+                              <td className="px-4 py-3 font-semibold">
+                                {diff != null ? (
+                                  <span className={cn(diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-charcoal-300')}>
+                                    {diff > 0 ? '+' : ''}{formatCurrency(diff)}
+                                  </span>
+                                ) : <span className="text-charcoal-500">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  'inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full border',
+                                  s.status === 'open'
+                                    ? 'text-amber-400 bg-amber-500/10 border-amber-500/25'
+                                    : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25'
+                                )}>
+                                  {s.status === 'open' ? 'Open' : 'Closed'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-charcoal-300 max-w-[160px] truncate">
+                                {s.notes || '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
         </div>
       )}
 
