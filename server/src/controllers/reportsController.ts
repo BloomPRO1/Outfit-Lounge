@@ -255,10 +255,11 @@ export async function getRentalReport(req: Request, res: Response): Promise<void
 
       db.query(`
         SELECT p.name AS product_name,
-               SUM(ri.quantity)::int   AS rental_count,
+               SUM(ri.quantity)::int AS rental_count,
                COALESCE(SUM(
-                 ri.rental_price_per_day * ri.quantity *
-                 GREATEST(1, r.rental_end_date - r.rental_start_date)
+                 (ri.rental_price_per_day * ri.quantity * GREATEST(1, r.rental_end_date - r.event_date))
+                 / NULLIF(r.total_rental_cost, 0)
+                 * (r.total_rental_cost - COALESCE(r.discount_amount, 0))
                ), 0)::float AS total_revenue
         FROM rental_items ri
         JOIN rentals r   ON r.id = ri.rental_id
