@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import Sidebar from './Sidebar';
@@ -22,6 +22,8 @@ export default function Layout() {
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [pendingLogout, setPendingLogout] = useState(false);
+  // Track if a session was ever active this page load — prevents re-prompting open after close
+  const hadSessionRef = useRef(false);
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(collapsed));
@@ -43,7 +45,13 @@ export default function Layout() {
 
   // Prompt to open a session if cashier has none for today
   useEffect(() => {
-    if (isCashier && isSuccess && !currentSession) {
+    if (!isCashier || !isSuccess) return;
+    if (currentSession) {
+      hadSessionRef.current = true;
+      return;
+    }
+    // Only prompt if no session has been active yet this page load
+    if (!hadSessionRef.current) {
       setShowOpenModal(true);
     }
   }, [isCashier, isSuccess, currentSession]);
