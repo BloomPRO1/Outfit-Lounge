@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Banknote, Lock, Sun, Moon, X } from 'lucide-react';
+import { Banknote, Lock, Sun, Moon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cashSessionService, type CashSession } from '@/services/cashSessionService';
@@ -13,11 +13,9 @@ interface Props {
   mode: 'open' | 'close';
   session?: CashSession | null;
   onDone: () => void;
-  /** Allow cashier to skip opening balance on first load (optional) */
-  allowSkip?: boolean;
 }
 
-export default function CashSessionModal({ mode, session, onDone, allowSkip }: Props) {
+export default function CashSessionModal({ mode, session, onDone }: Props) {
   const qc = useQueryClient();
   const [balance, setBalance] = useState('');
   const [notes, setNotes] = useState('');
@@ -90,11 +88,6 @@ export default function CashSessionModal({ mode, session, onDone, allowSkip }: P
                 {isOpen ? 'Enter the opening cash balance in the till' : 'Enter the closing cash balance in the till'}
               </p>
             </div>
-            {allowSkip && isOpen && (
-              <button onClick={onDone} className="p-1.5 rounded-lg text-charcoal-400 hover:text-charcoal-100 hover:bg-charcoal-700 transition-colors" title="Skip for now">
-                <X size={16} />
-              </button>
-            )}
           </div>
 
           <div className="p-5 space-y-4">
@@ -153,11 +146,6 @@ export default function CashSessionModal({ mode, session, onDone, allowSkip }: P
             />
 
             <div className="flex gap-2 pt-1">
-              {allowSkip && isOpen && (
-                <Button variant="secondary" className="flex-1" onClick={onDone} disabled={isPending}>
-                  Skip
-                </Button>
-              )}
               <Button
                 variant="primary"
                 className="flex-1"

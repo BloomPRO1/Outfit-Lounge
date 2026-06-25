@@ -22,9 +22,10 @@ const ROUTE_TITLES: Record<string, string> = {
 interface HeaderProps {
   onMenuClick?: () => void;
   sidebarCollapsed?: boolean;
+  onLogoutRequest?: () => void;
 }
 
-export default function Header({ onMenuClick, sidebarCollapsed }: HeaderProps) {
+export default function Header({ onMenuClick, sidebarCollapsed, onLogoutRequest }: HeaderProps) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,8 +45,12 @@ export default function Header({ onMenuClick, sidebarCollapsed }: HeaderProps) {
   )?.[1] || 'Dashboard';
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    if (onLogoutRequest) {
+      onLogoutRequest();
+    } else {
+      logout();
+      navigate('/login');
+    }
   };
 
   return (

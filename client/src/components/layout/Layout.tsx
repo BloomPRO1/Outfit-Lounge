@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -9,7 +9,8 @@ import { cashSessionService } from '@/services/cashSessionService';
 import { useAuthStore } from '@/store/authStore';
 
 export default function Layout() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
   const isCashier = user?.role === 'cashier';
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -20,6 +21,7 @@ export default function Layout() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [pendingLogout, setPendingLogout] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(collapsed));
@@ -45,6 +47,26 @@ export default function Layout() {
       setShowOpenModal(true);
     }
   }, [isCashier, isSuccess, currentSession]);
+
+  const handleLogoutRequest = () => {
+    if (isCashier && currentSession) {
+      // Must close the day before logging out
+      setPendingLogout(true);
+      setShowCloseModal(true);
+    } else {
+      logout();
+      navigate('/login');
+    }
+  };
+
+  const handleCloseDone = () => {
+    setShowCloseModal(false);
+    if (pendingLogout) {
+      setPendingLogout(false);
+      logout();
+      navigate('/login');
+    }
+  };
 
   const sidebarWidth = collapsed ? 70 : 240;
 
@@ -87,7 +109,7 @@ export default function Layout() {
         className="flex-1 flex flex-col overflow-hidden"
         style={{ marginLeft: 0 }}
       >
-        <Header onMenuClick={() => setMobileOpen(!mobileOpen)} sidebarCollapsed={collapsed} />
+        <Header onMenuClick={() => setMobileOpen(!mobileOpen)} sidebarCollapsed={collapsed} onLogoutRequest={handleLogoutRequest} />
         <div className="flex-1 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -100,11 +122,10 @@ export default function Layout() {
         </div>
       </motion.main>
 
-      {/* Open-day modal */}
+      {/* Open-day modal — cashier must enter opening balance, no skip */}
       {showOpenModal && (
         <CashSessionModal
           mode="open"
-          allowSkip
           onDone={() => setShowOpenModal(false)}
         />
       )}
@@ -114,7 +135,7 @@ export default function Layout() {
         <CashSessionModal
           mode="close"
           session={currentSession}
-          onDone={() => setShowCloseModal(false)}
+          onDone={handleCloseDone}
         />
       )}
     </div>
