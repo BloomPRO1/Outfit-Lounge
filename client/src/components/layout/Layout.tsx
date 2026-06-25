@@ -132,6 +132,7 @@ export default function Layout() {
         <CashSessionModal
           mode="open"
           onDone={() => setShowOpenModal(false)}
+          onLogout={() => { logout(); navigate('/login'); }}
         />
       )}
 

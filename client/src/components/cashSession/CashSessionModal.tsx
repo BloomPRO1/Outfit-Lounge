@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Banknote, Lock, Sun, Moon } from 'lucide-react';
+import { Banknote, Lock, Sun, Moon, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cashSessionService, type CashSession } from '@/services/cashSessionService';
@@ -14,9 +14,10 @@ interface Props {
   session?: CashSession | null;
   onDone: () => void;
   onCancel?: () => void;
+  onLogout?: () => void;
 }
 
-export default function CashSessionModal({ mode, session, onDone, onCancel }: Props) {
+export default function CashSessionModal({ mode, session, onDone, onCancel, onLogout }: Props) {
   const qc = useQueryClient();
   const [balance, setBalance] = useState('');
   const [notes, setNotes] = useState('');
@@ -163,6 +164,16 @@ export default function CashSessionModal({ mode, session, onDone, onCancel }: Pr
                 {isOpen ? 'Open Day' : 'Close Day'}
               </Button>
             </div>
+
+            {isOpen && onLogout && (
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-charcoal-400 hover:text-red-400 transition-colors pt-1"
+              >
+                <LogOut size={12} />
+                Sign out instead
+              </button>
+            )}
           </div>
         </motion.div>
       </motion.div>
