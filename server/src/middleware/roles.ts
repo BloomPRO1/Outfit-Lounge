@@ -17,4 +17,5 @@ export const requireRoles = (...roles: string[]) => {
 
 export const requireAdmin = requireRoles('super_admin');
 export const requireManagerOrAbove = requireRoles('super_admin', 'manager');
+export const requireCashierOrAbove = requireRoles('super_admin', 'manager', 'cashier');
 export const requireStaffOrAbove = requireRoles('super_admin', 'manager', 'cashier', 'inventory_staff');

@@ -658,6 +658,7 @@ export async function getAvailability(req: AuthRequest, res: Response): Promise<
       ) booked ON booked.product_variant_id = pv.id
       WHERE p.type IN ('rental', 'both')
         AND p.is_active = true
+        AND (p.type = 'rental' OR pv.sku LIKE '%-R')
         ${searchClause}
       ORDER BY p.name, pv.size NULLS LAST, pv.color NULLS LAST
     `, params);

@@ -78,6 +78,7 @@ export default function NewRentalPage() {
   const [notes, setNotes] = useState('');
 
   const [advancePayment, setAdvancePayment] = useState('');
+  const [cashTendered, setCashTendered] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [manualDiscount, setManualDiscount] = useState('');
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
@@ -138,6 +139,10 @@ export default function NewRentalPage() {
   const manualDiscountAmt = parseFloat(manualDiscount || '0');
   const finalTotal = Math.max(0, totalCost - manualDiscountAmt - promoDiscount - promoCodeDiscount);
   const advancePaidAmt = parseFloat(advancePayment || '0');
+  const cashTenderedAmt = parseFloat(cashTendered || '0');
+  const changeAmount = paymentMethod === 'cash' && cashTenderedAmt > advancePaidAmt
+    ? cashTenderedAmt - advancePaidAmt
+    : 0;
   const isFullPayment = advancePaidAmt > 0 && advancePaidAmt >= finalTotal;
 
   // Broadcast rental items to customer display in real-time
@@ -591,7 +596,7 @@ export default function NewRentalPage() {
                           <button
                             key={value}
                             type="button"
-                            onClick={() => setPaymentMethod(value)}
+                            onClick={() => { setPaymentMethod(value); if (value !== 'cash') setCashTendered(''); }}
                             className={cn(
                               'flex flex-col items-center gap-2 py-3 px-2 rounded-xl border-2 transition-all',
                               paymentMethod === value
@@ -615,7 +620,7 @@ export default function NewRentalPage() {
                         value={advancePayment}
                         onChange={(e) => setAdvancePayment(e.target.value)}
                         placeholder="0.00"
-                        hint={isFullPayment ? 'Fully paid' : 'Amount paid now'}
+                        hint={isFullPayment ? 'Fully paid' : 'Amount to record as advance'}
                       />
                       <Input
                         label="Manual Discount (LKR)"
@@ -628,6 +633,49 @@ export default function NewRentalPage() {
                         hint="Optional discount"
                       />
                     </div>
+
+                    {/* Cash tendered + change — only for cash payments */}
+                    {paymentMethod === 'cash' && advancePaidAmt > 0 && (
+                      <div className="space-y-2">
+                        <Input
+                          label="Cash Received from Customer (LKR)"
+                          type="number"
+                          step="0.01"
+                          min={advancePaidAmt}
+                          value={cashTendered}
+                          onChange={(e) => setCashTendered(e.target.value)}
+                          placeholder={String(advancePaidAmt || '0.00')}
+                          hint="How much the customer physically handed over"
+                        />
+                        {cashTenderedAmt > 0 && (
+                          <div className={cn(
+                            'flex items-center justify-between px-4 py-3 rounded-xl border',
+                            changeAmount > 0
+                              ? 'bg-emerald-500/10 border-emerald-500/30'
+                              : cashTenderedAmt < advancePaidAmt
+                                ? 'bg-red-500/10 border-red-500/30'
+                                : 'bg-charcoal-600/40 border-charcoal-500/40'
+                          )}>
+                            <span className={cn('text-sm font-medium',
+                              changeAmount > 0 ? 'text-emerald-300' :
+                              cashTenderedAmt < advancePaidAmt ? 'text-red-300' : 'text-charcoal-200'
+                            )}>
+                              {changeAmount > 0 ? 'Change to Return' : cashTenderedAmt < advancePaidAmt ? 'Short by' : 'Exact Change'}
+                            </span>
+                            <span className={cn('text-lg font-bold',
+                              changeAmount > 0 ? 'text-emerald-400' :
+                              cashTenderedAmt < advancePaidAmt ? 'text-red-400' : 'text-charcoal-100'
+                            )}>
+                              {changeAmount > 0
+                                ? formatCurrency(changeAmount)
+                                : cashTenderedAmt < advancePaidAmt
+                                  ? formatCurrency(advancePaidAmt - cashTenderedAmt)
+                                  : '—'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <PromotionSelector
                       scope="rental"

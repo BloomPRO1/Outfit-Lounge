@@ -8,7 +8,7 @@ import {
   splitVariantToRental, serveProductImage,
 } from '../controllers/productController';
 import { authenticate } from '../middleware/auth';
-import { requireManagerOrAbove, requireStaffOrAbove } from '../middleware/roles';
+import { requireManagerOrAbove, requireCashierOrAbove, requireStaffOrAbove } from '../middleware/roles';
 import { upload } from '../middleware/upload';
 
 const router = Router();
@@ -37,7 +37,7 @@ router.patch('/:id/images/:imageId/primary', requireManagerOrAbove, setProductIm
 
 // Variants
 router.post('/:id/variants', requireManagerOrAbove, createVariant);
-router.post('/:id/variants/:variantId/split-to-rental', requireManagerOrAbove, splitVariantToRental);
+router.post('/:id/variants/:variantId/split-to-rental', requireCashierOrAbove, splitVariantToRental);
 router.put('/:id/variants/:variantId', requireManagerOrAbove, updateVariant);
 router.delete('/:id/variants/:variantId', requireManagerOrAbove, deleteVariant);
 

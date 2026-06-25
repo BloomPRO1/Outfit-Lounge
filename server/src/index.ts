@@ -24,6 +24,7 @@ import promotionsRoutes from './routes/promotions';
 import promotionCodesRoutes from './routes/promotionCodes';
 import invoiceRoutes from './routes/invoices';
 import whatsappRoutes from './routes/whatsapp';
+import cashSessionRoutes from './routes/cashSessions';
 
 // Prevent unhandled async rejections from crashing the process.
 // Express 4 does not auto-catch rejected async handler promises, so any
@@ -72,6 +73,7 @@ app.use('/api/promotions', promotionsRoutes);
 app.use('/api/promotion-codes', promotionCodesRoutes);
 app.use('/api/invoices', invoiceRoutes);  // Public PDF download (no auth)
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/cash-sessions', cashSessionRoutes);
 
 // ─── Serve React client in production ────────────────────────────────────────
 if (env.NODE_ENV === 'production') {

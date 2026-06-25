@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Package, Users, Calendar, ShoppingCart,
   ArchiveX, RotateCcw, BarChart3, BarChart2, Bell, Settings,
   ChevronLeft, ChevronRight, Briefcase, Banknote, Receipt, Percent, CalendarCheck2, ClipboardList,
+  Moon, Circle,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
@@ -32,9 +33,11 @@ const NAV_ITEMS = [
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  onCloseDay?: () => void;
+  hasOpenSession?: boolean;
 }
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, onCloseDay, hasOpenSession }: SidebarProps) {
   const { user } = useAuthStore();
   const location = useLocation();
   const { hasPermission } = usePermissions();
@@ -120,6 +123,25 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Close Day button — cashiers only */}
+        {onCloseDay && (
+          <button
+            onClick={onCloseDay}
+            title={collapsed ? 'Close Day' : undefined}
+            className={cn(
+              'w-full flex items-center gap-2 py-2 rounded-xl mb-1 transition-colors text-xs font-medium',
+              collapsed ? 'justify-center px-2' : 'px-3',
+              'text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40'
+            )}
+          >
+            <Moon size={14} className="flex-shrink-0" />
+            {!collapsed && <span>Close Day</span>}
+            {!collapsed && hasOpenSession && (
+              <Circle size={6} className="ml-auto fill-emerald-400 text-emerald-400 flex-shrink-0" />
+            )}
+          </button>
         )}
 
         {/* Toggle button */}
