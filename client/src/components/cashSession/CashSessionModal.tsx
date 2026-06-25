@@ -13,9 +13,10 @@ interface Props {
   mode: 'open' | 'close';
   session?: CashSession | null;
   onDone: () => void;
+  onCancel?: () => void;
 }
 
-export default function CashSessionModal({ mode, session, onDone }: Props) {
+export default function CashSessionModal({ mode, session, onDone, onCancel }: Props) {
   const qc = useQueryClient();
   const [balance, setBalance] = useState('');
   const [notes, setNotes] = useState('');
@@ -146,6 +147,11 @@ export default function CashSessionModal({ mode, session, onDone }: Props) {
             />
 
             <div className="flex gap-2 pt-1">
+              {onCancel && (
+                <Button variant="secondary" className="flex-1" onClick={onCancel} disabled={isPending}>
+                  Cancel
+                </Button>
+              )}
               <Button
                 variant="primary"
                 className="flex-1"

@@ -136,6 +136,7 @@ export default function Layout() {
           mode="close"
           session={currentSession}
           onDone={handleCloseDone}
+          onCancel={pendingLogout ? undefined : () => setShowCloseModal(false)}
         />
       )}
     </div>
