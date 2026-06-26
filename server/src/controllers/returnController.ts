@@ -54,9 +54,10 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
   const dmgFlat    = parseFloat(dmgCfg['damage_flat_charge']    || '0');
   const dmgPercent = parseFloat(dmgCfg['damage_charge_percent'] || '0');
 
-  // Booked rental days (used for percentage calculation)
+  // Billed rental days (event date → return date, matching booking logic)
+  const billingStart = new Date(rental.event_date || rental.rental_start_date);
   const rentalDays = Math.max(1, Math.ceil(
-    (new Date(rental.rental_end_date).getTime() - new Date(rental.rental_start_date).getTime())
+    (new Date(rental.rental_end_date).getTime() - billingStart.getTime())
     / (1000 * 60 * 60 * 24)
   ));
 
@@ -191,7 +192,7 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
     // Record rental balance payment if collecting now
     if (collectBalance) {
       const paidTowardRentalRes = await client.query(
-        `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental')`,
+        `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental', 'full_payment')`,
         [rentalId]
       );
       const paidTowardRental = parseFloat(paidTowardRentalRes.rows[0].paid);
@@ -215,7 +216,7 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
       const fineStillOwed = fineCalc.totalFine > 0 && !collectFine;
       // Check if any rental balance remains unpaid after this transaction
       const paidAfterRes = await client.query(
-        `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental')`,
+        `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental', 'full_payment')`,
         [rentalId]
       );
       const paidAfter = parseFloat(paidAfterRes.rows[0].paid);

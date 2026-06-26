@@ -121,7 +121,7 @@ export async function getRentalById(req: Request, res: Response): Promise<void> 
   if (rental.status === 'returned') {
     const unpaidFines = finesRes.rows.filter((f: any) => !f.is_paid).length;
     const paidTowardRentalRes = await db.query(
-      `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental')`,
+      `SELECT COALESCE(SUM(amount), 0) AS paid FROM payments WHERE rental_id = $1 AND payment_type IN ('advance', 'balance', 'rental', 'full_payment')`,
       [id]
     );
     const paidTowardRental = parseFloat(paidTowardRentalRes.rows[0].paid);

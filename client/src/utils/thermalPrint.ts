@@ -132,7 +132,8 @@ export interface RentalReceiptData {
   customerName: string;
   customerPhone?: string;
   eventType?: string;
-  rentalStartDate: string;   // ISO date string
+  rentalStartDate: string;   // ISO date string (pickup — not billed)
+  eventDate?: string;        // billing starts from here
   rentalEndDate: string;
   items: Array<{
     productName: string;
@@ -164,9 +165,9 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
   const fmtDate = (iso: string) =>
     parseLocalDate(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 
-  const start = parseLocalDate(data.rentalStartDate);
-  const end   = parseLocalDate(data.rentalEndDate);
-  const days  = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  const billingStart = parseLocalDate(data.eventDate || data.rentalStartDate);
+  const end          = parseLocalDate(data.rentalEndDate);
+  const days         = Math.max(1, Math.ceil((end.getTime() - billingStart.getTime()) / (1000 * 60 * 60 * 24)));
 
   const itemsHTML = data.items.map(item => {
     const total = item.pricePerDay * item.quantity * days;

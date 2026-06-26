@@ -204,6 +204,7 @@ export default function RentalDetailPage() {
     customerPhone:   rental.customer_phone || undefined,
     eventType:       rental.event_type     || undefined,
     rentalStartDate: rental.rental_start_date,
+    eventDate:       rental.event_date || undefined,
     rentalEndDate:   rental.rental_end_date,
     items: (rental.items || []).map((item: any) => ({
       productName: item.product_name,

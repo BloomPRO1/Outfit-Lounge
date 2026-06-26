@@ -28,8 +28,9 @@ function calcDamageCharge(
   if (dmgType === 'none') return 0;
   if (dmgType === 'flat') return dmgFlat;
   if (dmgType === 'percentage_of_rental' && rental) {
+    const billingStart = new Date(rental.event_date || rental.rental_start_date);
     const days = Math.max(1, Math.ceil(
-      (new Date(rental.rental_end_date).getTime() - new Date(rental.rental_start_date).getTime())
+      (new Date(rental.rental_end_date).getTime() - billingStart.getTime())
       / (1000 * 60 * 60 * 24),
     ));
     const cost = parseFloat(item.rental_price_per_day || 0) * (item.quantity || 1) * days;
@@ -181,7 +182,7 @@ export default function ReturnsPage() {
     const discount = parseFloat(selectedRental.discount_amount   || 0);
     // sum all rental-type payments (advance, balance, rental)
     const paidTowardRental = (selectedRental.payments || [])
-      .filter((p: any) => ['advance', 'balance', 'rental'].includes(p.payment_type))
+      .filter((p: any) => ['advance', 'balance', 'rental', 'full_payment'].includes(p.payment_type))
       .reduce((s: number, p: any) => s + parseFloat(p.amount || 0), 0);
     return Math.max(0, total - discount - paidTowardRental);
   }, [selectedRental]);
@@ -570,7 +571,7 @@ export default function ReturnsPage() {
                   </div>
                 )}
                 {(selectedRental?.payments || [])
-                  .filter((p: any) => ['advance', 'balance', 'rental'].includes(p.payment_type))
+                  .filter((p: any) => ['advance', 'balance', 'rental', 'full_payment'].includes(p.payment_type))
                   .map((p: any) => (
                     <div key={p.id} className="flex justify-between">
                       <span>{p.payment_type === 'advance' ? 'Advance paid' : `Payment (${formatDate(p.created_at)})`}</span>

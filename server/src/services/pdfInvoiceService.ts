@@ -342,7 +342,7 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
   const shop = await getShopSettings();
 
   const res = await db.query(`
-    SELECT r.booking_number, r.rental_start_date, r.rental_end_date,
+    SELECT r.booking_number, r.rental_start_date, r.event_date, r.rental_end_date,
            r.total_rental_cost, r.discount_amount, r.advance_payment,
            r.total_fine, r.event_type, r.notes,
            c.name  AS customer_name,
@@ -361,9 +361,9 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
 
   if (!res.rows.length) throw new Error('Rental not found');
   const r0 = res.rows[0];
-  const start = new Date(r0.rental_start_date);
-  const end   = new Date(r0.rental_end_date);
-  const days  = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+  const billingStart = new Date(r0.event_date || r0.rental_start_date);
+  const end          = new Date(r0.rental_end_date);
+  const days         = Math.max(1, Math.ceil((end.getTime() - billingStart.getTime()) / 86400000));
   const fmtD  = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const dmgRes = await db.query(
