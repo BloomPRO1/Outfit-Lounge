@@ -495,11 +495,12 @@ export function buildReturnReminderMessage(data: {
 }): string {
   return (
     `Dear ${data.customerName},\n` +
-    `This is a friendly reminder to return your rented full suit for booking #${data.bookingNumber}.\n\n` +
+    `This is a friendly reminder to return your rented items for booking #${data.bookingNumber}.\n\n` +
     `📅 Return Date: ${data.returnDate}\n` +
     (data.returnTime ? `🕒 Return Time: ${data.returnTime}\n` : '') +
+    `🏪 Please return before 5:30 PM (shop closing time).\n` +
     (data.balanceDue && data.balanceDue > 0.01 ? `💰 Balance Due: LKR ${data.balanceDue.toFixed(2)}\n` : '') +
-    `\nKindly ensure the suit is returned on time to avoid additional rental charges.\n` +
+    `\nKindly ensure items are returned on time to avoid late charges.\n` +
     `Thank you,\n` +
     `THE OUTFIT LOUNGE`
   );
