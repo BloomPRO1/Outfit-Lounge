@@ -277,6 +277,9 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
 
     const totalDiscountAmount = (discountAmount || 0) + promotionDiscount + promoCodeDiscount;
 
+    const netTotal = totalCost - totalDiscountAmount;
+    const cappedAdvance = Math.min(advancePayment || 0, netTotal);
+
     const rentalRes = await client.query(`
       INSERT INTO rentals (
         booking_number, customer_id, status, rental_start_date, event_date, rental_end_date,
@@ -287,7 +290,7 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
       RETURNING *
     `, [
       bookingNumber, customerId, rentalStartDate, eventDate, rentalEndDate,
-      advancePayment || 0, totalCost,
+      cappedAdvance, totalCost,
       totalDiscountAmount, notes || null, eventType || null, req.user?.id,
       securityType || null, securityDeposit || 0, securityIdNumber || null,
     ]);
@@ -324,14 +327,13 @@ export async function createRental(req: AuthRequest, res: Response): Promise<voi
       `, [item.variantId, item.quantity || 1, rental.id, req.user?.id]);
     }
 
-    // Record advance payment — use 'full_payment' if the paid amount covers the net total
-    if (advancePayment > 0) {
-      const netTotal = totalCost - totalDiscountAmount;
-      const paidType = advancePayment >= netTotal ? 'full_payment' : 'advance';
+    // Record advance payment — already capped at netTotal above
+    if (cappedAdvance > 0) {
+      const paidType = cappedAdvance >= netTotal ? 'full_payment' : 'advance';
       await client.query(`
         INSERT INTO payments (rental_id, amount, payment_method, payment_type, created_by)
         VALUES ($1, $2, $3, $4, $5)
-      `, [rental.id, advancePayment, paymentMethod || 'cash', paidType, req.user?.id]);
+      `, [rental.id, cappedAdvance, paymentMethod || 'cash', paidType, req.user?.id]);
     }
 
     // Record promotion usage
