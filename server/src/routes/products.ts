@@ -26,19 +26,19 @@ router.post('/categories', requireManagerOrAbove, createCategory);
 router.get('/', getProducts);
 router.get('/barcode/:barcode', getProductByBarcode);
 router.get('/:id', getProductById);
-router.post('/', requireManagerOrAbove, createProduct);
-router.put('/:id', requireManagerOrAbove, updateProduct);
+router.post('/', requireCashierOrAbove, createProduct);
+router.put('/:id', requireCashierOrAbove, updateProduct);
 router.delete('/:id', requireManagerOrAbove, deleteProduct);
 
 // Images
-router.post('/:id/images', requireManagerOrAbove, upload.single('image'), uploadProductImage);
+router.post('/:id/images', requireCashierOrAbove, upload.single('image'), uploadProductImage);
 router.delete('/:id/images/:imageId', requireManagerOrAbove, deleteProductImage);
-router.patch('/:id/images/:imageId/primary', requireManagerOrAbove, setProductImagePrimary);
+router.patch('/:id/images/:imageId/primary', requireCashierOrAbove, setProductImagePrimary);
 
 // Variants
-router.post('/:id/variants', requireManagerOrAbove, createVariant);
+router.post('/:id/variants', requireCashierOrAbove, createVariant);
 router.post('/:id/variants/:variantId/split-to-rental', requireCashierOrAbove, splitVariantToRental);
-router.put('/:id/variants/:variantId', requireManagerOrAbove, updateVariant);
+router.put('/:id/variants/:variantId', requireCashierOrAbove, updateVariant);
 router.delete('/:id/variants/:variantId', requireManagerOrAbove, deleteVariant);
 
 export default router;
