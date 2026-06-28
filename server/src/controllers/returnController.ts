@@ -27,7 +27,7 @@ export async function getPendingReturns(_req: Request, res: Response): Promise<v
 
 export async function processReturn(req: AuthRequest, res: Response): Promise<void> {
   const { rentalId } = req.params;
-  const { items, returnDate, paymentMethod = 'cash', collectFine = true, collectBalance = true } = req.body;
+  const { items, returnDate, paymentMethod = 'cash', collectFine = true, collectBalance = true, overrideFinePerDay } = req.body;
 
   const rentalRes = await db.query(`
     SELECT r.*, c.name as customer_name, c.whatsapp, c.phone, c.id as customer_id
@@ -167,7 +167,10 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
     const fineSettingRes = await db.query<{ value: string }>(
       `SELECT value FROM settings WHERE key = 'default_fine_per_day'`
     );
-    const finePerDay = parseFloat(fineSettingRes.rows[0]?.value || '20');
+    const defaultFinePerDay = parseFloat(fineSettingRes.rows[0]?.value || '20');
+    const finePerDay = overrideFinePerDay != null && !isNaN(parseFloat(overrideFinePerDay))
+      ? parseFloat(overrideFinePerDay)
+      : defaultFinePerDay;
     const fineCalc = await calculateFine(
       new Date(rental.rental_end_date),
       actualReturn,

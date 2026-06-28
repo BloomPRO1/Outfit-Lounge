@@ -66,6 +66,7 @@ export default function ReturnsPage() {
   const [fineCalc, setFineCalc] = useState<any>(null);
   const [collectFine, setCollectFine] = useState(true);
   const [collectBalance, setCollectBalance] = useState(true);
+  const [customFinePerDay, setCustomFinePerDay] = useState('');
   const [sendInvoiceRentalId, setSendInvoiceRentalId] = useState<string | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState<'whatsapp' | 'sms' | null>(null);
 
@@ -152,6 +153,7 @@ export default function ReturnsPage() {
     setItemRemarks({});
     setCollectFine(true);
     setCollectBalance(true);
+    setCustomFinePerDay('');
     try {
       const fine = await returnService.getFineCalc(rental.id, returnDate);
       setFineCalc(fine);
@@ -171,7 +173,7 @@ export default function ReturnsPage() {
     });
     processReturnMutation.mutate({
       rentalId: selectedRental.id,
-      payload: { items, returnDate, paymentMethod, collectFine, collectBalance },
+      payload: { items, returnDate, paymentMethod, collectFine, collectBalance, overrideFinePerDay: customFinePerDay ? parseFloat(customFinePerDay) : undefined },
     });
   };
 
@@ -607,16 +609,54 @@ export default function ReturnsPage() {
                       {collectFine ? <><AlertTriangle size={11} /> Collect fine</> : <><XCircle size={11} /> Fine waived</>}
                     </button>
                   </div>
-                  <div className="space-y-1 text-sm text-charcoal-200">
-                    <p>Days late: <span className="text-red-400 font-medium">{fineCalc.daysLate}</span></p>
-                    <p>Fine / day: <span className="text-red-400 font-medium">{formatCurrency(fineCalc.finePerDay)}</span></p>
-                    <p className={cn('text-base font-semibold mt-1', collectFine ? 'text-red-300' : 'line-through text-charcoal-400')}>
-                      Total fine: {formatCurrency(fineCalc.totalFine)}
-                    </p>
-                    {!collectFine && (
-                      <p className="text-xs text-charcoal-400 italic">Fine will not be charged</p>
-                    )}
-                  </div>
+                  {(() => {
+                    const effectivePerDay = customFinePerDay ? parseFloat(customFinePerDay) : fineCalc.finePerDay;
+                    const effectiveTotal  = effectivePerDay * fineCalc.daysLate;
+                    return (
+                      <div className="space-y-2 text-sm text-charcoal-200">
+                        <p>Days late: <span className="text-red-400 font-medium">{fineCalc.daysLate}</span></p>
+
+                        {/* Fine per day — quick buttons + manual input */}
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-red-300">Fine per day (LKR)</p>
+                          <div className="flex gap-2">
+                            {[500, 700].map(preset => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setCustomFinePerDay(String(preset))}
+                                className={cn(
+                                  'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                                  (customFinePerDay === String(preset) || (!customFinePerDay && fineCalc.finePerDay === preset))
+                                    ? 'border-red-500 bg-red-500/20 text-red-300'
+                                    : 'border-charcoal-500 text-charcoal-300 hover:border-red-500/50 hover:text-red-300'
+                                )}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder={String(fineCalc.finePerDay)}
+                              value={customFinePerDay}
+                              onChange={(e) => setCustomFinePerDay(e.target.value)}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              className="flex-1 bg-charcoal-600 border border-charcoal-500 rounded-lg px-2.5 py-1.5 text-xs text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-red-500/60"
+                            />
+                          </div>
+                        </div>
+
+                        <p className={cn('text-base font-semibold', collectFine ? 'text-red-300' : 'line-through text-charcoal-400')}>
+                          Total fine: {formatCurrency(effectiveTotal)}
+                        </p>
+                        {!collectFine && (
+                          <p className="text-xs text-charcoal-400 italic">Fine will not be charged</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <p className="text-emerald-400 font-medium flex items-center gap-2">
@@ -627,35 +667,39 @@ export default function ReturnsPage() {
           )}
 
           {/* Charges summary */}
-          {((collectBalance && balanceDue > 0) || totalDamageCharge > 0 || (collectFine && (fineCalc?.totalFine ?? 0) > 0)) && (
-            <div className="p-4 bg-charcoal-600/40 rounded-xl space-y-2">
-              <p className="text-sm font-semibold text-charcoal-100 mb-1">Total to Collect</p>
-              {collectBalance && balanceDue > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-charcoal-200">Rental balance due</span>
-                  <span className="text-amber-400">{formatCurrency(balanceDue)}</span>
+          {((collectBalance && balanceDue > 0) || totalDamageCharge > 0 || (collectFine && (fineCalc?.totalFine ?? 0) > 0)) && (() => {
+            const effectiveFinePerDay = customFinePerDay ? parseFloat(customFinePerDay) : (fineCalc?.finePerDay ?? 0);
+            const effectiveFineTotal  = fineCalc ? effectiveFinePerDay * fineCalc.daysLate : 0;
+            return (
+              <div className="p-4 bg-charcoal-600/40 rounded-xl space-y-2">
+                <p className="text-sm font-semibold text-charcoal-100 mb-1">Total to Collect</p>
+                {collectBalance && balanceDue > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-charcoal-200">Rental balance due</span>
+                    <span className="text-amber-400">{formatCurrency(balanceDue)}</span>
+                  </div>
+                )}
+                {collectFine && effectiveFineTotal > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-charcoal-200">Late fine</span>
+                    <span className="text-red-400">{formatCurrency(effectiveFineTotal)}</span>
+                  </div>
+                )}
+                {totalDamageCharge > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-charcoal-200">Damage / lost charges</span>
+                    <span className="text-red-400">{formatCurrency(totalDamageCharge)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-semibold border-t border-charcoal-500 pt-2 mt-1">
+                  <span className="text-charcoal-100">Grand total</span>
+                  <span className="text-amber-400">
+                    {formatCurrency((collectBalance ? balanceDue : 0) + (collectFine ? effectiveFineTotal : 0) + totalDamageCharge)}
+                  </span>
                 </div>
-              )}
-              {collectFine && (fineCalc?.totalFine ?? 0) > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-charcoal-200">Late fine</span>
-                  <span className="text-red-400">{formatCurrency(fineCalc.totalFine)}</span>
-                </div>
-              )}
-              {totalDamageCharge > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-charcoal-200">Damage / lost charges</span>
-                  <span className="text-red-400">{formatCurrency(totalDamageCharge)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm font-semibold border-t border-charcoal-500 pt-2 mt-1">
-                <span className="text-charcoal-100">Grand total</span>
-                <span className="text-amber-400">
-                  {formatCurrency((collectBalance ? balanceDue : 0) + (collectFine ? (fineCalc?.totalFine ?? 0) : 0) + totalDamageCharge)}
-                </span>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
       </Drawer>
