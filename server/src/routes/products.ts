@@ -20,7 +20,7 @@ router.use(authenticate);
 
 // Categories
 router.get('/categories', getCategories);
-router.post('/categories', requireManagerOrAbove, createCategory);
+router.post('/categories', requireCashierOrAbove, createCategory);
 
 // Products
 router.get('/', getProducts);
