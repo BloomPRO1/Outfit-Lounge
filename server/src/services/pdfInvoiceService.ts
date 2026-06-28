@@ -375,7 +375,7 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
   const buffer = await buildPDF({
     type: 'rental',
     refNumber: r0.booking_number,
-    date:       fmtD(start),
+    date:       fmtD(billingStart),
     returnDate: fmtD(end),
     days,
     eventType: r0.event_type || '',
