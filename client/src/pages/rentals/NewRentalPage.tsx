@@ -145,6 +145,13 @@ export default function NewRentalPage() {
     : 0;
   const isFullPayment = advancePaidAmt > 0 && advancePaidAmt >= finalTotal;
 
+  // When a discount is applied/removed, cap advance payment down to the new finalTotal
+  useEffect(() => {
+    if (advancePaidAmt > finalTotal && finalTotal > 0) {
+      setAdvancePayment(finalTotal.toFixed(2));
+    }
+  }, [promoCodeDiscount, promoDiscount, manualDiscountAmt]);
+
   // Broadcast rental items to customer display in real-time
   useEffect(() => {
     if (cartItems.length === 0) return;
