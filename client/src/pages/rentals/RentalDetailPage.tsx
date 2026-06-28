@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Package, CreditCard, Bell, RotateCcw, CheckCircle,
   ChevronRight, CalendarCheck, PackageCheck, PackageOpen,
-  CheckCircle2, XCircle, Clock, AlertTriangle, ArrowRight, Printer,
+  CheckCircle2, XCircle, Clock, AlertTriangle, ArrowRight, Printer, Pencil,
 } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import api from '@/services/api';
 import { rentalService } from '@/services/rentalService';
@@ -100,8 +101,12 @@ export default function RentalDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'super_admin';
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ rentalStartDate: '', eventDate: '', rentalEndDate: '', eventType: '', notes: '' });
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
   const [statusNotes, setStatusNotes] = useState('');
   const [pickupTime, setPickupTime] = useState('');
@@ -165,6 +170,29 @@ export default function RentalDetailPage() {
     onSuccess: () => toast.success('Return reminder sent!'),
     onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to send reminder'),
   });
+
+  const updateDetailsMutation = useMutation({
+    mutationFn: (payload: typeof editForm) => rentalService.updateDetails(id!, payload),
+    onSuccess: () => {
+      toast.success('Rental details updated!');
+      setShowEditModal(false);
+      qc.invalidateQueries({ queryKey: ['rental', id] });
+      qc.invalidateQueries({ queryKey: ['rentals'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update details'),
+  });
+
+  function openEditModal() {
+    if (!rental) return;
+    setEditForm({
+      rentalStartDate: rental.rental_start_date?.split('T')[0] ?? '',
+      eventDate:       rental.event_date?.split('T')[0] ?? '',
+      rentalEndDate:   rental.rental_end_date?.split('T')[0] ?? '',
+      eventType:       rental.event_type ?? '',
+      notes:           rental.notes ?? '',
+    });
+    setShowEditModal(true);
+  }
 
   if (isLoading) {
     return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 bg-charcoal-600 rounded-2xl animate-pulse" />)}</div>;
@@ -259,6 +287,11 @@ export default function RentalDetailPage() {
           </div>
           <p className="text-sm text-charcoal-300 mt-0.5">{rental.customer_name} · Pickup: {formatDate(rental.rental_start_date)}{rental.event_date ? ` · Event: ${formatDate(rental.event_date)}` : ''} · Return: {formatDate(rental.rental_end_date)}</p>
         </div>
+        {isAdmin && (
+          <Button variant="ghost" icon={<Pencil size={15} />} onClick={openEditModal}>
+            Edit Details
+          </Button>
+        )}
         <Button variant="secondary" icon={<Printer size={15} />} onClick={() => setShowReceiptPreview(true)}>
           Print Receipt
         </Button>
@@ -775,6 +808,70 @@ export default function RentalDetailPage() {
           <Input label="Notes" value={payment.notes} onChange={(e) => setPayment({ ...payment, notes: e.target.value })} placeholder="Optional notes..." />
         </div>
       </Drawer>
+
+      {/* ── Admin Edit Details Modal ─────────────────────────────────────────── */}
+      <Modal
+        open={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Edit Rental Details"
+        variant="dialog"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowEditModal(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={() => updateDetailsMutation.mutate(editForm)}
+              loading={updateDetailsMutation.isPending}
+              disabled={!editForm.rentalStartDate || !editForm.eventDate || !editForm.rentalEndDate}
+            >
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label="Pickup Date"
+            type="date"
+            value={editForm.rentalStartDate}
+            onChange={(e) => setEditForm(f => ({ ...f, rentalStartDate: e.target.value }))}
+            required
+          />
+          <Input
+            label="Event Date"
+            type="date"
+            value={editForm.eventDate}
+            onChange={(e) => setEditForm(f => ({ ...f, eventDate: e.target.value }))}
+            required
+          />
+          <Input
+            label="Return Date"
+            type="date"
+            value={editForm.rentalEndDate}
+            onChange={(e) => setEditForm(f => ({ ...f, rentalEndDate: e.target.value }))}
+            required
+          />
+          <Input
+            label="Event Type"
+            value={editForm.eventType}
+            onChange={(e) => setEditForm(f => ({ ...f, eventType: e.target.value }))}
+            placeholder="e.g. Wedding, Birthday..."
+          />
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-charcoal-100">Notes</label>
+            <textarea
+              rows={3}
+              value={editForm.notes}
+              onChange={(e) => setEditForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Optional notes..."
+              className="w-full px-3 py-2 rounded-xl bg-charcoal-600 border border-charcoal-500 text-charcoal-50 placeholder-charcoal-400 text-sm resize-none focus:outline-none focus:border-gold-500 transition-colors"
+            />
+          </div>
+          <p className="text-xs text-amber-400 bg-amber-900/20 border border-amber-700/30 rounded-lg px-3 py-2">
+            Note: Editing dates does not recalculate the rental cost. Adjust payments separately if needed.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

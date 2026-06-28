@@ -38,6 +38,10 @@ export const rentalService = {
     const { data } = await api.patch(`/rentals/${id}/status`, { status, notes, pickupTime, ...security });
     return data as Rental;
   },
+  updateDetails: async (id: string, payload: { rentalStartDate: string; eventDate: string; rentalEndDate: string; eventType?: string; notes?: string }) => {
+    const { data } = await api.patch(`/rentals/${id}/details`, payload);
+    return data as Rental;
+  },
   addPayment: async (id: string, payload: any) => {
     const { data } = await api.post(`/rentals/${id}/payments`, payload);
     return data;

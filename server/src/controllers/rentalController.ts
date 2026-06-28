@@ -583,6 +583,40 @@ export async function sendReturnReminder(req: AuthRequest, res: Response): Promi
   }
 }
 
+export async function updateRentalDetails(req: AuthRequest, res: Response): Promise<void> {
+  if (req.user?.role !== 'super_admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
+  const { id } = req.params;
+  const { rentalStartDate, eventDate, rentalEndDate, eventType, notes } = req.body;
+
+  if (!rentalStartDate || !eventDate || !rentalEndDate) {
+    res.status(400).json({ error: 'Pickup date, event date, and return date are required' });
+    return;
+  }
+
+  const result = await db.query(`
+    UPDATE rentals
+    SET rental_start_date = $1,
+        event_date        = $2,
+        rental_end_date   = $3,
+        event_type        = $4,
+        notes             = $5,
+        updated_at        = NOW()
+    WHERE id = $6
+    RETURNING *
+  `, [rentalStartDate, eventDate, rentalEndDate, eventType || null, notes || null, id]);
+
+  if (!result.rows[0]) {
+    res.status(404).json({ error: 'Rental not found' });
+    return;
+  }
+
+  res.json(result.rows[0]);
+}
+
 export async function addPayment(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params;
   const { amount, paymentMethod, paymentType, notes } = req.body;

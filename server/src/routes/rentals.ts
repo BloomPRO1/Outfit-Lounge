@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   getRentals, getRentalById, createRental,
-  updateRentalStatus, addPayment, getUpcomingReturns, getAvailability,
+  updateRentalStatus, updateRentalDetails, addPayment, getUpcomingReturns, getAvailability,
   sendReturnReminder,
 } from '../controllers/rentalController';
 import { authenticate } from '../middleware/auth';
@@ -15,6 +15,7 @@ router.get('/', getRentals);
 router.get('/:id', getRentalById);
 router.post('/', createRental);
 router.patch('/:id/status', updateRentalStatus);
+router.patch('/:id/details', updateRentalDetails);
 router.post('/:id/payments', addPayment);
 router.post('/:id/send-reminder', sendReturnReminder);
 
