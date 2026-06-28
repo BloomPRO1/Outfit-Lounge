@@ -838,14 +838,14 @@ export default function RentalDetailPage() {
             required
           />
           <Input
-            label="Event Date"
+            label="Event Date (billing starts)"
             type="date"
             value={editForm.eventDate}
             onChange={(e) => setEditForm(f => ({ ...f, eventDate: e.target.value }))}
             required
           />
           <Input
-            label="Return Date"
+            label="Return Date (billing ends)"
             type="date"
             value={editForm.rentalEndDate}
             onChange={(e) => setEditForm(f => ({ ...f, rentalEndDate: e.target.value }))}
@@ -867,9 +867,26 @@ export default function RentalDetailPage() {
               className="w-full px-3 py-2 rounded-xl bg-charcoal-600 border border-charcoal-500 text-charcoal-50 placeholder-charcoal-400 text-sm resize-none focus:outline-none focus:border-gold-500 transition-colors"
             />
           </div>
-          <p className="text-xs text-blue-400 bg-blue-900/20 border border-blue-700/30 rounded-lg px-3 py-2">
-            Rental cost will be automatically recalculated based on the new dates.
-          </p>
+          {(() => {
+            if (!editForm.eventDate || !editForm.rentalEndDate || !rental?.items?.length) return null;
+            const d0 = new Date(editForm.eventDate).getTime();
+            const d1 = new Date(editForm.rentalEndDate).getTime();
+            const newDays = Math.max(1, Math.ceil((d1 - d0) / 86400000));
+            const newTotal = (rental.items as any[]).reduce(
+              (s: number, it: any) => s + parseFloat(it.rental_price_per_day) * it.quantity * newDays,
+              0
+            );
+            const changed = Math.abs(newTotal - Number(rental.total_rental_cost)) > 0.01;
+            return (
+              <div className={`rounded-lg px-3 py-2.5 text-xs border ${changed ? 'bg-amber-900/20 border-amber-700/40 text-amber-300' : 'bg-charcoal-700/50 border-charcoal-600 text-charcoal-300'}`}>
+                <span className="font-medium">New rental cost preview: </span>
+                <span className="font-bold">{formatCurrency(newTotal)}</span>
+                <span className="ml-1 opacity-70">({newDays} day{newDays !== 1 ? 's' : ''}, event date → return date)</span>
+                {!changed && <span className="ml-2 opacity-70">— same as current</span>}
+                <p className="mt-1 opacity-70">Pickup date does not affect billing cost.</p>
+              </div>
+            );
+          })()}
         </div>
       </Modal>
     </div>

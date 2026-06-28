@@ -599,41 +599,51 @@ export async function updateRentalDetails(req: AuthRequest, res: Response): Prom
     return;
   }
 
-  // Recalculate total cost based on new dates
-  const newDays = Math.max(
-    1,
-    Math.ceil((new Date(rentalEndDate).getTime() - new Date(eventDate).getTime()) / 86400000)
-  );
+  try {
+    // Billing is event_date → rental_end_date; pickup date is not used for cost
+    const newDays = Math.max(
+      1,
+      Math.ceil((new Date(rentalEndDate).getTime() - new Date(eventDate).getTime()) / 86400000)
+    );
 
-  const itemsRes = await db.query<{ rental_price_per_day: string; quantity: number }>(
-    `SELECT rental_price_per_day, quantity FROM rental_items WHERE rental_id = $1`,
-    [id]
-  );
+    const itemsRes = await db.query<{ rental_price_per_day: string; quantity: number }>(
+      `SELECT rental_price_per_day, quantity FROM rental_items WHERE rental_id = $1`,
+      [id]
+    );
 
-  const newTotalCost = itemsRes.rows.reduce(
-    (sum, row) => sum + parseFloat(row.rental_price_per_day) * row.quantity * newDays,
-    0
-  );
+    if (!itemsRes.rows.length) {
+      res.status(404).json({ error: 'Rental not found or has no items' });
+      return;
+    }
 
-  const result = await db.query(`
-    UPDATE rentals
-    SET rental_start_date = $1,
-        event_date        = $2,
-        rental_end_date   = $3,
-        event_type        = $4,
-        notes             = $5,
-        total_rental_cost = $6,
-        updated_at        = NOW()
-    WHERE id = $7
-    RETURNING *
-  `, [rentalStartDate, eventDate, rentalEndDate, eventType || null, notes || null, newTotalCost, id]);
+    const newTotalCost = itemsRes.rows.reduce(
+      (sum, row) => sum + parseFloat(row.rental_price_per_day) * row.quantity * newDays,
+      0
+    );
 
-  if (!result.rows[0]) {
-    res.status(404).json({ error: 'Rental not found' });
-    return;
+    const result = await db.query(`
+      UPDATE rentals
+      SET rental_start_date = $1,
+          event_date        = $2,
+          rental_end_date   = $3,
+          event_type        = $4,
+          notes             = $5,
+          total_rental_cost = $6,
+          updated_at        = NOW()
+      WHERE id = $7
+      RETURNING *
+    `, [rentalStartDate, eventDate, rentalEndDate, eventType || null, notes || null, newTotalCost, id]);
+
+    if (!result.rows[0]) {
+      res.status(404).json({ error: 'Rental not found' });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[updateRentalDetails]', err);
+    res.status(500).json({ error: 'Failed to update rental details' });
   }
-
-  res.json(result.rows[0]);
 }
 
 export async function addPayment(req: AuthRequest, res: Response): Promise<void> {
