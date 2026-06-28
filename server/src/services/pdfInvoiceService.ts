@@ -384,15 +384,27 @@ export async function generateRentalInvoicePDF(rentalId: string): Promise<string
     customerName:  r0.customer_name,
     customerPhone: r0.customer_phone,
     customerEmail: r0.customer_email,
-    items: res.rows.filter(row => row.product_name).map(row => {
-      const variant = [row.size, row.color].filter(Boolean).join('/');
-      return {
-        name:     row.product_name + (variant ? ` (${variant})` : ''),
-        qty:      row.quantity,
-        price:    parseFloat(row.rental_price_per_day),
-        subtotal: parseFloat(row.rental_price_per_day) * row.quantity * days,
-      };
-    }),
+    items: (() => {
+      const rentalItems = res.rows.filter(row => row.product_name);
+      const sumPriceQty = rentalItems.reduce(
+        (s, row) => s + parseFloat(row.rental_price_per_day) * row.quantity, 0
+      );
+      const grossTotal = parseFloat(r0.total_rental_cost);
+      return rentalItems.map(row => {
+        const variant = [row.size, row.color].filter(Boolean).join('/');
+        const pricePerDay = parseFloat(row.rental_price_per_day);
+        const qty = row.quantity;
+        const subtotal = sumPriceQty > 0
+          ? pricePerDay * qty / sumPriceQty * grossTotal
+          : pricePerDay * qty * days;
+        return {
+          name:     row.product_name + (variant ? ` (${variant})` : ''),
+          qty,
+          price:    pricePerDay,
+          subtotal,
+        };
+      });
+    })(),
     subtotal: parseFloat(r0.total_rental_cost),
     discount: parseFloat(r0.discount_amount || '0'),
     tax:      0,
