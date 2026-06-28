@@ -867,8 +867,8 @@ export default function RentalDetailPage() {
               className="w-full px-3 py-2 rounded-xl bg-charcoal-600 border border-charcoal-500 text-charcoal-50 placeholder-charcoal-400 text-sm resize-none focus:outline-none focus:border-gold-500 transition-colors"
             />
           </div>
-          <p className="text-xs text-amber-400 bg-amber-900/20 border border-amber-700/30 rounded-lg px-3 py-2">
-            Note: Editing dates does not recalculate the rental cost. Adjust payments separately if needed.
+          <p className="text-xs text-blue-400 bg-blue-900/20 border border-blue-700/30 rounded-lg px-3 py-2">
+            Rental cost will be automatically recalculated based on the new dates.
           </p>
         </div>
       </Modal>

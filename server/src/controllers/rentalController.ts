@@ -599,6 +599,22 @@ export async function updateRentalDetails(req: AuthRequest, res: Response): Prom
     return;
   }
 
+  // Recalculate total cost based on new dates
+  const newDays = Math.max(
+    1,
+    Math.ceil((new Date(rentalEndDate).getTime() - new Date(eventDate).getTime()) / 86400000)
+  );
+
+  const itemsRes = await db.query<{ rental_price_per_day: string; quantity: number }>(
+    `SELECT rental_price_per_day, quantity FROM rental_items WHERE rental_id = $1`,
+    [id]
+  );
+
+  const newTotalCost = itemsRes.rows.reduce(
+    (sum, row) => sum + parseFloat(row.rental_price_per_day) * row.quantity * newDays,
+    0
+  );
+
   const result = await db.query(`
     UPDATE rentals
     SET rental_start_date = $1,
@@ -606,10 +622,11 @@ export async function updateRentalDetails(req: AuthRequest, res: Response): Prom
         rental_end_date   = $3,
         event_type        = $4,
         notes             = $5,
+        total_rental_cost = $6,
         updated_at        = NOW()
-    WHERE id = $6
+    WHERE id = $7
     RETURNING *
-  `, [rentalStartDate, eventDate, rentalEndDate, eventType || null, notes || null, id]);
+  `, [rentalStartDate, eventDate, rentalEndDate, eventType || null, notes || null, newTotalCost, id]);
 
   if (!result.rows[0]) {
     res.status(404).json({ error: 'Rental not found' });
