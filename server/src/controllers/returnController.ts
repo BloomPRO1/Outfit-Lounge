@@ -27,7 +27,7 @@ export async function getPendingReturns(_req: Request, res: Response): Promise<v
 
 export async function processReturn(req: AuthRequest, res: Response): Promise<void> {
   const { rentalId } = req.params;
-  const { items, returnDate, paymentMethod = 'cash', collectFine = true, collectBalance = true, overrideFinePerDay } = req.body;
+  const { items, returnDate, paymentMethod = 'cash', collectFine = true, collectBalance = true, overrideFinePerDay, flatFineAmount } = req.body;
 
   const rentalRes = await db.query(`
     SELECT r.*, c.name as customer_name, c.whatsapp, c.phone, c.id as customer_id
@@ -171,11 +171,17 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
     const finePerDay = overrideFinePerDay != null && !isNaN(parseFloat(overrideFinePerDay))
       ? parseFloat(overrideFinePerDay)
       : defaultFinePerDay;
+    const isFlatFine = flatFineAmount != null && !isNaN(parseFloat(flatFineAmount)) && parseFloat(flatFineAmount) > 0;
     const fineCalc = await calculateFine(
       new Date(rental.rental_end_date),
       actualReturn,
       finePerDay
     );
+    if (isFlatFine) {
+      // Custom flat fine — a fixed amount that does not multiply by days late
+      fineCalc.finePerDay = 0;
+      fineCalc.totalFine = parseFloat(flatFineAmount);
+    }
 
     if (fineCalc.totalFine > 0 && collectFine) {
       // Check if fine record already exists
@@ -254,7 +260,7 @@ export async function processReturn(req: AuthRequest, res: Response): Promise<vo
       await client.query(`
         INSERT INTO payments (rental_id, amount, payment_method, payment_type, notes, created_by)
         VALUES ($1, $2, $3, 'fine', $4, $5)
-      `, [rentalId, fineCalc.totalFine, paymentMethod, `Late return fine: ${fineCalc.daysLate} days`, req.user?.id]);
+      `, [rentalId, fineCalc.totalFine, paymentMethod, isFlatFine ? 'Late return fine: custom flat fine' : `Late return fine: ${fineCalc.daysLate} days`, req.user?.id]);
 
       await client.query(`
         UPDATE fine_transactions SET is_paid = true, paid_at = NOW(), paid_by = $1

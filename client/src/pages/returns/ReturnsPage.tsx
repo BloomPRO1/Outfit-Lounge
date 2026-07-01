@@ -67,6 +67,8 @@ export default function ReturnsPage() {
   const [collectFine, setCollectFine] = useState(true);
   const [collectBalance, setCollectBalance] = useState(true);
   const [customFinePerDay, setCustomFinePerDay] = useState('');
+  const [fineMode, setFineMode] = useState<'perDay' | 'flat'>('perDay');
+  const [flatFineAmount, setFlatFineAmount] = useState('');
   const [sendInvoiceRentalId, setSendInvoiceRentalId] = useState<string | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState<'whatsapp' | 'sms' | null>(null);
 
@@ -154,6 +156,8 @@ export default function ReturnsPage() {
     setCollectFine(true);
     setCollectBalance(true);
     setCustomFinePerDay('');
+    setFineMode('perDay');
+    setFlatFineAmount('');
     try {
       const fine = await returnService.getFineCalc(rental.id, returnDate);
       setFineCalc(fine);
@@ -173,7 +177,11 @@ export default function ReturnsPage() {
     });
     processReturnMutation.mutate({
       rentalId: selectedRental.id,
-      payload: { items, returnDate, paymentMethod, collectFine, collectBalance, overrideFinePerDay: customFinePerDay ? parseFloat(customFinePerDay) : undefined },
+      payload: {
+        items, returnDate, paymentMethod, collectFine, collectBalance,
+        overrideFinePerDay: fineMode === 'perDay' && customFinePerDay ? parseFloat(customFinePerDay) : undefined,
+        flatFineAmount: fineMode === 'flat' && flatFineAmount ? parseFloat(flatFineAmount) : undefined,
+      },
     });
   };
 
@@ -611,42 +619,82 @@ export default function ReturnsPage() {
                   </div>
                   {(() => {
                     const effectivePerDay = customFinePerDay ? parseFloat(customFinePerDay) : fineCalc.finePerDay;
-                    const effectiveTotal  = effectivePerDay * fineCalc.daysLate;
+                    const effectiveFlat   = parseFloat(flatFineAmount) || 0;
+                    const effectiveTotal  = fineMode === 'flat' ? effectiveFlat : effectivePerDay * fineCalc.daysLate;
                     return (
                       <div className="space-y-2 text-sm text-charcoal-200">
                         <p>Days late: <span className="text-red-400 font-medium">{fineCalc.daysLate}</span></p>
 
-                        {/* Fine per day — quick buttons + manual input */}
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-medium text-red-300">Fine per day (LKR)</p>
-                          <div className="flex gap-2">
-                            {[500, 700].map(preset => (
-                              <button
-                                key={preset}
-                                type="button"
-                                onClick={() => setCustomFinePerDay(String(preset))}
-                                className={cn(
-                                  'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-                                  (customFinePerDay === String(preset) || (!customFinePerDay && fineCalc.finePerDay === preset))
-                                    ? 'border-red-500 bg-red-500/20 text-red-300'
-                                    : 'border-charcoal-500 text-charcoal-300 hover:border-red-500/50 hover:text-red-300'
-                                )}
-                              >
-                                {preset}
-                              </button>
-                            ))}
+                        {/* Fine type toggle: per-day (multiplies by days late) vs flat custom amount */}
+                        <div className="flex gap-2">
+                          {([
+                            { key: 'perDay', label: 'Per Day' },
+                            { key: 'flat', label: 'Custom Fine' },
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.key}
+                              type="button"
+                              onClick={() => setFineMode(opt.key)}
+                              className={cn(
+                                'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                                fineMode === opt.key
+                                  ? 'border-red-500 bg-red-500/20 text-red-300'
+                                  : 'border-charcoal-500 text-charcoal-300 hover:border-red-500/50 hover:text-red-300'
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {fineMode === 'perDay' ? (
+                          /* Fine per day — quick buttons + manual input (multiplies by days late) */
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-red-300">Fine per day (LKR)</p>
+                            <div className="flex gap-2">
+                              {[500, 700].map(preset => (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => setCustomFinePerDay(String(preset))}
+                                  className={cn(
+                                    'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                                    (customFinePerDay === String(preset) || (!customFinePerDay && fineCalc.finePerDay === preset))
+                                      ? 'border-red-500 bg-red-500/20 text-red-300'
+                                      : 'border-charcoal-500 text-charcoal-300 hover:border-red-500/50 hover:text-red-300'
+                                  )}
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder={String(fineCalc.finePerDay)}
+                                value={customFinePerDay}
+                                onChange={(e) => setCustomFinePerDay(e.target.value)}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                className="flex-1 bg-charcoal-600 border border-charcoal-500 rounded-lg px-2.5 py-1.5 text-xs text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-red-500/60"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          /* Custom flat fine — a fixed amount, NOT multiplied by days late */
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-red-300">Custom fine amount (LKR, flat — not multiplied by days)</p>
                             <input
                               type="number"
                               min="0"
                               step="0.01"
-                              placeholder={String(fineCalc.finePerDay)}
-                              value={customFinePerDay}
-                              onChange={(e) => setCustomFinePerDay(e.target.value)}
+                              placeholder="e.g. 1000"
+                              value={flatFineAmount}
+                              onChange={(e) => setFlatFineAmount(e.target.value)}
                               onWheel={(e) => e.currentTarget.blur()}
-                              className="flex-1 bg-charcoal-600 border border-charcoal-500 rounded-lg px-2.5 py-1.5 text-xs text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-red-500/60"
+                              className="w-full bg-charcoal-600 border border-charcoal-500 rounded-lg px-2.5 py-1.5 text-xs text-charcoal-50 placeholder-charcoal-400 focus:outline-none focus:border-red-500/60"
                             />
                           </div>
-                        </div>
+                        )}
 
                         <p className={cn('text-base font-semibold', collectFine ? 'text-red-300' : 'line-through text-charcoal-400')}>
                           Total fine: {formatCurrency(effectiveTotal)}
@@ -669,7 +717,9 @@ export default function ReturnsPage() {
           {/* Charges summary */}
           {((collectBalance && balanceDue > 0) || totalDamageCharge > 0 || (collectFine && (fineCalc?.totalFine ?? 0) > 0)) && (() => {
             const effectiveFinePerDay = customFinePerDay ? parseFloat(customFinePerDay) : (fineCalc?.finePerDay ?? 0);
-            const effectiveFineTotal  = fineCalc ? effectiveFinePerDay * fineCalc.daysLate : 0;
+            const effectiveFineTotal  = fineMode === 'flat'
+              ? (parseFloat(flatFineAmount) || 0)
+              : (fineCalc ? effectiveFinePerDay * fineCalc.daysLate : 0);
             return (
               <div className="p-4 bg-charcoal-600/40 rounded-xl space-y-2">
                 <p className="text-sm font-semibold text-charcoal-100 mb-1">Total to Collect</p>
