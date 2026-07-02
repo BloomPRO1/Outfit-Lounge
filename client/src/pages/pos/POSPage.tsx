@@ -57,6 +57,7 @@ export default function POSPage() {
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
   const [appliedPromoCode, setAppliedPromoCode] = useState<PromotionCode | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState(false);
+  const [printingBill, setPrintingBill] = useState(false);
   // WhatsApp invoice state
   const [waInvoiceSent, setWaInvoiceSent] = useState(false);
   const [showWaInput, setShowWaInput] = useState(false);
@@ -1172,22 +1173,29 @@ export default function POSPage() {
                 variant="secondary"
                 className="flex-1"
                 icon={<Printer size={14} />}
+                loading={printingBill}
                 onClick={async () => {
-                  const shopInfo = {
-                    name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
-                    address: shopSettings?.shop_address?.value || undefined,
-                    phone:   shopSettings?.shop_phone?.value   || undefined,
-                    logoUrl: shopSettings?.shop_logo?.value    || undefined,
-                  };
-                  if (isUsbConnected()) {
-                    try {
-                      await usbPrint(receipt, shopInfo);
-                      return;
-                    } catch (err) {
-                      console.error('USB receipt print failed:', err);
+                  if (printingBill) return;
+                  setPrintingBill(true);
+                  try {
+                    const shopInfo = {
+                      name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
+                      address: shopSettings?.shop_address?.value || undefined,
+                      phone:   shopSettings?.shop_phone?.value   || undefined,
+                      logoUrl: shopSettings?.shop_logo?.value    || undefined,
+                    };
+                    if (isUsbConnected()) {
+                      try {
+                        await usbPrint(receipt, shopInfo);
+                        return;
+                      } catch (err) {
+                        console.error('USB receipt print failed:', err);
+                      }
                     }
+                    printViaIframe(buildReceiptHTML(receipt, shopInfo));
+                  } finally {
+                    setPrintingBill(false);
                   }
-                  printViaIframe(buildReceiptHTML(receipt, shopInfo));
                 }}
               >Print</Button>
               <Button variant="primary" className="flex-1" onClick={handleCloseReceipt}>Done</Button>

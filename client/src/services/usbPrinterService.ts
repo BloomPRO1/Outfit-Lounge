@@ -67,7 +67,23 @@ export function getUsbDevice(): unknown {
 export async function usbPrint(receipt: ThermalReceiptData, shop: ShopInfo): Promise<void> {
   if (!dev) throw new Error('No USB printer connected');
   const data = buildESCPOS(receipt, shop);
-  await dev.transferOut(outEp, data);
+
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('USB printer timed out')), 5000);
+  });
+
+  try {
+    await Promise.race([dev.transferOut(outEp, data), timeout]);
+  } catch (err) {
+    // Device is stuck/unresponsive — drop it so the next print attempt
+    // doesn't hang again and instead falls back to window.print().
+    try { await dev.close(); } catch { /* already gone */ }
+    dev = null;
+    throw err;
+  } finally {
+    clearTimeout(timer!);
+  }
 }
 
 // ─── ESC/POS builder ─────────────────────────────────────────────────────────

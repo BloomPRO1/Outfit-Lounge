@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useListKeyNav } from '@/hooks/useListKeyNav';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import {
   Plus, List, Columns3, CalendarDays, ChevronLeft, X,
   CalendarCheck, PackageCheck, PackageOpen, RotateCcw,
   CheckCircle2, AlertTriangle, Clock, Package,
-  User, Calendar, ChevronRight,
+  User, Calendar, ChevronRight, Printer,
 } from 'lucide-react';
 import { rentalService } from '@/services/rentalService';
+import { settingsService } from '@/services/settingsService';
+import { buildRentalReceiptHTML, printViaIframe, type RentalReceiptData } from '@/utils/thermalPrint';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
@@ -534,58 +537,75 @@ function CalendarView({ rentals, onRentalClick }: {
 }
 
 // ─── List view columns ────────────────────────────────────────────────────────
-const listColumns = [
-  {
-    key: 'booking',
-    header: 'Booking',
-    render: (r: Rental) => (
-      <div>
-        <p className="font-medium text-gold-500">{r.booking_number}</p>
-        {r.event_type && <p className="text-xs text-charcoal-200">{r.event_type}</p>}
-      </div>
-    ),
-  },
-  {
-    key: 'customer',
-    header: 'Customer',
-    render: (r: Rental) => (
-      <div>
-        <p className="text-charcoal-50 font-medium">{r.customer_name}</p>
-        {(r as any).customer_phone && <p className="text-xs text-charcoal-200">{(r as any).customer_phone}</p>}
-      </div>
-    ),
-  },
-  {
-    key: 'dates',
-    header: 'Period',
-    render: (r: Rental) => (
-      <div>
-        <p className="text-sm">{formatDate(r.rental_start_date)}</p>
-        <p className="text-xs text-charcoal-200">→ {formatDate(r.rental_end_date)}</p>
-      </div>
-    ),
-  },
-  {
-    key: 'status',
-    header: 'Status',
-    render: (r: Rental) => <Badge status={r.status} />,
-  },
-  {
-    key: 'items',
-    header: 'Items',
-    render: (r: any) => <span className="text-charcoal-100">{r.item_count || 0}</span>,
-  },
-  {
-    key: 'amount',
-    header: 'Total',
-    render: (r: Rental) => (
-      <div>
-        <p className="font-medium text-charcoal-50">{formatCurrency(r.total_rental_cost)}</p>
-        {r.total_fine > 0 && <p className="text-xs text-red-400">+{formatCurrency(r.total_fine)} fine</p>}
-      </div>
-    ),
-  },
-];
+function buildListColumns(onPrint: (r: Rental) => void, printingId: string | null) {
+  return [
+    {
+      key: 'booking',
+      header: 'Booking',
+      render: (r: Rental) => (
+        <div>
+          <p className="font-medium text-gold-500">{r.booking_number}</p>
+          {r.event_type && <p className="text-xs text-charcoal-200">{r.event_type}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      render: (r: Rental) => (
+        <div>
+          <p className="text-charcoal-50 font-medium">{r.customer_name}</p>
+          {(r as any).customer_phone && <p className="text-xs text-charcoal-200">{(r as any).customer_phone}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'dates',
+      header: 'Period',
+      render: (r: Rental) => (
+        <div>
+          <p className="text-sm">{formatDate(r.rental_start_date)}</p>
+          <p className="text-xs text-charcoal-200">→ {formatDate(r.rental_end_date)}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r: Rental) => <Badge status={r.status} />,
+    },
+    {
+      key: 'items',
+      header: 'Items',
+      render: (r: any) => <span className="text-charcoal-100">{r.item_count || 0}</span>,
+    },
+    {
+      key: 'amount',
+      header: 'Total',
+      render: (r: Rental) => (
+        <div>
+          <p className="font-medium text-charcoal-50">{formatCurrency(r.total_rental_cost)}</p>
+          {r.total_fine > 0 && <p className="text-xs text-red-400">+{formatCurrency(r.total_fine)} fine</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (r: Rental) => (
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<Printer size={13} />}
+          loading={printingId === r.id}
+          onClick={(e) => { e.stopPropagation(); onPrint(r); }}
+        >
+          Print
+        </Button>
+      ),
+    },
+  ];
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function RentalsPage() {
@@ -594,6 +614,7 @@ export default function RentalsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage]               = useState(1);
   const [view, setView]               = useState<'list' | 'kanban' | 'calendar'>('calendar');
+  const [printingId, setPrintingId]   = useState<string | null>(null);
 
   // Paginated list query
   const { data, isLoading } = useQuery({
@@ -605,6 +626,70 @@ export default function RentalsPage() {
       limit: 20,
     }),
   });
+
+  const { data: shopSettings } = useQuery({
+    queryKey: ['settings-shop-pos'],
+    queryFn: () => settingsService.getAll('shop'),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const handlePrintReceipt = async (rental: Rental) => {
+    setPrintingId(rental.id);
+    try {
+      const full = await rentalService.getById(rental.id) as any;
+
+      const rentalPayments = (full.payments || []).reduce((sum: number, p: any) => {
+        if (['advance', 'full_payment', 'balance', 'rental'].includes(p.payment_type)) return sum + parseFloat(p.amount);
+        if (p.payment_type === 'refund') return sum - parseFloat(p.amount);
+        return sum;
+      }, 0);
+      const totalPaid = (full.payments || []).reduce((sum: number, p: any) => {
+        return p.payment_type !== 'refund' ? sum + parseFloat(p.amount) : sum - parseFloat(p.amount);
+      }, 0);
+      const netCost = Number(full.total_rental_cost) - Number(full.discount_amount || 0);
+      const balanceDue = Math.max(0, netCost - rentalPayments);
+
+      const shopInfo = {
+        name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
+        address: shopSettings?.shop_address?.value || undefined,
+        phone:   shopSettings?.shop_phone?.value   || undefined,
+        logoUrl: shopSettings?.shop_logo?.value    || undefined,
+      };
+
+      const receiptData: RentalReceiptData = {
+        bookingNumber:   full.booking_number,
+        customerName:    full.customer_name,
+        customerPhone:   full.customer_phone || undefined,
+        eventType:       full.event_type     || undefined,
+        rentalStartDate: full.rental_start_date,
+        eventDate:       full.event_date || undefined,
+        rentalEndDate:   full.rental_end_date,
+        items: (full.items || []).map((item: any) => ({
+          productName: item.product_name,
+          variant:     [item.size, item.color].filter(Boolean).join(' / ') || undefined,
+          quantity:    item.quantity,
+          pricePerDay: parseFloat(item.rental_price_per_day),
+        })),
+        totalRentalCost: Number(full.total_rental_cost),
+        discountAmount:  Number(full.discount_amount || 0),
+        totalPaid,
+        balanceDue,
+        totalFine:       Number(full.total_fine || 0),
+        notes:           full.notes || undefined,
+        securityType:    full.security_type || undefined,
+        securityDeposit: full.security_deposit ? Number(full.security_deposit) : undefined,
+        securityIdNumber: full.security_id_number || undefined,
+      };
+
+      printViaIframe(buildRentalReceiptHTML(receiptData, shopInfo));
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to reprint receipt');
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
+  const listColumns = buildListColumns(handlePrintReceipt, printingId);
 
   // Calendar needs all rentals (broad fetch, filtered on frontend)
   const { data: calendarData } = useQuery({

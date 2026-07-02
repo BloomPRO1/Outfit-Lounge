@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MessageCircle, Download, X, FileText, CheckCircle2 } from 'lucide-react';
+import { MessageCircle, Download, X, FileText, CheckCircle2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/services/api';
 import { posService } from '@/services/posService';
+import { settingsService } from '@/services/settingsService';
+import { buildReceiptHTML, printViaIframe, type ThermalReceiptData } from '@/utils/thermalPrint';
+import { isUsbConnected, usbPrint } from '@/services/usbPrinterService';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import Card from '@/components/common/Card';
 import Button from '@/components/common/Button';
@@ -20,6 +23,7 @@ export default function SalesHistoryPage() {
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
   const [sendingId, setSendingId]         = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [printingId, setPrintingId]       = useState<string | null>(null);
   const [phoneInputId, setPhoneInputId]   = useState<string | null>(null);
   const [phoneValue, setPhoneValue]       = useState('');
   const [sentIds, setSentIds]             = useState<Set<string>>(new Set());
@@ -27,6 +31,12 @@ export default function SalesHistoryPage() {
   const { data: sales, isLoading } = useQuery({
     queryKey: ['pos-sales-history', dateFrom, dateTo],
     queryFn: () => posService.getSales({ fromDate: dateFrom, toDate: dateTo }),
+  });
+
+  const { data: shopSettings } = useQuery({
+    queryKey: ['settings-shop-pos'],
+    queryFn: () => settingsService.getAll('shop'),
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleDownloadPDF = async (sale: any) => {
@@ -67,6 +77,47 @@ export default function SalesHistoryPage() {
       toast.error(e.response?.data?.error || 'Failed to send');
     } finally {
       setSendingId(null);
+    }
+  };
+
+  const handleReprint = async (sale: any) => {
+    setPrintingId(sale.id);
+    try {
+      const full = await posService.getSaleById(sale.id) as any;
+      const receipt: ThermalReceiptData = {
+        saleNumber: full.sale_number,
+        items: (full.items || []).map((item: any) => ({
+          productName: item.product_name,
+          quantity: item.quantity,
+          itemSubtotal: parseFloat(item.subtotal),
+        })),
+        subtotal: parseFloat(full.subtotal),
+        promotionDiscount: 0,
+        discountAmount: parseFloat(full.discount_amount || 0),
+        totalAmount: parseFloat(full.total_amount),
+        amountPaid: parseFloat(full.amount_paid),
+        changeAmount: parseFloat(full.change_amount || 0),
+      };
+      const shopInfo = {
+        name:    shopSettings?.shop_name?.value    || 'THE OUTFIT LOUNGE',
+        address: shopSettings?.shop_address?.value || undefined,
+        phone:   shopSettings?.shop_phone?.value   || undefined,
+        logoUrl: shopSettings?.shop_logo?.value    || undefined,
+      };
+
+      if (isUsbConnected()) {
+        try {
+          await usbPrint(receipt, shopInfo);
+          return;
+        } catch (err) {
+          console.error('USB receipt print failed:', err);
+        }
+      }
+      printViaIframe(buildReceiptHTML(receipt, shopInfo));
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to reprint receipt');
+    } finally {
+      setPrintingId(null);
     }
   };
 
@@ -151,6 +202,17 @@ export default function SalesHistoryPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Reprint receipt */}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Printer size={13} />}
+                      loading={printingId === sale.id}
+                      onClick={() => handleReprint(sale)}
+                    >
+                      Print
+                    </Button>
+
                     {/* PDF download — always available, generated on demand */}
                     <Button
                       variant="secondary"
