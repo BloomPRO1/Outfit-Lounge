@@ -823,26 +823,15 @@ export async function reverseVariantSplit(req: AuthRequest, res: Response, next:
       [sourceVariant.id, qty, req.user?.id]
     );
 
-    // If no variant on this product still has rental stock, restore product.type to 'sale'
-    const remaining = await client.query(
-      `SELECT 1 FROM product_variants WHERE product_id = $1 AND available_for_rent > 0 LIMIT 1`,
-      [productId]
-    );
-    let productRes: any = { rows: [] };
-    if (remaining.rows.length === 0) {
-      productRes = await client.query(
-        `UPDATE products SET type = 'sale', updated_at = NOW()
-         WHERE id = $1 AND type = 'both'
-         RETURNING *`,
-        [productId]
-      );
-    }
+    // Note: product.type intentionally stays 'both' even if this was the last unit
+    // of rental stock — it's a permanent capability flag (unlocks the Mode column and
+    // "To Rent" button for all variants), not a reflection of current stock levels.
+    // Reverting it to 'sale' would hide the transfer option for future use.
 
     await client.query('COMMIT');
     res.json({
       sourceVariant: updSrc.rows[0],
       rentVariant: updRent.rows[0],
-      product: productRes.rows[0],
     });
   } catch (err: any) {
     await client.query('ROLLBACK');
