@@ -720,8 +720,21 @@ export async function splitVariantToRental(req: AuthRequest, res: Response, next
       [rentVariant.id, qty, req.user?.id]
     );
 
+    // Product now has rental stock too — promote 'sale'-only products to 'both'
+    // so it shows a rental label and appears on rental screens.
+    const productRes = await client.query(
+      `UPDATE products SET type = 'both', updated_at = NOW()
+       WHERE id = $1 AND type = 'sale'
+       RETURNING *`,
+      [productId]
+    );
+
     await client.query('COMMIT');
-    res.json({ sourceVariant: src, rentVariant });
+    res.json({
+      sourceVariant: src,
+      rentVariant,
+      product: productRes.rows[0],
+    });
   } catch (err: any) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {

@@ -60,6 +60,7 @@ export default function ProductDetailPage() {
     onSuccess: (data) => {
       toast.success('Units transferred — print the RENT ONLY label now');
       qc.invalidateQueries({ queryKey: ['product', id] });
+      qc.invalidateQueries({ queryKey: ['products'] });
       setTransferVariant(null);
       setBarcodeItem({
         sku: data.rentVariant.sku,
