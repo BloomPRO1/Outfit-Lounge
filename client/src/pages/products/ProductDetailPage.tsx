@@ -384,7 +384,10 @@ export default function ProductDetailPage() {
               <tbody>
                 {variants.map((v: any) => {
                   const saleStock = (vv: any) => Math.max(0, (vv.stock_quantity || 0) - (vv.available_for_rent || 0));
-                  const isRentOnly = product.type === 'both' && v.stock_quantity > 0 && saleStock(v) === 0;
+                  // A variant created by "Transfer to Rent" always carries a '-R' sku suffix
+                  // (see splitVariantToRental) — it's rent-only regardless of current stock level,
+                  // so this must not be inferred from stock math (breaks when stock hits 0).
+                  const isRentOnly = product.type === 'both' && !!v.sku?.endsWith('-R');
                   return (
                     <tr key={v.id} className="border-b border-charcoal-600 hover:bg-charcoal-600/30">
                       <td className="py-2.5 px-3"><code className="text-xs text-gold-500">{v.sku}</code></td>
