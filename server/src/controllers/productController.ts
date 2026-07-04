@@ -746,3 +746,108 @@ export async function splitVariantToRental(req: AuthRequest, res: Response, next
     client.release();
   }
 }
+
+// Admin-only: undo a previous split-to-rental — moves units from the '-R' rent
+// variant back onto its original sale variant (same row, same barcode/label_id),
+// restoring the pre-transfer state.
+export async function reverseVariantSplit(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  const { id: productId, variantId } = req.params;
+  const qty = parseInt(req.body.quantity);
+
+  if (!qty || qty < 1) {
+    res.status(400).json({ error: 'Quantity must be at least 1' });
+    return;
+  }
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    const rentRes = await client.query(
+      `SELECT * FROM product_variants WHERE id = $1 AND product_id = $2`,
+      [variantId, productId]
+    );
+    const rentVariant = rentRes.rows[0];
+    if (!rentVariant) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Variant not found' });
+      return;
+    }
+    if (!rentVariant.sku?.endsWith('-R')) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'This variant was not created by a transfer-to-rental — nothing to reverse' });
+      return;
+    }
+    if (qty > (rentVariant.available_for_rent || 0)) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: `Only ${rentVariant.available_for_rent || 0} unit(s) available to reverse (units currently out on rent can't be reversed)` });
+      return;
+    }
+
+    const sourceSku = rentVariant.sku.slice(0, -2);
+    const srcRes = await client.query(
+      `SELECT * FROM product_variants WHERE product_id = $1 AND sku = $2`,
+      [productId, sourceSku]
+    );
+    const sourceVariant = srcRes.rows[0];
+    if (!sourceVariant) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Original sale variant no longer exists — cannot reverse automatically' });
+      return;
+    }
+
+    const updRent = await client.query(
+      `UPDATE product_variants SET
+         stock_quantity     = stock_quantity - $1,
+         available_for_rent = available_for_rent - $1,
+         updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
+      [qty, rentVariant.id]
+    );
+    const updSrc = await client.query(
+      `UPDATE product_variants SET
+         stock_quantity = stock_quantity + $1,
+         updated_at = NOW()
+       WHERE id = $2 RETURNING *`,
+      [qty, sourceVariant.id]
+    );
+
+    await client.query(
+      `INSERT INTO inventory_movements (product_variant_id, type, quantity, reason, created_by)
+       VALUES ($1,'out',$2,'Reversed to sale pool',$3)`,
+      [rentVariant.id, qty, req.user?.id]
+    );
+    await client.query(
+      `INSERT INTO inventory_movements (product_variant_id, type, quantity, reason, created_by)
+       VALUES ($1,'in',$2,'Reversed from rental pool',$3)`,
+      [sourceVariant.id, qty, req.user?.id]
+    );
+
+    // If no variant on this product still has rental stock, restore product.type to 'sale'
+    const remaining = await client.query(
+      `SELECT 1 FROM product_variants WHERE product_id = $1 AND available_for_rent > 0 LIMIT 1`,
+      [productId]
+    );
+    let productRes: any = { rows: [] };
+    if (remaining.rows.length === 0) {
+      productRes = await client.query(
+        `UPDATE products SET type = 'sale', updated_at = NOW()
+         WHERE id = $1 AND type = 'both'
+         RETURNING *`,
+        [productId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({
+      sourceVariant: updSrc.rows[0],
+      rentVariant: updRent.rows[0],
+      product: productRes.rows[0],
+    });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+}

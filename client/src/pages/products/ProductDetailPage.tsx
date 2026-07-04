@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Edit, Package, Printer, ArrowLeft, Trash2, ArrowRightLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { productService } from '@/services/productService';
+import { usePermissions } from '@/hooks/usePermissions';
 import Button from '@/components/common/Button';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
@@ -22,6 +23,9 @@ export default function ProductDetailPage() {
   const [confirmDeleteVariantId, setConfirmDeleteVariantId] = useState<string | null>(null);
   const [transferVariant, setTransferVariant] = useState<any | null>(null);
   const [transferQty, setTransferQty] = useState(1);
+  const [reverseVariant, setReverseVariant] = useState<any | null>(null);
+  const [reverseQty, setReverseQty] = useState(1);
+  const { isSuperAdmin } = usePermissions();
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -74,6 +78,20 @@ export default function ProductDetailPage() {
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || 'Failed to transfer units');
+    },
+  });
+
+  const reverseMutation = useMutation({
+    mutationFn: ({ variant, qty }: { variant: any; qty: number }) =>
+      productService.reverseVariantSplit(id!, variant.id, qty),
+    onSuccess: () => {
+      toast.success('Units reversed back to sale stock');
+      qc.invalidateQueries({ queryKey: ['product', id] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      setReverseVariant(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || 'Failed to reverse units');
     },
   });
 
@@ -291,6 +309,56 @@ export default function ProductDetailPage() {
         </div>
       )}
 
+      {/* Reverse to Sale dialog (admin only) */}
+      {reverseVariant && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => setReverseVariant(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#1a1a26', border: '1px solid #2a2a38', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}
+          >
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600, color: '#c8c8d8' }}>Reverse Units to Sale</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: '#8a8a9a', lineHeight: 1.5 }}>
+              Selected: <strong style={{ color: '#c8c8d8' }}>{[reverseVariant.size, reverseVariant.color].filter(Boolean).join(' / ') || 'Variant'}</strong>
+              <br />
+              Available to reverse: <strong style={{ color: '#c8c8d8' }}>{reverseVariant.available_for_rent || 0}</strong>
+            </p>
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: '#8a8a9a' }}>
+              Units go back onto sku <strong style={{ color: '#f0b429' }}>{reverseVariant.sku?.slice(0, -2)}</strong> — its original barcode, unchanged.
+            </p>
+            <div style={{ margin: '16px 0' }}>
+              <label style={{ display: 'block', fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>How many units to reverse?</label>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(0, reverseVariant.available_for_rent || 0)}
+                value={reverseQty}
+                onChange={(e) => setReverseQty(Math.max(1, parseInt(e.target.value) || 1))}
+                autoFocus
+                style={{ width: '100%', background: '#0d0d1a', border: '1px solid #3a3a4a', borderRadius: 10, padding: '10px 14px', color: '#f0f0f8', fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setReverseVariant(null)}
+                style={{ padding: '8px 18px', borderRadius: 10, border: '1px solid #3a3a4a', background: 'transparent', color: '#8a8a9a', cursor: 'pointer', fontSize: 13 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => reverseMutation.mutate({ variant: reverseVariant, qty: reverseQty })}
+                disabled={reverseMutation.isPending || reverseQty < 1}
+                style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: '#d97706', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: reverseMutation.isPending ? 0.7 : 1 }}
+              >
+                {reverseMutation.isPending ? 'Reversing…' : 'Reverse to Sale'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Variants */}
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -374,6 +442,15 @@ export default function ProductDetailPage() {
                             >
                               <Printer size={12} />
                               Rent Label
+                            </button>
+                          )}
+                          {isSuperAdmin && v.sku?.endsWith('-R') && v.available_for_rent > 0 && (
+                            <button
+                              className="inline-flex items-center gap-1 text-xs text-charcoal-200 hover:text-amber-400 transition-colors whitespace-nowrap"
+                              onClick={() => { setReverseVariant(v); setReverseQty(1); }}
+                            >
+                              <ArrowRightLeft size={12} />
+                              Reverse to Sale
                             </button>
                           )}
                           {!isRentOnly && (

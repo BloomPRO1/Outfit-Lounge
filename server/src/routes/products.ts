@@ -5,10 +5,10 @@ import {
   uploadProductImage, deleteProductImage, setProductImagePrimary,
   getCategories, createCategory,
   createVariant, updateVariant, deleteVariant,
-  splitVariantToRental, serveProductImage,
+  splitVariantToRental, reverseVariantSplit, serveProductImage,
 } from '../controllers/productController';
 import { authenticate } from '../middleware/auth';
-import { requireManagerOrAbove, requireCashierOrAbove, requireStaffOrAbove } from '../middleware/roles';
+import { requireManagerOrAbove, requireCashierOrAbove, requireStaffOrAbove, requireAdmin } from '../middleware/roles';
 import { upload } from '../middleware/upload';
 
 const router = Router();
@@ -38,6 +38,7 @@ router.patch('/:id/images/:imageId/primary', requireCashierOrAbove, setProductIm
 // Variants
 router.post('/:id/variants', requireCashierOrAbove, createVariant);
 router.post('/:id/variants/:variantId/split-to-rental', requireCashierOrAbove, splitVariantToRental);
+router.post('/:id/variants/:variantId/reverse-to-sale', requireAdmin, reverseVariantSplit);
 router.put('/:id/variants/:variantId', requireCashierOrAbove, updateVariant);
 router.delete('/:id/variants/:variantId', requireManagerOrAbove, deleteVariant);
 

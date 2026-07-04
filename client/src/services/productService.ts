@@ -64,4 +64,8 @@ export const productService = {
     const { data } = await api.post(`/products/${productId}/variants/${variantId}/split-to-rental`, { quantity });
     return data as { sourceVariant: any; rentVariant: any };
   },
+  reverseVariantSplit: async (productId: string, variantId: string, quantity: number) => {
+    const { data } = await api.post(`/products/${productId}/variants/${variantId}/reverse-to-sale`, { quantity });
+    return data as { sourceVariant: any; rentVariant: any };
+  },
 };
