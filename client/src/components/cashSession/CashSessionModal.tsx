@@ -21,6 +21,7 @@ export default function CashSessionModal({ mode, session, onDone, onCancel, onLo
   const qc = useQueryClient();
   const [balance, setBalance] = useState('');
   const [notes, setNotes] = useState('');
+  const [cashoutAmount, setCashoutAmount] = useState('');
 
   const openMutation = useMutation({
     mutationFn: () => cashSessionService.open(parseFloat(balance), notes || undefined),
@@ -33,7 +34,7 @@ export default function CashSessionModal({ mode, session, onDone, onCancel, onLo
   });
 
   const closeMutation = useMutation({
-    mutationFn: () => cashSessionService.close(parseFloat(balance), notes || undefined),
+    mutationFn: () => cashSessionService.close(parseFloat(balance), notes || undefined, parseFloat(cashoutAmount || '0')),
     onSuccess: () => {
       toast.success('Day closed — session saved');
       qc.invalidateQueries({ queryKey: ['cash-session-current'] });
@@ -44,11 +45,18 @@ export default function CashSessionModal({ mode, session, onDone, onCancel, onLo
 
   const isOpen = mode === 'open';
   const balanceAmt = parseFloat(balance || '0');
+  const cashoutAmt = parseFloat(cashoutAmount || '0');
+  const remainingInTill = balanceAmt - (isNaN(cashoutAmt) ? 0 : cashoutAmt);
+  const cashoutInvalid = !isOpen && cashoutAmount !== '' && (isNaN(cashoutAmt) || cashoutAmt < 0 || cashoutAmt > balanceAmt);
   const isPending = openMutation.isPending || closeMutation.isPending;
 
   const handleSubmit = () => {
     if (isNaN(balanceAmt) || balance === '') {
       toast.error('Please enter a valid amount');
+      return;
+    }
+    if (cashoutInvalid) {
+      toast.error('Cash out amount cannot exceed the closing balance');
       return;
     }
     if (isOpen) openMutation.mutate();
@@ -138,6 +146,30 @@ export default function CashSessionModal({ mode, session, onDone, onCancel, onLo
                     : '—'}
                 </span>
               </div>
+            )}
+
+            {/* Cash out a custom amount, keep the rest in the till */}
+            {!isOpen && balance !== '' && !isNaN(balanceAmt) && (
+              <>
+                <Input
+                  label="Cash Out Amount (optional)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={balanceAmt}
+                  value={cashoutAmount}
+                  onChange={(e) => setCashoutAmount(e.target.value)}
+                  placeholder="0.00"
+                  hint="Amount to withdraw now (e.g. deposit to safe/bank) — the rest stays with the cashier"
+                  error={cashoutInvalid ? 'Cannot exceed the closing balance' : undefined}
+                />
+                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-charcoal-700/60 border border-charcoal-600">
+                  <span className="text-sm text-charcoal-300">Remaining in Till</span>
+                  <span className="text-sm font-semibold text-charcoal-50">
+                    {formatCurrency(Math.max(0, remainingInTill))}
+                  </span>
+                </div>
+              </>
             )}
 
             <Input

@@ -924,6 +924,8 @@ export default function ReportsPage() {
                         opening_balance:  s.opening_balance,
                         closing_balance:  s.closing_balance ?? '',
                         difference:       s.closing_balance != null ? Number(s.closing_balance) - Number(s.opening_balance) : '',
+                        cashout_amount:   s.cashout_amount ?? 0,
+                        remaining_in_till: s.closing_balance != null ? Number(s.closing_balance) - Number(s.cashout_amount || 0) : '',
                         status:           s.status,
                         opened_at:        s.opened_at,
                         closed_at:        s.closed_at ?? '',
@@ -942,7 +944,7 @@ export default function ReportsPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-charcoal-600 bg-charcoal-800/60">
-                          {['Date', 'Cashier', 'Opening Balance', 'Closing Balance', 'Difference', 'Status', 'Notes'].map(h => (
+                          {['Date', 'Cashier', 'Opening Balance', 'Closing Balance', 'Difference', 'Cashed Out', 'Remaining', 'Status', 'Notes'].map(h => (
                             <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-charcoal-300 uppercase tracking-wide whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
@@ -975,6 +977,14 @@ export default function ReportsPage() {
                                     {diff > 0 ? '+' : ''}{formatCurrency(diff)}
                                   </span>
                                 ) : <span className="text-charcoal-500">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-charcoal-100">
+                                {Number(s.cashout_amount) > 0 ? formatCurrency(Number(s.cashout_amount)) : <span className="text-charcoal-500">—</span>}
+                              </td>
+                              <td className="px-4 py-3 font-medium">
+                                {s.closing_balance != null
+                                  ? <span className="text-gold-400">{formatCurrency(Number(s.closing_balance) - Number(s.cashout_amount || 0))}</span>
+                                  : <span className="text-charcoal-500">—</span>}
                               </td>
                               <td className="px-4 py-3">
                                 <span className={cn(

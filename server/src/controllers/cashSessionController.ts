@@ -35,10 +35,24 @@ export async function openSession(req: AuthRequest, res: Response): Promise<void
 
 export async function closeSession(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const { closing_balance, notes } = req.body;
+  const { closing_balance, cashout_amount, notes } = req.body;
 
   if (closing_balance === undefined || closing_balance === null || isNaN(parseFloat(closing_balance))) {
     res.status(400).json({ error: 'closing_balance is required' });
+    return;
+  }
+
+  const closingBalance = parseFloat(closing_balance);
+  const cashoutAmount = cashout_amount !== undefined && cashout_amount !== null && cashout_amount !== ''
+    ? parseFloat(cashout_amount)
+    : 0;
+
+  if (isNaN(cashoutAmount) || cashoutAmount < 0) {
+    res.status(400).json({ error: 'cashout_amount must be a non-negative number' });
+    return;
+  }
+  if (cashoutAmount > closingBalance) {
+    res.status(400).json({ error: 'cashout_amount cannot exceed the closing balance' });
     return;
   }
 
@@ -46,12 +60,13 @@ export async function closeSession(req: AuthRequest, res: Response): Promise<voi
     `UPDATE cash_sessions
      SET status = 'closed',
          closing_balance = $1,
-         notes = COALESCE($2, notes),
+         cashout_amount = $2,
+         notes = COALESCE($3, notes),
          closed_at = NOW()
-     WHERE user_id = $3
+     WHERE user_id = $4
        AND status = 'open'
      RETURNING *`,
-    [parseFloat(closing_balance), notes || null, userId]
+    [closingBalance, cashoutAmount, notes || null, userId]
   );
 
   if (rows.length === 0) {
