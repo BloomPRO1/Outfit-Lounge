@@ -18,7 +18,7 @@ function formatDate(value: string): string {
 function DiscountBadge({ d }: { d: Discount }) {
   return (
     <span className="inline-block rounded-full bg-cream-soft px-3 py-1 text-[12px] text-gold-deep">
-      {d.type === "code" ? `Code ${d.name}` : d.name} — saved {formatMoney(d.discount)}
+      {d.title} — saved {formatMoney(d.discount)}
     </span>
   );
 }
@@ -57,12 +57,8 @@ export default function AccountPage() {
   }
 
   const allDiscounts: Array<Discount & { source: string }> = [
-    ...orders.flatMap((o) =>
-      [...o.promotion_discounts, ...o.code_discounts].map((d) => ({ ...d, source: o.sale_number }))
-    ),
-    ...rentals.flatMap((r) =>
-      [...r.promotion_discounts, ...r.code_discounts].map((d) => ({ ...d, source: r.booking_number }))
-    ),
+    ...orders.flatMap((o) => o.promotion_discounts.map((d) => ({ ...d, source: o.sale_number }))),
+    ...rentals.flatMap((r) => r.promotion_discounts.map((d) => ({ ...d, source: r.booking_number }))),
   ];
 
   return (

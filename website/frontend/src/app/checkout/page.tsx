@@ -15,7 +15,6 @@ function formatPrice(value: number): string {
 export default function CheckoutPage() {
   const { items, subtotal, clear } = useCart();
   const { customer, loading: authLoading } = useAuth();
-  const [promoCode, setPromoCode] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SaleResult | null>(null);
@@ -26,7 +25,6 @@ export default function CheckoutPage() {
     try {
       const res = await checkout({
         items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-        promoCode: promoCode.trim() || undefined,
       });
       setResult(res);
       clear();
@@ -49,12 +47,9 @@ export default function CheckoutPage() {
             Order <span className="font-semibold text-ink">{result.sale.sale_number}</span> has
             been placed — total {formatPrice(parseFloat(result.sale.total_amount))}.
           </div>
-          {discount > 0 && (
+          {discount > 0 && result.appliedPromotion && (
             <div className="mt-2 text-[13px] text-gold-deep">
-              You saved {formatPrice(discount)}
-              {result.appliedPromotion && ` with "${result.appliedPromotion.name}"`}
-              {result.appliedPromoCode && ` using code ${result.appliedPromoCode.code}`}
-              !
+              You saved {formatPrice(discount)} with &ldquo;{result.appliedPromotion.title}&rdquo;!
             </div>
           )}
           <Link href="/shop" className="mt-8 text-sm text-gold-deep underline">
@@ -125,22 +120,12 @@ export default function CheckoutPage() {
           ))}
         </div>
 
-        <div className="mt-6">
-          <div className="mb-1.5 text-[13px] text-text-body">Have a promo code?</div>
-          <input
-            type="text"
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
-            placeholder="e.g. AD1"
-            className="w-full max-w-50 rounded border border-border-light px-3.5 py-2.5 text-sm uppercase focus:border-gold focus:outline-none"
-          />
-          <div className="mt-1.5 text-[12px] text-text-faint">
-            Eligible promotions are also applied automatically — see{" "}
-            <Link href="/promotions" className="text-gold-deep underline">
-              current promotions
-            </Link>
-            .
-          </div>
+        <div className="mt-6 text-[12px] text-text-faint">
+          Eligible promotions apply automatically — see{" "}
+          <Link href="/promotions" className="text-gold-deep underline">
+            current promotions
+          </Link>
+          .
         </div>
 
         <div className="mt-6 flex items-center justify-between">

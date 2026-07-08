@@ -40,15 +40,10 @@ export async function getAccountSummary(req: AuthRequest, res: Response): Promis
                FROM sale_items si WHERE si.sale_id = s.id), '[]'
             ) AS items,
             COALESCE(
-              (SELECT json_agg(json_build_object('type', 'promotion', 'name', p.name, 'discount', pu.discount_amount))
-               FROM promotion_usages pu JOIN promotions p ON p.id = pu.promotion_id
-               WHERE pu.sale_id = s.id), '[]'
-            ) AS promotion_discounts,
-            COALESCE(
-              (SELECT json_agg(json_build_object('type', 'code', 'name', pc.code, 'discount', pcu.discount_amount))
-               FROM promotion_code_usages pcu JOIN promotion_codes pc ON pc.id = pcu.promotion_code_id
-               WHERE pcu.sale_id = s.id), '[]'
-            ) AS code_discounts
+              (SELECT json_agg(json_build_object('title', wp.title, 'discount', wpu.discount_amount))
+               FROM website_promotion_usages wpu JOIN website_promotions wp ON wp.id = wpu.website_promotion_id
+               WHERE wpu.sale_id = s.id), '[]'
+            ) AS promotion_discounts
      FROM sales s
      WHERE s.customer_id = $1
      ORDER BY s.created_at DESC`,
@@ -69,15 +64,10 @@ export async function getAccountSummary(req: AuthRequest, res: Response): Promis
                WHERE ri.rental_id = r.id), '[]'
             ) AS items,
             COALESCE(
-              (SELECT json_agg(json_build_object('type', 'promotion', 'name', p.name, 'discount', pu.discount_amount))
-               FROM promotion_usages pu JOIN promotions p ON p.id = pu.promotion_id
-               WHERE pu.rental_id = r.id), '[]'
-            ) AS promotion_discounts,
-            COALESCE(
-              (SELECT json_agg(json_build_object('type', 'code', 'name', pc.code, 'discount', pcu.discount_amount))
-               FROM promotion_code_usages pcu JOIN promotion_codes pc ON pc.id = pcu.promotion_code_id
-               WHERE pcu.rental_id = r.id), '[]'
-            ) AS code_discounts
+              (SELECT json_agg(json_build_object('title', wp.title, 'discount', wpu.discount_amount))
+               FROM website_promotion_usages wpu JOIN website_promotions wp ON wp.id = wpu.website_promotion_id
+               WHERE wpu.rental_id = r.id), '[]'
+            ) AS promotion_discounts
      FROM rentals r
      WHERE r.customer_id = $1
      ORDER BY r.created_at DESC`,

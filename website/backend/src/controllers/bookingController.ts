@@ -3,12 +3,7 @@ import { pool } from '../db/pool';
 import { AuthRequest } from '../middleware/auth';
 import { generateBookingNumber } from '../utils/generateNumbers';
 import { findOrCreateErpCustomer } from '../services/customerLink';
-import {
-  findBestAutomaticPromotion,
-  applyPromotionUsage,
-  applyPromoCode,
-  applyPromoCodeUsage,
-} from '../services/promotionEngine';
+import { findBestWebsitePromotion, recordWebsitePromotionUsage } from '../services/websitePromotionEngine';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -20,7 +15,6 @@ export async function createBooking(req: AuthRequest, res: Response): Promise<vo
 
   const { variantId, startDate, endDate, notes } = req.body ?? {};
   const quantity = Number(req.body?.quantity ?? 1);
-  const promoCodeInput = typeof req.body?.promoCode === 'string' ? req.body.promoCode.trim() : null;
 
   if (!variantId || !startDate || !endDate) {
     res.status(400).json({ error: 'Variant, start date, and end date are required' });
@@ -49,7 +43,7 @@ export async function createBooking(req: AuthRequest, res: Response): Promise<vo
     const customerId = await findOrCreateErpCustomer(client, websiteCustomer);
 
     const variantRes = await client.query(
-      `SELECT pv.*, p.name AS product_name, p.type AS product_type,
+      `SELECT pv.*, p.name AS product_name, p.type AS product_type, p.category_id AS category_id,
               p.rental_price_per_day AS product_rental_price_per_day
        FROM product_variants pv JOIN products p ON p.id = pv.product_id
        WHERE pv.id = $1`,
@@ -104,16 +98,13 @@ export async function createBooking(req: AuthRequest, res: Response): Promise<vo
     const countRes = await client.query<{ count: string }>(`SELECT COUNT(*) FROM rentals`);
     const bookingNumber = generateBookingNumber(parseInt(countRes.rows[0].count, 10) + 1);
 
-    // Best currently-active automatic promotion (scope rental/both) plus an
-    // optional customer-entered promo code — same rules as checkout, base
-    // amount is the gross rental cost.
-    const autoPromotion = await findBestAutomaticPromotion(client, 'rental', totalCost, [
-      { unitPrice: pricePerDay, quantity },
+    // Website-only automatic promotions — see checkoutController.ts for the
+    // full rationale. No codes; scope 'rental', base amount is the gross
+    // rental cost, category comes from the booked product.
+    const promotion = await findBestWebsitePromotion(client, 'rental', [
+      { categoryId: variant.category_id, amount: totalCost },
     ]);
-    const promoCode = promoCodeInput
-      ? await applyPromoCode(client, promoCodeInput, 'rental', totalCost)
-      : null;
-    const discountAmount = (autoPromotion?.discount ?? 0) + (promoCode?.discount ?? 0);
+    const discountAmount = promotion?.discount ?? 0;
 
     // Website bookings only ever reserve — no payment is collected here.
     // Pickup, deposit/ID verification, and billing all happen in person at
@@ -155,11 +146,8 @@ export async function createBooking(req: AuthRequest, res: Response): Promise<vo
       [variantId, quantity, rental.id]
     );
 
-    if (autoPromotion) {
-      await applyPromotionUsage(client, autoPromotion, { rentalId: rental.id });
-    }
-    if (promoCode) {
-      await applyPromoCodeUsage(client, promoCode, { rentalId: rental.id });
+    if (promotion) {
+      await recordWebsitePromotionUsage(client, promotion, { rentalId: rental.id });
     }
 
     await client.query('COMMIT');
@@ -169,8 +157,7 @@ export async function createBooking(req: AuthRequest, res: Response): Promise<vo
       pricePerDay,
       totalCost,
       netCost: totalCost - discountAmount,
-      appliedPromotion: autoPromotion ? { name: autoPromotion.name, discount: autoPromotion.discount } : null,
-      appliedPromoCode: promoCode ? { code: promoCode.code, discount: promoCode.discount } : null,
+      appliedPromotion: promotion ? { title: promotion.title, discount: promotion.discount } : null,
     });
   } catch (err) {
     await client.query('ROLLBACK');

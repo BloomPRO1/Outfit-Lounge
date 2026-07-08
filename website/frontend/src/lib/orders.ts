@@ -11,8 +11,7 @@ async function parseErrorMessage(res: Response, fallback: string): Promise<strin
   }
 }
 
-export type AppliedPromotion = { name: string; discount: number } | null;
-export type AppliedPromoCode = { code: string; discount: number } | null;
+export type AppliedPromotion = { title: string; discount: number } | null;
 
 export type SaleResult = {
   sale: {
@@ -24,13 +23,11 @@ export type SaleResult = {
   };
   items: Array<{ productName: string; quantity: number; unitPrice: number; itemSubtotal: number }>;
   appliedPromotion: AppliedPromotion;
-  appliedPromoCode: AppliedPromoCode;
 };
 
 export async function checkout(input: {
   items: Array<{ variantId: string; quantity: number }>;
   notes?: string;
-  promoCode?: string;
 }): Promise<SaleResult> {
   const token = getToken();
   if (!token) throw new Error("Please log in to check out");
@@ -56,7 +53,6 @@ export type BookingResult = {
   totalCost: number;
   netCost: number;
   appliedPromotion: AppliedPromotion;
-  appliedPromoCode: AppliedPromoCode;
 };
 
 export async function createBooking(input: {
@@ -65,7 +61,6 @@ export async function createBooking(input: {
   startDate: string;
   endDate: string;
   notes?: string;
-  promoCode?: string;
 }): Promise<BookingResult> {
   const token = getToken();
   if (!token) throw new Error("Please log in to book");

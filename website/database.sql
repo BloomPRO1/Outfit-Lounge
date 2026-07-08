@@ -21,7 +21,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict p9A64YCnUWUS5RLycNB2JGkBu0d1hQGPvtwaJwSUNg8dmw02HuZGqTa7fwSquJy
+\restrict SYjCfBqpI04kM8kHCNpdeD4g9vanhhs9X1eueNy7tCnaSaGeSpycjvKkto8JVwf
 
 -- Dumped from database version 18.3
 -- Dumped by pg_dump version 18.3
@@ -611,6 +611,21 @@ CREATE TABLE public.users (
 
 
 --
+-- Name: website_admins; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.website_admins (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name character varying(255) NOT NULL,
+    email character varying(255) NOT NULL,
+    password_hash character varying(255) NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: website_customers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -623,6 +638,48 @@ CREATE TABLE public.website_customers (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: website_promotion_usages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.website_promotion_usages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    website_promotion_id uuid NOT NULL,
+    sale_id uuid,
+    rental_id uuid,
+    discount_amount numeric(10,2) NOT NULL,
+    used_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_website_usage_has_ref CHECK (((sale_id IS NOT NULL) OR (rental_id IS NOT NULL)))
+);
+
+
+--
+-- Name: website_promotions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.website_promotions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    title character varying(255) NOT NULL,
+    description text,
+    banner_image text,
+    discount_type character varying(20) NOT NULL,
+    discount_value numeric(10,2) NOT NULL,
+    scope character varying(20) DEFAULT 'both'::character varying NOT NULL,
+    category_ids uuid[],
+    weekend_only boolean DEFAULT false NOT NULL,
+    min_order_amount numeric(10,2),
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT website_promotions_discount_type_check CHECK (((discount_type)::text = ANY ((ARRAY['percentage'::character varying, 'flat_amount'::character varying])::text[]))),
+    CONSTRAINT website_promotions_discount_value_check CHECK ((discount_value > (0)::numeric)),
+    CONSTRAINT website_promotions_scope_check CHECK (((scope)::text = ANY ((ARRAY['sale'::character varying, 'rental'::character varying, 'both'::character varying])::text[])))
 );
 
 
@@ -938,6 +995,22 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: website_admins website_admins_email_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_admins
+    ADD CONSTRAINT website_admins_email_key UNIQUE (email);
+
+
+--
+-- Name: website_admins website_admins_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_admins
+    ADD CONSTRAINT website_admins_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: website_customers website_customers_email_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -951,6 +1024,22 @@ ALTER TABLE ONLY public.website_customers
 
 ALTER TABLE ONLY public.website_customers
     ADD CONSTRAINT website_customers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: website_promotion_usages website_promotion_usages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_promotion_usages
+    ADD CONSTRAINT website_promotion_usages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: website_promotions website_promotions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_promotions
+    ADD CONSTRAINT website_promotions_pkey PRIMARY KEY (id);
 
 
 --
@@ -1196,6 +1285,34 @@ CREATE INDEX idx_variants_sku ON public.product_variants USING btree (sku);
 --
 
 CREATE INDEX idx_website_customers_email ON public.website_customers USING btree (email);
+
+
+--
+-- Name: idx_website_promotion_usages_promo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_website_promotion_usages_promo ON public.website_promotion_usages USING btree (website_promotion_id);
+
+
+--
+-- Name: idx_website_promotion_usages_rental; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_website_promotion_usages_rental ON public.website_promotion_usages USING btree (rental_id);
+
+
+--
+-- Name: idx_website_promotion_usages_sale; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_website_promotion_usages_sale ON public.website_promotion_usages USING btree (sale_id);
+
+
+--
+-- Name: idx_website_promotions_active_dates; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_website_promotions_active_dates ON public.website_promotions USING btree (is_active, start_date, end_date);
 
 
 --
@@ -1534,8 +1651,40 @@ ALTER TABLE ONLY public.sales
 
 
 --
+-- Name: website_promotion_usages website_promotion_usages_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_promotion_usages
+    ADD CONSTRAINT website_promotion_usages_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES public.rentals(id) ON DELETE SET NULL;
+
+
+--
+-- Name: website_promotion_usages website_promotion_usages_sale_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_promotion_usages
+    ADD CONSTRAINT website_promotion_usages_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.sales(id) ON DELETE SET NULL;
+
+
+--
+-- Name: website_promotion_usages website_promotion_usages_website_promotion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_promotion_usages
+    ADD CONSTRAINT website_promotion_usages_website_promotion_id_fkey FOREIGN KEY (website_promotion_id) REFERENCES public.website_promotions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: website_promotions website_promotions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_promotions
+    ADD CONSTRAINT website_promotions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.website_admins(id) ON DELETE SET NULL;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict p9A64YCnUWUS5RLycNB2JGkBu0d1hQGPvtwaJwSUNg8dmw02HuZGqTa7fwSquJy
+\unrestrict SYjCfBqpI04kM8kHCNpdeD4g9vanhhs9X1eueNy7tCnaSaGeSpycjvKkto8JVwf
 

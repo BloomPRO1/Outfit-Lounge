@@ -39,7 +39,6 @@ export default function RentProductPage() {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [related, setRelated] = useState<ProductSummary[]>([]);
-  const [promoCode, setPromoCode] = useState("");
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
@@ -99,7 +98,6 @@ export default function RentProductPage() {
         variantId: selectedVariant.id,
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        promoCode: promoCode.trim() || undefined,
       });
       setBookingResult(res);
     } catch (err) {
@@ -257,17 +255,6 @@ export default function RentProductPage() {
             </div>
           )}
 
-          <div>
-            <div className="mb-1.5 text-[13px] text-text-body">Have a promo code?</div>
-            <input
-              type="text"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-              placeholder="e.g. AD1"
-              className="w-full max-w-50 rounded border border-border-light px-3.5 py-2.5 text-sm uppercase focus:border-gold focus:outline-none"
-            />
-          </div>
-
           <div className="mt-2.5 flex gap-4">
             <button
               onClick={handleBookNow}
@@ -289,12 +276,9 @@ export default function RentProductPage() {
                 <span className="text-text-faint"> (was {formatPrice(String(bookingResult.totalCost))})</span>
               )}
               . Visit the shop on your pickup date to collect it and complete payment.
-              {(bookingResult.appliedPromotion || bookingResult.appliedPromoCode) && (
+              {bookingResult.appliedPromotion && (
                 <div className="mt-1.5 text-gold-deep">
-                  You saved with{" "}
-                  {bookingResult.appliedPromotion && `"${bookingResult.appliedPromotion.name}"`}
-                  {bookingResult.appliedPromotion && bookingResult.appliedPromoCode && " and "}
-                  {bookingResult.appliedPromoCode && `code ${bookingResult.appliedPromoCode.code}`}!
+                  You saved with &ldquo;{bookingResult.appliedPromotion.title}&rdquo;!
                 </div>
               )}
             </div>
