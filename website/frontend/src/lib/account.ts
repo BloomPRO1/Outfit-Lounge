@@ -2,7 +2,7 @@ import { getToken } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
-export type Discount = { type: "promotion" | "code"; name: string; discount: string };
+export type Discount = { title: string; discount: string };
 
 export type OrderSummary = {
   id: string;
@@ -20,7 +20,6 @@ export type OrderSummary = {
     subtotal: string;
   }>;
   promotion_discounts: Discount[];
-  code_discounts: Discount[];
 };
 
 export type RentalSummary = {
@@ -41,7 +40,6 @@ export type RentalSummary = {
     isReturned: boolean;
   }>;
   promotion_discounts: Discount[];
-  code_discounts: Discount[];
 };
 
 export async function fetchAccountSummary(): Promise<{

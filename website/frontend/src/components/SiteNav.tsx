@@ -9,6 +9,7 @@ import { useCart } from "@/components/cart/CartProvider";
 const NAV_LINKS = [
   { href: "/rent", label: "Rent" },
   { href: "/shop", label: "Shop" },
+  { href: "/perfume", label: "Perfume" },
   { href: "/promotions", label: "Promotions" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },

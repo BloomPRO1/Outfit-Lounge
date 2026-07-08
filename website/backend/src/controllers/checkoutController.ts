@@ -3,12 +3,7 @@ import { pool } from '../db/pool';
 import { AuthRequest } from '../middleware/auth';
 import { generateSaleNumber } from '../utils/generateNumbers';
 import { findOrCreateErpCustomer } from '../services/customerLink';
-import {
-  findBestAutomaticPromotion,
-  applyPromotionUsage,
-  applyPromoCode,
-  applyPromoCodeUsage,
-} from '../services/promotionEngine';
+import { findBestWebsitePromotion, recordWebsitePromotionUsage } from '../services/websitePromotionEngine';
 
 type CartItemInput = { variantId: string; quantity: number };
 
@@ -20,7 +15,6 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
 
   const items: CartItemInput[] = Array.isArray(req.body?.items) ? req.body.items : [];
   const notes = typeof req.body?.notes === 'string' ? req.body.notes : null;
-  const promoCodeInput = typeof req.body?.promoCode === 'string' ? req.body.promoCode.trim() : null;
 
   if (items.length === 0) {
     res.status(400).json({ error: 'Cart is empty' });
@@ -63,11 +57,13 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
       quantity: number;
       unitPrice: number;
       itemSubtotal: number;
+      categoryId: string | null;
     }> = [];
 
     for (const item of items) {
       const varRes = await client.query(
-        `SELECT pv.*, p.name AS product_name, p.selling_price AS product_selling_price, p.type AS product_type
+        `SELECT pv.*, p.name AS product_name, p.selling_price AS product_selling_price,
+                p.type AS product_type, p.category_id AS category_id
          FROM product_variants pv JOIN products p ON p.id = pv.product_id
          WHERE pv.id = $1`,
         [item.variantId]
@@ -89,24 +85,20 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
         quantity: item.quantity,
         unitPrice: price,
         itemSubtotal,
+        categoryId: variant.category_id,
       });
     }
 
-    // Best currently-active automatic promotion (scope pos/both), auto-picked
-    // since there's no staff at a register to choose one — plus an optional
-    // customer-entered promo code, applied additively (both rules mirror the
-    // ERP's POS checkout).
-    const autoPromotion = await findBestAutomaticPromotion(
+    // Website-only automatic promotions (see website/database_changes.md) —
+    // fully separate from the ERP's promotions/promotion_codes. No codes;
+    // the admin-configured category/scope/weekend targeting picks the best
+    // match automatically.
+    const promotion = await findBestWebsitePromotion(
       client,
-      'pos',
-      subtotal,
-      itemDetails.map((i) => ({ unitPrice: i.unitPrice, quantity: i.quantity }))
+      'sale',
+      itemDetails.map((i) => ({ categoryId: i.categoryId, amount: i.itemSubtotal }))
     );
-    const promoCode = promoCodeInput
-      ? await applyPromoCode(client, promoCodeInput, 'pos', subtotal)
-      : null;
-
-    const discountAmount = (autoPromotion?.discount ?? 0) + (promoCode?.discount ?? 0);
+    const discountAmount = promotion?.discount ?? 0;
     const totalAmount = Math.max(0, subtotal - discountAmount);
 
     // No real payment gateway yet — the order is recorded as paid in full
@@ -158,11 +150,8 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
       );
     }
 
-    if (autoPromotion) {
-      await applyPromotionUsage(client, autoPromotion, { saleId: sale.id });
-    }
-    if (promoCode) {
-      await applyPromoCodeUsage(client, promoCode, { saleId: sale.id });
+    if (promotion) {
+      await recordWebsitePromotionUsage(client, promotion, { saleId: sale.id });
     }
 
     await client.query(
@@ -175,8 +164,7 @@ export async function checkout(req: AuthRequest, res: Response): Promise<void> {
     res.status(201).json({
       sale,
       items: itemDetails,
-      appliedPromotion: autoPromotion ? { name: autoPromotion.name, discount: autoPromotion.discount } : null,
-      appliedPromoCode: promoCode ? { code: promoCode.code, discount: promoCode.discount } : null,
+      appliedPromotion: promotion ? { title: promotion.title, discount: promotion.discount } : null,
     });
   } catch (err) {
     await client.query('ROLLBACK');

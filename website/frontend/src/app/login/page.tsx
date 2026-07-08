@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { login } from "@/lib/auth";
+import { adminLogin } from "@/lib/adminAuth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,8 +23,17 @@ export default function LoginPage() {
       await login({ email, password });
       router.push(searchParams.get("next") || "/");
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+    } catch (customerErr) {
+      // Not a customer account (or wrong password) — check whether these are
+      // admin credentials before surfacing an error, so admins can log in
+      // from the same customer-facing form and land straight on the dashboard.
+      try {
+        await adminLogin({ email, password });
+        router.push("/admin");
+        return;
+      } catch {
+        setError(customerErr instanceof Error ? customerErr.message : "Login failed");
+      }
     } finally {
       setSubmitting(false);
     }

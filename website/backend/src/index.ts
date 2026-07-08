@@ -6,12 +6,16 @@ import productsRouter from './routes/products';
 import authRouter from './routes/auth';
 import ordersRouter from './routes/orders';
 import promotionsRouter from './routes/promotions';
+import adminAuthRouter from './routes/adminAuth';
+import adminPromotionsRouter from './routes/adminPromotions';
+import adminDashboardRouter from './routes/adminDashboard';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3001' }));
-app.use(express.json());
+// Higher limit than the 100kb default — banner images are sent as base64 JSON.
+app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -26,6 +30,9 @@ app.use('/api', productsRouter);
 app.use('/api', authRouter);
 app.use('/api', ordersRouter);
 app.use('/api', promotionsRouter);
+app.use('/api', adminAuthRouter);
+app.use('/api', adminPromotionsRouter);
+app.use('/api', adminDashboardRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
