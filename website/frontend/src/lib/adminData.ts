@@ -190,3 +190,31 @@ export async function toggleAdminPromotion(id: string): Promise<AdminPromotion> 
   if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to toggle promotion"));
   return res.json();
 }
+
+export type ContactSubmission = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string | null;
+  message: string;
+  status: "new" | "read";
+  created_at: string;
+};
+
+export function fetchAdminContactSubmissions(): Promise<ContactSubmission[]> {
+  return get("/admin/contact-submissions");
+}
+
+export async function markContactSubmissionRead(id: string): Promise<ContactSubmission> {
+  const res = await adminApiFetch(`/admin/contact-submissions/${id}/read`, { method: "PATCH" });
+  if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to update submission"));
+  return res.json();
+}
+
+export async function deleteContactSubmission(id: string): Promise<void> {
+  const res = await adminApiFetch(`/admin/contact-submissions/${id}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(await parseErrorMessage(res, "Failed to delete submission"));
+  }
+}

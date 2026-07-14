@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ProductCard } from "@/components/shop/ProductCard";
@@ -20,6 +21,15 @@ function formatPrice(value: string | null | undefined): string {
   const n = parseFloat(value);
   return `Rs ${n.toLocaleString("en-LK", { maximumFractionDigits: 0 })}`;
 }
+
+const infoContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.1 } },
+};
+const infoItem = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const } },
+};
 
 export default function ShopProductPage() {
   const params = useParams<{ id: string }>();
@@ -113,14 +123,20 @@ export default function ShopProductPage() {
       <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 px-6 py-6 sm:px-10 lg:grid-cols-2 lg:px-14">
         {/* gallery */}
         <div className="flex flex-col gap-3.5">
-          <div className="flex h-140 items-center justify-center overflow-hidden rounded-md bg-cream-soft">
+          <div className="relative flex h-140 items-center justify-center overflow-hidden rounded-md bg-cream-soft">
             {images.length > 0 ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imageUrl(images[activeImage]?.id ?? images[0].id, 900)}
-                alt={product.name}
-                className="h-full w-full object-cover"
-              />
+              <AnimatePresence mode="sync">
+                <motion.img
+                  key={images[activeImage]?.id ?? images[0].id}
+                  src={imageUrl(images[activeImage]?.id ?? images[0].id, 900)}
+                  alt={product.name}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              </AnimatePresence>
             ) : (
               <span className="font-mono text-xs tracking-wide text-text-faint">NO IMAGE</span>
             )}
@@ -145,8 +161,13 @@ export default function ShopProductPage() {
         </div>
 
         {/* info */}
-        <div className="flex flex-col gap-5 lg:pl-14">
-          <div>
+        <motion.div
+          className="flex flex-col gap-5 lg:pl-14"
+          variants={infoContainer}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.div variants={infoItem}>
             <div className="text-xs tracking-[3px] text-gold-deep">
               {product.category_name?.toUpperCase()}
             </div>
@@ -156,12 +177,14 @@ export default function ShopProductPage() {
                 {product.description}
               </div>
             )}
-          </div>
+          </motion.div>
 
-          <div className="text-2xl font-semibold text-ink">{formatPrice(price)}</div>
+          <motion.div variants={infoItem} className="text-2xl font-semibold text-ink">
+            {formatPrice(price)}
+          </motion.div>
 
           {sizes.length > 0 && (
-            <div>
+            <motion.div variants={infoItem}>
               <div className="mb-2.5 text-[13px] text-text-body">SIZE</div>
               <div className="flex flex-wrap gap-2.5">
                 {sizes.map((size) => (
@@ -169,7 +192,7 @@ export default function ShopProductPage() {
                     key={size}
                     onClick={() => setSelectedSize(size)}
                     className={
-                      "flex h-11 min-w-11 items-center justify-center rounded border px-2 text-[13px] " +
+                      "flex h-11 min-w-11 items-center justify-center rounded border px-2 text-[13px] transition-colors " +
                       (selectedSize === size
                         ? "border-ink bg-ink text-white"
                         : "border-border-light text-ink")
@@ -179,11 +202,11 @@ export default function ShopProductPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {colors.length > 1 && (
-            <div>
+            <motion.div variants={infoItem}>
               <div className="mb-2.5 text-[13px] text-text-body">COLOR</div>
               <div className="flex gap-2.5 text-[13px]">
                 {colors.map((color) => (
@@ -191,7 +214,7 @@ export default function ShopProductPage() {
                     key={color}
                     onClick={() => setSelectedColor(color)}
                     className={
-                      "rounded-full border px-4 py-1.5 " +
+                      "rounded-full border px-4 py-1.5 transition-colors " +
                       (selectedColor === color ? "border-gold text-gold-deep" : "border-border-light")
                     }
                   >
@@ -199,11 +222,12 @@ export default function ShopProductPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </motion.div>
           )}
 
-          <div className="mt-2.5 flex gap-4">
-            <button
+          <motion.div variants={infoItem} className="mt-2.5 flex gap-4">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 if (!selectedVariant) return;
                 addItem({
@@ -219,20 +243,34 @@ export default function ShopProductPage() {
                 setAddedMessage("Added to cart!");
               }}
               disabled={!selectedVariant}
-              className="flex-1 rounded-sm bg-ink py-4 text-sm font-semibold text-white transition-colors hover:bg-gold hover:text-ink disabled:opacity-40"
+              className="flex-1 cursor-pointer rounded-sm bg-ink py-4 text-sm font-semibold text-white transition-colors hover:bg-gold hover:text-ink disabled:opacity-40"
             >
               Add to Cart
-            </button>
+            </motion.button>
             <button className="rounded-sm border border-border-light px-6 py-4 text-sm">♡ Save</button>
-          </div>
-          {addedMessage && <div className="text-[13px] text-gold-deep">{addedMessage}</div>}
+          </motion.div>
+          <AnimatePresence>
+            {addedMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-[13px] text-gold-deep"
+              >
+                {addedMessage}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <div className="flex flex-col gap-2 border-t border-border-light pt-5 text-[13px] text-text-muted">
+          <motion.div
+            variants={infoItem}
+            className="flex flex-col gap-2 border-t border-border-light pt-5 text-[13px] text-text-muted"
+          >
             <div>✓ Free alterations included</div>
             <div>✓ Dry-cleaned and steamed before delivery</div>
             <div>✓ Ships in 3–5 business days</div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
 
       {related.length > 0 && (

@@ -1,27 +1,8 @@
--- ============================================================================
--- Outfit Lounge — database schema (schema only, no data).
---
--- This is a snapshot of the local Postgres database (`tailorshop_website`)
--- used by website/backend, which was itself restored from the Railway
--- production Postgres (see website/CLAUDE.md "Database" section).
---
--- RULE: any time the local database's schema changes (tables, columns,
--- indexes, constraints, functions, triggers), regenerate this file:
---
---   pg_dump -U postgres -h localhost -p 5432 -d tailorshop_website \
---     --schema-only --no-owner --no-privileges \
---     -f website/database.sql
---
--- Data (products, sales, etc.) is intentionally NOT included here — it
--- changes constantly and the base64 product images alone would make this
--- file enormous. This file tracks structure only.
--- ============================================================================
-
 --
 -- PostgreSQL database dump
 --
 
-\restrict SYjCfBqpI04kM8kHCNpdeD4g9vanhhs9X1eueNy7tCnaSaGeSpycjvKkto8JVwf
+\restrict mOqqQ60dmRILoR3Svog3gJR3QymMw2JlhY4t3HFlJUt9AWfxVfKmcUPsWa0ZEwy
 
 -- Dumped from database version 18.3
 -- Dumped by pg_dump version 18.3
@@ -626,6 +607,23 @@ CREATE TABLE public.website_admins (
 
 
 --
+-- Name: website_contact_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.website_contact_submissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name character varying(255) NOT NULL,
+    email character varying(255) NOT NULL,
+    phone character varying(50),
+    subject character varying(255),
+    message text NOT NULL,
+    status character varying(20) DEFAULT 'new'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT website_contact_submissions_status_check CHECK (((status)::text = ANY ((ARRAY['new'::character varying, 'read'::character varying])::text[])))
+);
+
+
+--
 -- Name: website_customers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1008,6 +1006,14 @@ ALTER TABLE ONLY public.website_admins
 
 ALTER TABLE ONLY public.website_admins
     ADD CONSTRAINT website_admins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: website_contact_submissions website_contact_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.website_contact_submissions
+    ADD CONSTRAINT website_contact_submissions_pkey PRIMARY KEY (id);
 
 
 --
@@ -1686,5 +1692,5 @@ ALTER TABLE ONLY public.website_promotions
 -- PostgreSQL database dump complete
 --
 
-\unrestrict SYjCfBqpI04kM8kHCNpdeD4g9vanhhs9X1eueNy7tCnaSaGeSpycjvKkto8JVwf
+\unrestrict mOqqQ60dmRILoR3Svog3gJR3QymMw2JlhY4t3HFlJUt9AWfxVfKmcUPsWa0ZEwy
 

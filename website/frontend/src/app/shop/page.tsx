@@ -4,22 +4,8 @@ import { useEffect, useState } from "react";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { ShopHero } from "@/components/shop/ShopHero";
 import { Category, ProductSummary, fetchCategories, fetchProducts } from "@/lib/api";
-
-const SHELF_SWATCHES = [
-  "repeating-linear-gradient(180deg,#e9e4d8,#e9e4d8 10px,#ddd6c5 10px,#ddd6c5 20px)",
-  "#efece4",
-  "#e5e0d4",
-  "#efece4",
-  "#e5e0d4",
-  "#efece4",
-  "#e5e0d4",
-  "#efece4",
-  "#e5e0d4",
-  "#efece4",
-  "#e5e0d4",
-  "#efece4",
-];
 
 const LIMIT = 12;
 
@@ -58,33 +44,13 @@ export default function ShopPage() {
     <div className="flex min-h-screen flex-col bg-white">
       <SiteNav theme="light" />
 
-      {/* hero */}
-      <div className="relative flex h-[56vh] items-center overflow-hidden bg-[#f5f1e6]">
-        <div className="absolute inset-0 flex gap-0.5 opacity-60">
-          {SHELF_SWATCHES.map((bg, i) => (
-            <div key={i} className="flex-1" style={{ background: bg }} />
-          ))}
-        </div>
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(90deg, #f5f1e6, rgba(245,241,230,0.4) 55%, #f5f1e6)",
-          }}
-        />
-        <div className="relative z-5 max-w-160 px-6 sm:px-10 lg:px-14">
-          <div className="text-[13px] tracking-[5px] text-gold-deep">THE PERMANENT COLLECTION</div>
-          <div className="mt-3.5 font-serif text-4xl leading-tight text-ink sm:text-5xl">
-            Own Your Signature Style
-          </div>
-          <div className="mt-3.5 text-[15px] text-text-muted">
-            Hand-finished suits and accessories, tailored and shipped to fit — yours to keep.
-          </div>
-        </div>
-      </div>
+      <ShopHero scrollTargetId="shop-filters" />
 
       {/* filter bar */}
-      <div className="flex flex-wrap gap-3 border-b border-border-light px-6 py-7 sm:px-10 lg:px-14">
+      <div
+        id="shop-filters"
+        className="flex flex-wrap gap-3 border-b border-border-light px-6 py-7 sm:px-10 lg:px-14"
+      >
         <button
           onClick={() => {
             setActiveSlug(undefined);
