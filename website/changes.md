@@ -2,6 +2,69 @@
 
 Running log of all development changes made in `website/`. Every change made here from now on gets an entry added to this file, most recent first.
 
+## 2026-07-14 (27)
+
+- **Admin: Contact Messages viewer** (`src/app/admin/contact/page.tsx`) — table view matching the existing Orders/Customers list pattern: Name, Contact (email/phone), Subject, Message (clamped, full text on hover), Status badge (New/Read), Date, and Mark Read/Unread + Delete actions. Added `fetchAdminContactSubmissions`/`markContactSubmissionRead`/`deleteContactSubmission` to `lib/adminData.ts` and a "Contact Messages" entry to `AdminLayout`'s sidebar nav. Verified the full pipeline end-to-end: submitted via the public API, confirmed it appears in the admin list, then deleted it.
+
+## 2026-07-14 (30)
+
+- **Added a new full-bleed "editorial moment" section to the home page**, directly below the "TWO WAYS TO WEAR IT" rent/shop split and above `OrbitShowcase`. Uses a photo the user dropped at `website/Assets/New section.jpeg` (copied into `frontend/public/assets/new-section.jpeg` since only files under `frontend/public/` are served by Next.js) — a striking high-contrast black-and-white shot of a man in a tailored suit standing in a shaft of light. New component `components/home/EditorialSection.tsx`: bottom-left-aligned copy ("AN EDITORIAL MOMENT" / "Where Shadow Meets Tailoring" / a short line + "Discover The Tailored Edit" link to `/shop`), a gradient concentrated only where the text sits so the rest of the image's own drama stays untouched, and a genuinely distinct signature animation — a "focus pull" reveal (`filter: blur() `+ fade + rise, via `whileInView`) rather than any of the stagger/shimmer/dust/ripple/pulseGlow motifs used elsewhere on the site, chosen to match the photo's own cinematic, high-fashion mood.
+
+## 2026-07-14 (29)
+
+- **Added a background photo to the Perfume page hero** (`components/shop/PerfumeHero.tsx`) — a free-license Pexels luxury perfume bottle shot (`public/assets/perfume-hero.jpg`), replacing the flat dark texture background. Kept the existing rippling-rings motif and dark gradient overlay on top for text legibility, so the hero now has real atmosphere behind the same animated content.
+
+## 2026-07-14 (28)
+
+- **Site-wide transitions pass across every remaining static customer-facing page**, each with its own signature treatment rather than a copy-pasted animation, building on the framer-motion + `dust`/`shimmer`/`pulseGlow`/`ripple` keyframe system already established (Home/Shop/Rent/Contact/About/Perfume). Admin dashboard intentionally left untouched (stays utilitarian per the user's scoping choice).
+  - **`/cart`**: line items stagger-slide in from the side on load; subtotal fades in last.
+  - **`/checkout`**: a thin gold line draws itself across the top on load; sections (title → items → total → payment note → button) stagger-reveal top to bottom; the order-confirmation view now has a spring-in checkmark badge.
+  - **`/login`, `/register`** (shared `AuthLayout`, now a client component): the two-panel layout converges in from opposite sides on mount; form fields stagger in below the heading.
+  - **`/account`**: each of the three sections (Promotions/Rentals/Orders) fades up into view on scroll (`whileInView`), and the cards within each list stagger in.
+  - **`/promotions`**: the existing gold banner's text now staggers in on load, and the promotion card grid staggers in on scroll.
+  - **`/perfume`**: new `components/shop/PerfumeHero.tsx` — same structural pattern as `ShopHero`/`RentHero` but its own motif (soft rippling rings suggesting scent diffusing outward, new `ripple` keyframe), plus a scroll-to-grid CTA and a staggered product grid reveal.
+  - **`/shop/[id]`, `/rent/[id]`**: gallery image now crossfades between thumbnails instead of a hard swap; the price/details column staggers in; Add to Cart / Book Now get a tap-scale micro-interaction, and their confirmation messages animate in/out instead of appearing instantly.
+- Verified every page with `tsc --noEmit` (clean throughout) plus a dev-server content check per page; the two product-detail pages were checked against real product IDs fetched from the live API.
+
+## 2026-07-14 (26)
+
+- **Built the real `/contact` page**, replacing the `ComingSoon` placeholder. Hero with its own signature motif (a breathing radial gold glow — `pulseGlow` keyframe added to `globals.css` — distinct from Shop/Rent's shimmer beams), framer-motion staggered text reveal, a working form (name/email/phone-optional/subject-optional/message) posting to the new `/api/contact` endpoint via `submitContactForm()` (added to `lib/api.ts`), inline success state on submit, and a real contact-info panel: Address "6, 02 Station Rd, Homagama 10200", Phone "071 785 1180", Hours "9:00 AM – 7:00 PM, daily" (no email shown — none was available, avoided inventing one). Verified: loads correctly, real content renders.
+- **Built the real `/about` page**, replacing its `ComingSoon` placeholder. Photo hero (new free-license Pexels photo `public/assets/about-hero.jpg`, a tailor measuring a client), followed by a story section, a stats row with its own signature animation (`CountUp` — numbers count up from 0 when scrolled into view, mechanically distinct from every other page's motion treatment), a 3-card "Why Choose Us" section, and a closing CTA to `/rent`/`/shop`. All copy is placeholder boutique marketing copy (matching how the existing testimonials/hero copy already work on Home) per the user's choice — not a real founding story, safe to edit later.
+
+## 2026-07-14 (25)
+
+- **Backend: Contact Us form storage + admin viewing.** New table `website_contact_submissions` (see `website/database_changes.md` for the approved schema). Public endpoint `POST /api/contact` (`controllers/contactController.ts`, `routes/contact.ts`) — validates name/email/message, inserts, responds `201 { success: true }`, no auth required. Admin endpoints (`controllers/adminContactController.ts`, `routes/adminContact.ts`, mounted behind `authenticateAdmin` like the promotions admin routes): `GET /api/admin/contact-submissions` (list, newest first), `PATCH /api/admin/contact-submissions/:id/read` (toggle new/read status), `DELETE /api/admin/contact-submissions/:id`. Verified end-to-end: 400 on missing fields, 201 on valid submission, submission appears in the admin list, 401 without a bearer token, delete removes it.
+
+## 2026-07-14 (24)
+
+- **Added real photos to the "Complete The Outfit" / FINISHING TOUCHES accessory cards** (Watch, Shoes, Belt, Tie) on the home page — replaced the text-only dark boxes with free-license Pexels product photos (`public/assets/accessory-{watch,shoes,belt,tie}.jpg`) via `next/image`, keeping the gold label overlaid at the bottom on a dark gradient for legibility, plus the existing hover lift/border treatment and a new hover zoom on the image itself.
+- **Removed the "LIMITED TIME — 20% Off First Rental" promotions teaser strip** from the home page entirely, per the user's request.
+- **Home page navbar (`SiteNav`) switched from dark to light (`theme="light"`)** — was the only page still using the dark navbar variant; now consistent with `/shop` and `/rent`.
+
+## 2026-07-13 (23)
+
+- **Fixed the "Dressed For Every Moment" stock photos (entry 22) not visibly updating in the browser** — the new Pexels files were correctly on disk and served with the right bytes (confirmed via direct `curl`, bypassing cache), but they reused the exact same filenames as the old images, so the browser (and/or `next/image`'s optimizer) kept showing the previously-cached copy at that URL. Renamed the 4 files to `collection-{business,wedding,party,casual}-v2.jpg` and updated `COLLECTIONS` in `src/app/page.tsx` to match, forcing fresh URLs that can't collide with anything cached from before.
+
+## 2026-07-13 (22)
+
+- **Swapped the "Dressed For Every Moment" collection photos (entry 21) from local product photos to free-license stock photos**, per the user's clarification that they wanted externally-sourced images for this section specifically. Flagged the copyright risk of scraping Google Images directly for a live commercial site and got the user's go-ahead to use free-to-use stock photography instead (Pexels, no attribution required). Replaced `public/assets/collection-{business,wedding,party,casual}.jpg` in place (same filenames, no `page.tsx` changes needed): Business → "A Man in a Business Suit" (pexels photo 9209721), Wedding → "Elegant Groom in Tuxedo" (18806301), Party → "Man in Suit at Night" (26857473), Casual → "A Man Posing in a Smart Casual Outfit" (9537209). The rent/shop split section's two photos (entry 20) are untouched — those stay as real catalog product photos.
+
+## 2026-07-13 (21)
+
+- **Added real photos to the home page's "Dressed For Every Moment" curated collections grid** (Business / Wedding / Party / Casual), replacing the striped CSS-gradient placeholder backgrounds. Sourced 4 more blazer photos from the local `product_images` table, chosen by color to fit each mood: Dark Grey → Business, Black → Wedding, Royal Blue → Party, Olive → Casual. Saved to `public/assets/collection-{business,wedding,party,casual}.jpg`. `COLLECTIONS` in `src/app/page.tsx` now has an `image` field instead of `bg`; each card renders the photo via `next/image` (`fill` + `object-cover`, hover zoom) with its tracked label moved to sit above the collection name in the white caption area (previously overlaid on the abstract stripe background, which no longer applies with a real photo underneath).
+
+## 2026-07-13 (20)
+
+- **Added real product photos to the home page's "Rent For A Night. Own For A Lifetime." split section**, replacing the two striped CSS-gradient placeholder cards. Pulled two actual blazer photos straight from the local `product_images` table (real shop inventory, `type='both'` category BLAZERS — rentable or purchasable, the best visual fit for these two cards) and saved them to `public/assets/hero-rent.jpg` (Dark Green) and `public/assets/hero-shop.jpg` (Beige). `src/app/page.tsx` now renders them via `next/image` (`fill` + `object-cover`, `priority`, a subtle hover zoom) with the same dark-to-transparent gradient overlay on top for text legibility — copy/layout otherwise unchanged.
+
+## 2026-07-13 (19)
+
+- **Removed the placeholder "video ambience strip" section from the home page** (`src/app/page.tsx`) — the striped-gradient block with the play-button icon and "VIDEO — LOUNGE AMBIENCE LOOP (60s)" / "Golden light, marble floors, tailors at work" placeholder text, directly below the `Hero`. It was never a real video, just a mockup placeholder; the home page now flows straight from `Hero` into the rent/shop split section.
+
+## 2026-07-13 (18)
+
+- **Redesigned the `/shop` and `/rent` hero sections** to match the home page's level of polish instead of the static swatch-and-gradient blocks they had before. New shared `components/shop/DustMotes.tsx` (randomized drifting gold motes, reused from the home hero's dust effect) plus two new components: `components/shop/ShopHero.tsx` (light boutique-shelf theme) and `components/shop/RentHero.tsx` (dark wardrobe-wall theme). Both add: framer-motion staggered entrance reveals (shelf/wall panels then headline/subtext/CTA), two ambient gold `shimmer` light beams, a primary CTA button + circular scroll-arrow that smooth-scrolls to the filter bar (`#shop-filters` / `#rent-filters`), and a small tracked trust-badge row under the CTA (shop: free alterations/delivery/returns; rent: fitting/cleaning/damage cover). `src/app/shop/page.tsx` and `src/app/rent/page.tsx` now just render `<ShopHero />`/`<RentHero />` and no longer inline the swatch arrays or hero JSX directly.
+
 ## 2026-07-08 (17)
 
 - **Removed the separate `/admin/login` page** — deleted `src/app/admin/login/page.tsx` entirely now that the common `/login` form handles admin sign-in too (see entry 16). `components/admin/AdminLayout.tsx`'s two redirects (unauthenticated guard + logout) now point at `/login?next=/admin` instead.

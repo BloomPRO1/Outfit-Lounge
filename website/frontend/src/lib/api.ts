@@ -107,3 +107,23 @@ export async function fetchProduct(
   if (!res.ok) throw new Error("Failed to load product");
   return res.json();
 }
+
+export type ContactFormInput = {
+  name: string;
+  email: string;
+  phone?: string;
+  subject?: string;
+  message: string;
+};
+
+export async function submitContactForm(input: ContactFormInput): Promise<void> {
+  const res = await fetch(`${API_URL}/contact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || "Failed to send message — please try again.");
+  }
+}

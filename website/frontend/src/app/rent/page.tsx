@@ -5,16 +5,8 @@ import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { DateRangePicker, defaultDateRange } from "@/components/shop/DateRangePicker";
+import { RentHero } from "@/components/shop/RentHero";
 import { Category, DateRange, ProductSummary, fetchCategories, fetchProducts } from "@/lib/api";
-
-const WALL_COLORS = [
-  "linear-gradient(180deg,#2a231a,#0e0b08)",
-  "linear-gradient(180deg,#241d15,#0e0b08)",
-  "linear-gradient(180deg,#1e2436,#0b0d14)",
-  "linear-gradient(180deg,#2a1420,#100609)",
-  "linear-gradient(180deg,#2a231a,#0e0b08)",
-  "linear-gradient(180deg,#241d15,#0e0b08)",
-];
 
 const LIMIT = 12;
 
@@ -54,34 +46,13 @@ export default function RentPage() {
     <div className="flex min-h-screen flex-col bg-white">
       <SiteNav theme="light" />
 
-      {/* hero */}
-      <div className="relative flex h-[56vh] items-center overflow-hidden bg-ink">
-        <div className="absolute inset-0 flex gap-0.5 opacity-90">
-          {WALL_COLORS.map((bg, i) => (
-            <div key={i} className="flex-1" style={{ background: bg }} />
-          ))}
-        </div>
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(11,11,12,0.9), rgba(11,11,12,0.3) 60%, rgba(11,11,12,0.9))",
-          }}
-        />
-        <div className="relative z-5 max-w-160 px-6 sm:px-10 lg:px-14">
-          <div className="text-[13px] tracking-[5px] text-gold">THE RENTAL WALL</div>
-          <div className="mt-3.5 font-serif text-4xl leading-tight text-cream sm:text-5xl">
-            Rent The Perfect Look
-          </div>
-          <div className="mt-3.5 text-[15px] text-cream-dim">
-            Premium suits and blazers, ready for your next occasion — cleaned, pressed and
-            fitted for you.
-          </div>
-        </div>
-      </div>
+      <RentHero scrollTargetId="rent-filters" />
 
       {/* dates + filter bar */}
-      <div className="flex flex-wrap items-end gap-6 border-b border-border-light px-6 py-7 sm:px-10 lg:px-14">
+      <div
+        id="rent-filters"
+        className="flex flex-wrap items-end gap-6 border-b border-border-light px-6 py-7 sm:px-10 lg:px-14"
+      >
         <DateRangePicker
           value={dateRange}
           onChange={(r) => {

@@ -9,6 +9,8 @@ import promotionsRouter from './routes/promotions';
 import adminAuthRouter from './routes/adminAuth';
 import adminPromotionsRouter from './routes/adminPromotions';
 import adminDashboardRouter from './routes/adminDashboard';
+import contactRouter from './routes/contact';
+import adminContactRouter from './routes/adminContact';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -33,6 +35,8 @@ app.use('/api', promotionsRouter);
 app.use('/api', adminAuthRouter);
 app.use('/api', adminPromotionsRouter);
 app.use('/api', adminDashboardRouter);
+app.use('/api', contactRouter);
+app.use('/api', adminContactRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

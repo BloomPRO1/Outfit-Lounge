@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { PerfumeHero } from "@/components/shop/PerfumeHero";
 import { ProductSummary, fetchProducts } from "@/lib/api";
+
+const gridContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+};
+const gridItem = {
+  hidden: { opacity: 0, y: 22 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const } },
+};
 
 const LIMIT = 12;
 const CATEGORY_SLUG = "perfume";
@@ -36,29 +47,10 @@ export default function PerfumePage() {
     <div className="flex min-h-screen flex-col bg-white">
       <SiteNav theme="light" />
 
-      {/* hero */}
-      <div className="relative flex h-[56vh] items-center overflow-hidden bg-ink">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 900px 500px at 50% 30%, rgba(217,176,84,0.22), transparent 62%), repeating-linear-gradient(120deg, #14110d 0px, #14110d 26px, #181410 26px, #181410 52px)",
-          }}
-        />
-        <div className="relative z-5 max-w-160 px-6 sm:px-10 lg:px-14">
-          <div className="text-[13px] tracking-[5px] text-gold">THE FRAGRANCE EDIT</div>
-          <div className="mt-3.5 font-serif text-4xl leading-tight text-cream sm:text-5xl">
-            Signature Scents
-          </div>
-          <div className="mt-3.5 text-[15px] text-cream-dim">
-            Curated fragrances to complete every look — from everyday essentials to statement
-            evening scents.
-          </div>
-        </div>
-      </div>
+      <PerfumeHero scrollTargetId="perfume-grid" />
 
       {/* grid */}
-      <div className="flex-1 px-6 py-12 sm:px-10 lg:px-14">
+      <div id="perfume-grid" className="flex-1 px-6 py-12 sm:px-10 lg:px-14">
         {error && <div className="text-center text-sm text-red-600">{error}</div>}
         {!error && loading && (
           <div className="py-20 text-center text-sm text-text-faint">Loading…</div>
@@ -70,11 +62,18 @@ export default function PerfumePage() {
         )}
         {!error && !loading && products.length > 0 && (
           <>
-            <div className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6.5 sm:grid-cols-2 lg:grid-cols-4">
+            <motion.div
+              className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6.5 sm:grid-cols-2 lg:grid-cols-4"
+              variants={gridContainer}
+              initial="hidden"
+              animate="show"
+            >
               {products.map((p) => (
-                <ProductCard key={p.id} product={p} context="sale" />
+                <motion.div key={p.id} variants={gridItem}>
+                  <ProductCard product={p} context="sale" />
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
             {totalPages > 1 && (
               <div className="mt-10 flex items-center justify-center gap-4 text-sm">
                 <button

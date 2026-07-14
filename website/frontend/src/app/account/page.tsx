@@ -2,10 +2,26 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useAuth } from "@/lib/useAuth";
 import { fetchAccountSummary, OrderSummary, RentalSummary, Discount } from "@/lib/account";
+
+const sectionReveal = {
+  initial: { opacity: 0, y: 24 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: "-60px" },
+  transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const },
+};
+const listContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09 } },
+};
+const listItem = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const } },
+};
 
 function formatMoney(value: string): string {
   return `Rs ${parseFloat(value).toLocaleString("en-LK", { maximumFractionDigits: 0 })}`;
@@ -66,13 +82,15 @@ export default function AccountPage() {
       <SiteNav theme="light" />
 
       <div className="mx-auto w-full max-w-4xl flex-1 px-6 py-14 sm:px-10">
-        <div className="font-serif text-3xl text-ink">My Account</div>
-        {customer && (
-          <div className="mt-1 text-sm text-text-muted">
-            {customer.name} · {customer.email}
-            {customer.phone ? ` · ${customer.phone}` : ""}
-          </div>
-        )}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+          <div className="font-serif text-3xl text-ink">My Account</div>
+          {customer && (
+            <div className="mt-1 text-sm text-text-muted">
+              {customer.name} · {customer.email}
+              {customer.phone ? ` · ${customer.phone}` : ""}
+            </div>
+          )}
+        </motion.div>
 
         {loading && <div className="mt-10 text-center text-sm text-text-faint">Loading…</div>}
         {error && <div className="mt-10 text-center text-sm text-red-600">{error}</div>}
@@ -80,7 +98,7 @@ export default function AccountPage() {
         {!loading && !error && (
           <>
             {/* Promotions received */}
-            <div className="mt-12">
+            <motion.div className="mt-12" {...sectionReveal}>
               <div className="font-serif text-xl text-ink">Promotions You&apos;ve Received</div>
               {allDiscounts.length === 0 ? (
                 <div className="mt-3 text-sm text-text-faint">
@@ -91,18 +109,24 @@ export default function AccountPage() {
                   .
                 </div>
               ) : (
-                <div className="mt-4 flex flex-wrap gap-2.5">
+                <motion.div
+                  className="mt-4 flex flex-wrap gap-2.5"
+                  variants={listContainer}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{ once: true, margin: "-60px" }}
+                >
                   {allDiscounts.map((d, i) => (
-                    <div key={i} title={`Order ${d.source}`}>
+                    <motion.div key={i} variants={listItem} title={`Order ${d.source}`}>
                       <DiscountBadge d={d} />
-                    </div>
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
 
             {/* Rentals booked */}
-            <div className="mt-12">
+            <motion.div className="mt-12" {...sectionReveal}>
               <div className="font-serif text-xl text-ink">Items Booked From Rent</div>
               {rentals.length === 0 ? (
                 <div className="mt-3 text-sm text-text-faint">
@@ -113,11 +137,17 @@ export default function AccountPage() {
                   .
                 </div>
               ) : (
-                <div className="mt-4 flex flex-col gap-4">
+                <motion.div
+                  className="mt-4 flex flex-col gap-4"
+                  variants={listContainer}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{ once: true, margin: "-60px" }}
+                >
                   {rentals.map((r) => {
                     const net = parseFloat(r.total_rental_cost) - parseFloat(r.discount_amount);
                     return (
-                      <div key={r.id} className="rounded-md border border-border-light p-5">
+                      <motion.div key={r.id} variants={listItem} className="rounded-md border border-border-light p-5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="font-semibold text-ink">{r.booking_number}</div>
                           <span className="rounded-full bg-cream-soft px-3 py-1 text-[12px] capitalize text-text-body">
@@ -150,15 +180,15 @@ export default function AccountPage() {
                             )}
                           </span>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
-                </div>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
 
             {/* Purchase orders */}
-            <div className="mt-12 mb-16">
+            <motion.div className="mt-12 mb-16" {...sectionReveal}>
               <div className="font-serif text-xl text-ink">Your Orders</div>
               {orders.length === 0 ? (
                 <div className="mt-3 text-sm text-text-faint">
@@ -169,9 +199,15 @@ export default function AccountPage() {
                   .
                 </div>
               ) : (
-                <div className="mt-4 flex flex-col gap-4">
+                <motion.div
+                  className="mt-4 flex flex-col gap-4"
+                  variants={listContainer}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{ once: true, margin: "-60px" }}
+                >
                   {orders.map((o) => (
-                    <div key={o.id} className="rounded-md border border-border-light p-5">
+                    <motion.div key={o.id} variants={listItem} className="rounded-md border border-border-light p-5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="font-semibold text-ink">{o.sale_number}</div>
                         <span className="rounded-full bg-cream-soft px-3 py-1 text-[12px] capitalize text-text-body">
@@ -200,11 +236,11 @@ export default function AccountPage() {
                           )}
                         </span>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
-                </div>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
           </>
         )}
       </div>

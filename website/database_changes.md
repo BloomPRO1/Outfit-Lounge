@@ -6,6 +6,29 @@ Each entry: what changed, why, and the exact SQL run.
 
 ---
 
+## 2026-07-14 — `website_contact_submissions` table (Contact Us form)
+
+**Approved by user**: yes, explicit go-ahead given before creation (asked directly since this is a schema change per `website/CLAUDE.md`).
+
+**What**: a new, fully isolated table storing public Contact Us form submissions — no FK to any other table, since submissions can come from anonymous visitors, not just logged-in `website_customers`.
+
+```sql
+CREATE TABLE website_contact_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  subject VARCHAR(255),
+  message TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'new' CHECK (status IN ('new','read')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Why**: the admin dashboard needs a way to view messages submitted through the new public `/contact` page. No seed data inserted. `status` tracks new/read so the admin list can distinguish unread messages.
+
+---
+
 ## 2026-07-07 — `website_customers` table (customer login/registration)
 
 **Approved by user**: yes (implicit in the request to build login/registration; investigated first and confirmed no ERP tables were suitable).

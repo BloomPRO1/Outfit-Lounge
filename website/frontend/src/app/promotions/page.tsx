@@ -1,9 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
 import { fetchPromotions, Promotion } from "@/lib/promotions";
+
+const textContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.12 } },
+};
+const textItem = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const } },
+};
+const gridContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.1 } },
+};
+const gridItem = {
+  hidden: { opacity: 0, y: 26 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const } },
+};
 
 function formatMoney(value: string): string {
   return `Rs ${parseFloat(value).toLocaleString("en-LK", { maximumFractionDigits: 0 })}`;
@@ -42,16 +60,23 @@ export default function PromotionsPage() {
     <div className="flex min-h-screen flex-col bg-white">
       <SiteNav theme="light" />
 
-      <div
+      <motion.div
         className="px-6 py-25 text-center sm:px-10 lg:px-14"
         style={{ background: "linear-gradient(120deg,#d9b054,#f0d99b)" }}
+        variants={textContainer}
+        initial="hidden"
+        animate="show"
       >
-        <div className="text-[13px] tracking-[5px] text-[#3a2f14]">LIMITED TIME</div>
-        <div className="mt-3.5 font-serif text-4xl text-ink sm:text-5xl">Current Promotions</div>
-        <div className="mt-3.5 text-[15px] text-[#3a3020]">
+        <motion.div variants={textItem} className="text-[13px] tracking-[5px] text-[#3a2f14]">
+          LIMITED TIME
+        </motion.div>
+        <motion.div variants={textItem} className="mt-3.5 font-serif text-4xl text-ink sm:text-5xl">
+          Current Promotions
+        </motion.div>
+        <motion.div variants={textItem} className="mt-3.5 text-[15px] text-[#3a3020]">
           Automatic discounts on Shop and Rent — no codes needed, just add to cart.
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <div className="mx-auto w-full max-w-6xl flex-1 px-6 py-20 sm:px-10 lg:px-14">
         {loading && <div className="text-center text-sm text-text-faint">Loading…</div>}
@@ -64,10 +89,17 @@ export default function PromotionsPage() {
         )}
 
         {!loading && !error && promotions.length > 0 && (
-          <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3"
+            variants={gridContainer}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-60px" }}
+          >
             {promotions.map((p) => (
-              <div
+              <motion.div
                 key={p.id}
+                variants={gridItem}
                 className="overflow-hidden rounded-md border border-border-light transition-all duration-350 hover:-translate-y-2 hover:shadow-[0_20px_40px_-14px_rgba(0,0,0,0.22)]"
               >
                 <div className="relative flex h-40 items-center justify-center bg-ink">
@@ -105,9 +137,9 @@ export default function PromotionsPage() {
                     })}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
 
