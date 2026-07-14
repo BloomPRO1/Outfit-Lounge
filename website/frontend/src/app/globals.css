@@ -65,3 +65,22 @@
   background: #d9b054;
   color: #0b0b0c;
 }
+
+@utility bg-pinstripe {
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(11, 11, 12, 0.012) 0px,
+    rgba(11, 11, 12, 0.012) 1px,
+    transparent 1px,
+    transparent 32px
+  );
+}
+
+@utility bg-tailor-grid {
+  background-color: #fcfbfa;
+  background-image: 
+    linear-gradient(rgba(217, 176, 84, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(217, 176, 84, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
