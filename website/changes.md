@@ -2,6 +2,12 @@
 
 Running log of all development changes made in `website/`. Every change made here from now on gets an entry added to this file, most recent first.
 
+## 2026-07-15 (31)
+
+- **Redesigned the homepage for a luxury, high-fashion aesthetic and created an interactive Silhouette/Swatch customizer** (`src/app/page.tsx`, `components/home/SilhouetteBuilder.tsx`) — moved the homepage to a wide, open layout (`max-w-[1536px]`) using a gold, white, and black palette. Wrote custom pinstripe suit (`bg-pinstripe`) and pattern-drafting grid (`bg-tailor-grid`) background utilities. Built a bespoke **Silhouette & Fabric Swatches Customizer** that lets users toggle between notch/peak/shawl lapel jacket diagrams and explore heritage Italian/Scottish textiles (charcoal pinstripe, midnight barathea silk, gold herringbone, emerald velvet smoking fabric) with realistic textures and dynamic glow color backdrops. Added a **Craftsmanship Grid** explaining canvas construction and complimentary tailor fittings. Wrapped all new grids in scroll-driven stagger entry motions.
+- **Redesigned the Orbit Showcase section** (`components/home/OrbitShowcase.tsx`) — changed the background to a light/white palette. Replaced the generic CSS placeholders and placeholder central portrait with a stunning, high-fashion portrait of a real model in a bespoke dark navy blue suit. Replaced all 5 accessory swatches with realistic, high-quality close-ups (Jacket, Poplin Shirt, Silk Tie, Oxfords, Gold Watch). Added concentric tilted golden rings rotating in 3D orbit around the central model, a warm golden aura gradient backdrop behind the central card, and an interactive tooltip detail card at the bottom which fades in/out on item hover.
+- **Configured remote pattern for Unsplash images** (`next.config.ts`) — added `images.remotePatterns` for `images.unsplash.com` to prevent Next.js image optimization runtime errors when fetching high-fashion photos dynamically.
+
 ## 2026-07-14 (27)
 
 - **Admin: Contact Messages viewer** (`src/app/admin/contact/page.tsx`) — table view matching the existing Orders/Customers list pattern: Name, Contact (email/phone), Subject, Message (clamped, full text on hover), Status badge (New/Read), Date, and Mark Read/Unread + Delete actions. Added `fetchAdminContactSubmissions`/`markContactSubmissionRead`/`deleteContactSubmission` to `lib/adminData.ts` and a "Contact Messages" entry to `AdminLayout`'s sidebar nav. Verified the full pipeline end-to-end: submitted via the public API, confirmed it appears in the admin list, then deleted it.
