@@ -2,6 +2,10 @@
 
 Running log of all development changes made in `website/`. Every change made here from now on gets an entry added to this file, most recent first.
 
+## 2026-07-15 (33)
+
+- **Pinned frontend Node version for Railway builds** (`website/frontend/package.json`) — added `"engines": { "node": ">=20.9.0" }`. Without it, Nixpacks defaulted to Node 18 on the new Railway deploy and the build failed since Next.js 16.2.10 requires Node ≥20.9. Matches the same pattern already used in `website/backend/package.json` (`"engines": { "node": ">=20.0.0" }`).
+
 ## 2026-07-15 (32)
 
 - **Added Railway deploy config for the website's two services** (`website/backend/railway.toml`, `website/frontend/railway.toml`) — for deploying `website/` to its own separate Railway project (tracking the `development` branch, distinct from the production project running `client`+`server` off `main`). Backend: `npm install && npm run build` / `npm start`, health check at `/api/health`. Frontend: `npm install && npm run build` / `next start` (deliberately omitting `-p 3001` so it binds to Railway's injected `$PORT` instead of the port hardcoded in `package.json`'s `start` script, which Railway wouldn't route to). No code changes, no schema changes.
