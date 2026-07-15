@@ -2,6 +2,10 @@
 
 Running log of all development changes made in `website/`. Every change made here from now on gets an entry added to this file, most recent first.
 
+## 2026-07-15 (32)
+
+- **Added Railway deploy config for the website's two services** (`website/backend/railway.toml`, `website/frontend/railway.toml`) — for deploying `website/` to its own separate Railway project (tracking the `development` branch, distinct from the production project running `client`+`server` off `main`). Backend: `npm install && npm run build` / `npm start`, health check at `/api/health`. Frontend: `npm install && npm run build` / `next start` (deliberately omitting `-p 3001` so it binds to Railway's injected `$PORT` instead of the port hardcoded in `package.json`'s `start` script, which Railway wouldn't route to). No code changes, no schema changes.
+
 ## 2026-07-15 (31)
 
 - **Redesigned the homepage for a luxury, high-fashion aesthetic and created an interactive Silhouette/Swatch customizer** (`src/app/page.tsx`, `components/home/SilhouetteBuilder.tsx`) — moved the homepage to a wide, open layout (`max-w-[1536px]`) using a gold, white, and black palette. Wrote custom pinstripe suit (`bg-pinstripe`) and pattern-drafting grid (`bg-tailor-grid`) background utilities. Built a bespoke **Silhouette & Fabric Swatches Customizer** that lets users toggle between notch/peak/shawl lapel jacket diagrams and explore heritage Italian/Scottish textiles (charcoal pinstripe, midnight barathea silk, gold herringbone, emerald velvet smoking fabric) with realistic textures and dynamic glow color backdrops. Added a **Craftsmanship Grid** explaining canvas construction and complimentary tailor fittings. Wrapped all new grids in scroll-driven stagger entry motions.
