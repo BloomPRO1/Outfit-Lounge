@@ -2,6 +2,10 @@
 
 Running log of all development changes made in `website/`. Every change made here from now on gets an entry added to this file, most recent first.
 
+## 2026-07-15 (34)
+
+- **Fixed `/login` build failure on Railway** (`src/app/login/page.tsx`) — `useSearchParams()` (used to read a `?next=` redirect target) requires the calling component to be wrapped in a `<Suspense>` boundary in Next.js 16, or static prerendering fails outright (`missing-suspense-with-csr-bailout`). Split the page into an outer `LoginPage` (renders `<Suspense><LoginForm /></Suspense>`) and an inner `LoginForm` holding all the existing logic/markup — no behavior change. Verified with a local production build (`npm run build`): all 23 routes now prerender successfully.
+
 ## 2026-07-15 (33)
 
 - **Pinned frontend Node version for Railway builds** (`website/frontend/package.json`) — added `"engines": { "node": ">=20.9.0" }`. Without it, Nixpacks defaulted to Node 18 on the new Railway deploy and the build failed since Next.js 16.2.10 requires Node ≥20.9. Matches the same pattern already used in `website/backend/package.json` (`"engines": { "node": ">=20.0.0" }`).
