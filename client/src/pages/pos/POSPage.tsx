@@ -1188,8 +1188,16 @@ export default function POSPage() {
                       try {
                         await usbPrint(receipt, shopInfo);
                         return;
-                      } catch (err) {
+                      } catch (err: any) {
                         console.error('USB receipt print failed:', err);
+                        // usbPrint always settles now, so we reliably get here
+                        // instead of leaving the button stuck loading.
+                        //
+                        // Deliberately a warning, not an error: the sale is
+                        // already saved at this point, and a red "failed" toast
+                        // right after checkout reads as "the sale didn't go
+                        // through" — which invites a duplicate re-ring.
+                        toast.warning('Sale is saved. Printer did not respond — opening the print dialog.');
                       }
                     }
                     printViaIframe(buildReceiptHTML(receipt, shopInfo));

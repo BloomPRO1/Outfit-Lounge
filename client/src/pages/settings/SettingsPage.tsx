@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw, Check, Minus, MessageCircle, Zap, Cloud, Smartphone, Printer, Usb, AlertTriangle, XCircle } from 'lucide-react';
-import { connectUsbPrinter, disconnectUsbPrinter, isUsbConnected, getReceiptPrinterName, getUsbDevice } from '@/services/usbPrinterService';
-import { connectLabelPrinter, disconnectLabelPrinter, isLabelConnected, getLabelPrinterName, getLabelDevice } from '@/services/labelPrinterService';
+import { connectUsbPrinter, disconnectUsbPrinter, isUsbConnected, getReceiptPrinterName } from '@/services/usbPrinterService';
+import { connectLabelPrinter, disconnectLabelPrinter, isLabelConnected, getLabelPrinterName } from '@/services/labelPrinterService';
+import { hasDeviceConflict, PrinterError } from '@/services/usbPrinterCore';
 import { toast } from 'sonner';
 import { settingsService } from '@/services/settingsService';
 import { permissionsService } from '@/services/permissionsService';
@@ -43,8 +44,10 @@ function PrinterSettings() {
   const [labelConnected, setLabelConnected]     = useState(isLabelConnected());
   const [labelName, setLabelName]               = useState(getLabelPrinterName());
 
-  // Detect if both slots point to the same physical device
-  const sameDevice = receiptConnected && labelConnected && getUsbDevice() === getLabelDevice();
+  // Detect if both slots point to the same physical device. Pairing now refuses
+  // this outright, so it should only ever show for a session bound before the
+  // guard existed.
+  const sameDevice = receiptConnected && labelConnected && hasDeviceConflict();
 
   const handleConnectReceipt = async () => {
     try {
@@ -52,8 +55,12 @@ function PrinterSettings() {
       setReceiptConnected(true);
       setReceiptName(name);
       toast.success(`Receipt printer connected: ${name}`);
-    } catch {
-      toast.error('Could not connect receipt printer');
+    } catch (err: any) {
+      // Cancelling the Chrome picker isn't an error worth shouting about.
+      if (err?.name === 'NotFoundError') return;
+      setReceiptConnected(isUsbConnected());
+      setReceiptName(getReceiptPrinterName());
+      toast.error(err instanceof PrinterError ? err.message : 'Could not connect receipt printer');
     }
   };
 
@@ -70,8 +77,11 @@ function PrinterSettings() {
       setLabelConnected(true);
       setLabelName(name);
       toast.success(`Label printer connected: ${name}`);
-    } catch {
-      toast.error('Could not connect label printer');
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError') return;
+      setLabelConnected(isLabelConnected());
+      setLabelName(getLabelPrinterName());
+      toast.error(err instanceof PrinterError ? err.message : 'Could not connect label printer');
     }
   };
 
