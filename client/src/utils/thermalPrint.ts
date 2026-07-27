@@ -282,12 +282,28 @@ export function buildRentalReceiptHTML(data: RentalReceiptData, shop: ShopInfo):
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Leak guard only — deliberately far longer than anyone keeps a print dialog open. */
+const PRINT_CLEANUP_FALLBACK_MS = 10 * 60 * 1000;
+
+/** Tears down the receipt job currently on screen, if any. */
+let disposeActiveReceipt: (() => void) | null = null;
+
 /**
  * Prints receipt by injecting it off-screen into the main page then calling
  * window.print(). Styles are fully scoped to #__receipt_print so they don't
  * pollute the main app (which would make Chrome think the page is empty).
+ *
+ * Cleanup is driven by the `afterprint` event rather than a fixed timer. The
+ * old code removed the nodes 30s after injecting them regardless of what the
+ * user was doing, so anyone who spent longer than that in the Windows print
+ * dialog got a blank page — the receipt had already been deleted underneath
+ * them. A second click inside that window also appended a duplicate node with
+ * the same id, and the print CSS matched both, so two receipts came out.
  */
 export function printViaIframe(html: string): void {
+  // Retire the previous job before injecting a new one — never two at once.
+  disposeActiveReceipt?.();
+
   const parser = new DOMParser();
   const parsed = parser.parseFromString(html, 'text/html');
 
@@ -296,6 +312,13 @@ export function printViaIframe(html: string): void {
   printStyle.textContent = `
     @media print {
       @page { size: 80mm auto; margin: 2mm 3mm; }
+      /* The receipt drawer pins body{overflow:hidden} while it is open, which
+         makes Chrome clip the print to one viewport and emit a blank page.
+         !important in a stylesheet outranks a non-important inline style. */
+      html, body {
+        overflow: visible !important;
+        height: auto !important;
+      }
       body > *:not(#__receipt_print) { display: none !important; }
       #__receipt_print {
         position: static !important;
@@ -333,6 +356,70 @@ export function printViaIframe(html: string): void {
   document.head.appendChild(printStyle);
   document.body.appendChild(container);
 
-  setTimeout(() => window.print(), 150);
-  setTimeout(() => { printStyle.remove(); container.remove(); }, 30_000);
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    clearTimeout(fallbackTimer);
+    window.removeEventListener('afterprint', dispose);
+    printStyle.remove();
+    container.remove();
+    if (disposeActiveReceipt === dispose) disposeActiveReceipt = null;
+  };
+
+  const fallbackTimer = setTimeout(dispose, PRINT_CLEANUP_FALLBACK_MS);
+  window.addEventListener('afterprint', dispose);
+  disposeActiveReceipt = dispose;
+
+  // Small delay so the injected nodes are laid out before the dialog opens.
+  setTimeout(() => {
+    try {
+      window.print();
+    } catch {
+      dispose(); // dialog blocked — don't strand the nodes in the DOM
+    }
+  }, 150);
+}
+
+/**
+ * Prints a complete HTML document in a hidden same-origin iframe.
+ *
+ * Used where the document carries its own `@page` rules (barcode labels), and
+ * as the fallback when a popup blocker kills `window.open`. Unlike a popup this
+ * needs no user permission and cannot leave an orphan window behind.
+ */
+export function printHTMLInIframe(html: string): void {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  // Positioned off-screen at a real size — `display:none` or a 0×0 box makes
+  // Chrome print a blank page.
+  frame.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:100mm;height:150mm;border:0;opacity:0;';
+  frame.srcdoc = html;
+
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    clearTimeout(fallbackTimer);
+    frame.remove();
+  };
+  const fallbackTimer = setTimeout(dispose, PRINT_CLEANUP_FALLBACK_MS);
+
+  frame.onload = () => {
+    const win = frame.contentWindow;
+    if (!win) { dispose(); return; }
+    win.addEventListener('afterprint', dispose, { once: true });
+    // Give the barcode SVG a frame to lay out before the dialog opens.
+    setTimeout(() => {
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        dispose();
+      }
+    }, 250);
+  };
+
+  document.body.appendChild(frame);
 }

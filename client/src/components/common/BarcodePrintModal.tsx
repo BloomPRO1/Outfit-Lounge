@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import Button from './Button';
 import Drawer from './Drawer';
 import { connectLabelPrinter, isLabelConnected, getLabelPrinterName, tsplPrint } from '@/services/labelPrinterService';
+import { printHTMLInIframe } from '@/utils/thermalPrint';
 
 export interface BarcodeItem {
   sku: string;
@@ -28,6 +29,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   const [copies, setCopies] = useState(1);
   const [labelConnected, setLabelConnected] = useState(isLabelConnected());
   const [labelPrinterName, setLabelPrinterName] = useState(getLabelPrinterName());
+  const [printing, setPrinting] = useState(false);
 
   const handleConnectLabel = async () => {
     try {
@@ -35,8 +37,14 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       setLabelConnected(true);
       setLabelPrinterName(name);
       toast.success(`Label printer connected: ${name}`);
-    } catch {
-      toast.error('Could not connect — printer may have a Windows driver installed (see tip below)');
+    } catch (err: any) {
+      // The picker throws a DOMException when the user simply cancels — nothing
+      // went wrong there, so stay quiet.
+      if (err?.name === 'NotFoundError') return;
+      toast.error(
+        err?.message ||
+        'Could not connect — printer may have a Windows driver installed (see tip below)',
+      );
     }
   };
 
@@ -64,19 +72,28 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
   }, [open, item]);
 
   const handlePrintDirect = async () => {
-    if (!item) return;
+    if (!item || printing) return;
+    setPrinting(true);
     try {
       await tsplPrint(item, copies);
       toast.success(`Printed ${copies} label${copies !== 1 ? 's' : ''}`);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('TSPL print failed:', err);
-      toast.error('Direct print failed — try Print Dialog instead');
+      // tsplPrint now always settles, so this branch is actually reachable when
+      // the printer is wedged — tell the operator what to do next.
+      setLabelConnected(isLabelConnected());
+      setLabelPrinterName(getLabelPrinterName());
+      toast.error(
+        `${err?.message || 'Direct print failed'} — try the Windows Dialog option instead.`,
+      );
+    } finally {
+      setPrinting(false);
     }
   };
 
   const handlePrintDialog = () => {
-    if (!item) return;
+    if (!item || printing) return;
 
     // Use the short 6-digit label_id as barcode value — far fewer bars than the full SKU.
     // Falls back to SKU if label_id not available.
@@ -155,12 +172,29 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
 </html>`;
 
     const w = window.open('', '_blank', 'width=800,height=600');
-    if (!w) return;
+
+    // Popup blocked. This used to `return` silently, so clicking Print did
+    // absolutely nothing and looked like a freeze. Fall back to a hidden
+    // iframe, which renders the same document and needs no permission.
+    if (!w) {
+      printHTMLInIframe(html);
+      return;
+    }
+
     w.document.write(html);
     w.document.close();
     w.focus();
-    w.onafterprint = () => w.close();
-    setTimeout(() => w.print(), 400);
+    w.onafterprint = () => { try { w.close(); } catch { /* already gone */ } };
+    setTimeout(() => {
+      // The operator may have closed the popup during the delay.
+      if (w.closed) return;
+      try {
+        w.focus();
+        w.print();
+      } catch {
+        try { w.close(); } catch { /* already gone */ }
+      }
+    }, 400);
   };
 
   if (!item) return null;
@@ -223,7 +257,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
                 <p className="text-xs text-charcoal-200">Works with your installed printer driver — no setup needed</p>
               </div>
             </div>
-            <Button variant="primary" icon={<Printer size={15} />} onClick={handlePrintDialog} className="w-full">
+            <Button variant="primary" icon={<Printer size={15} />} onClick={handlePrintDialog} disabled={printing} className="w-full">
               Print {copies} Label{copies !== 1 ? 's' : ''} (Opens Print Dialog)
             </Button>
           </div>
@@ -244,7 +278,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
               </div>
             </div>
             {labelConnected ? (
-              <Button variant="secondary" icon={<Printer size={15} />} onClick={handlePrintDirect} className="w-full">
+              <Button variant="secondary" icon={<Printer size={15} />} onClick={handlePrintDirect} loading={printing} className="w-full">
                 Print {copies} Label{copies !== 1 ? 's' : ''} (Silent)
               </Button>
             ) : (

@@ -109,8 +109,11 @@ export default function SalesHistoryPage() {
         try {
           await usbPrint(receipt, shopInfo);
           return;
-        } catch (err) {
+        } catch (err: any) {
           console.error('USB receipt print failed:', err);
+          toast.error(
+            `${err?.message || 'Receipt printer failed'} — opening the print dialog instead.`,
+          );
         }
       }
       printViaIframe(buildReceiptHTML(receipt, shopInfo));

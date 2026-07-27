@@ -1,70 +1,39 @@
 import type { BarcodeItem } from '@/components/common/BarcodePrintModal';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let dev: any = null;
-let outEp = 1;
-
-// Auto-clear dev when the printer is physically unplugged
-if ((navigator as any).usb) {
-  (navigator as any).usb.addEventListener('disconnect', (e: any) => {
-    if (dev === e.device) dev = null;
-  });
-}
+import {
+  requestAndBind, unbind, isBound, boundName, boundDevice, transfer,
+} from './usbPrinterCore';
 
 /** Ask the user to pick the USB label printer (one-time). Chrome remembers the permission. */
-export async function connectLabelPrinter(): Promise<string> {
-  // Release any previous device before claiming a new one
-  if (dev) {
-    try { await dev.close(); } catch { /* already closed */ }
-    dev = null;
-  }
-
-  const d = await (navigator as any).usb.requestDevice({ filters: [] });
-  await d.open();
-  if (d.configuration === null) await d.selectConfiguration(1);
-
-  for (const iface of d.configuration.interfaces) {
-    try {
-      await d.claimInterface(iface.interfaceNumber);
-      for (const ep of iface.alternates[0].endpoints) {
-        if (ep.direction === 'out' && ep.type === 'bulk') {
-          outEp = ep.endpointNumber;
-          dev = d;
-          return d.productName || 'USB Label Printer';
-        }
-      }
-      await d.releaseInterface(iface.interfaceNumber);
-    } catch { /* interface claimed by OS driver — try next */ }
-  }
-  dev = d;
-  return d.productName || 'USB Label Printer';
+export function connectLabelPrinter(): Promise<string> {
+  return requestAndBind('label');
 }
 
-export async function disconnectLabelPrinter(): Promise<void> {
-  if (dev) {
-    try { await dev.close(); } catch { /* ignore */ }
-    dev = null;
-  }
+export function disconnectLabelPrinter(): Promise<void> {
+  return unbind('label');
 }
 
 export function isLabelConnected(): boolean {
-  return dev !== null;
+  return isBound('label');
 }
 
 export function getLabelPrinterName(): string {
-  return dev?.productName || '';
+  return boundName('label');
 }
 
 /** Returns the underlying USB device — used to detect same-device conflicts. */
 export function getLabelDevice(): unknown {
-  return dev;
+  return boundDevice('label');
 }
 
-/** Send TSPL label commands directly to the printer — zero dialogs. */
-export async function tsplPrint(item: BarcodeItem, copies: number): Promise<void> {
-  if (!dev) throw new Error('No label printer connected');
-  const data = buildTSPL(item, copies);
-  await dev.transferOut(outEp, data);
+/**
+ * Send TSPL label commands directly to the printer — zero dialogs.
+ *
+ * This used to await `transferOut` with no timeout, so a paused or out-of-paper
+ * label printer left the promise unsettled forever and froze the modal. It is
+ * now bounded like the receipt path and rejects so the caller can fall back.
+ */
+export function tsplPrint(item: BarcodeItem, copies: number): Promise<void> {
+  return transfer('label', buildTSPL(item, copies));
 }
 
 // ─── TSPL builder ────────────────────────────────────────────────────────────

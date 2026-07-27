@@ -1,89 +1,38 @@
 import type { ThermalReceiptData, ShopInfo } from '@/utils/thermalPrint';
+import {
+  requestAndBind, unbind, isBound, boundName, boundDevice, transfer,
+} from './usbPrinterCore';
 
 const COLS = 32; // characters per line on 80mm paper
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let dev: any = null;
-let outEp = 1; // bulk-OUT endpoint number
-
-// Auto-clear dev when the printer is physically unplugged
-if ((navigator as any).usb) {
-  (navigator as any).usb.addEventListener('disconnect', (e: any) => {
-    if (dev === e.device) dev = null;
-  });
-}
-
 /** Ask the user to pick a USB printer (one-time). Chrome remembers the permission. */
-export async function connectUsbPrinter(): Promise<string> {
-  // Release any previous device before claiming a new one
-  if (dev) {
-    try { await dev.close(); } catch { /* already closed */ }
-    dev = null;
-  }
-
-  const d = await (navigator as any).usb.requestDevice({ filters: [] });
-  await d.open();
-  if (d.configuration === null) await d.selectConfiguration(1);
-
-  // Find the bulk-OUT endpoint across all interfaces
-  for (const iface of d.configuration.interfaces) {
-    try {
-      await d.claimInterface(iface.interfaceNumber);
-      for (const ep of iface.alternates[0].endpoints) {
-        if (ep.direction === 'out' && ep.type === 'bulk') {
-          outEp = ep.endpointNumber;
-          dev = d;
-          return d.productName || 'USB Printer';
-        }
-      }
-      await d.releaseInterface(iface.interfaceNumber);
-    } catch { /* interface claimed by OS driver — try next */ }
-  }
-  // No bulk-OUT found but device opened — still save and try ep 1
-  dev = d;
-  return d.productName || 'USB Printer';
+export function connectUsbPrinter(): Promise<string> {
+  return requestAndBind('receipt');
 }
 
-export async function disconnectUsbPrinter(): Promise<void> {
-  if (dev) {
-    try { await dev.close(); } catch { /* ignore */ }
-    dev = null;
-  }
+export function disconnectUsbPrinter(): Promise<void> {
+  return unbind('receipt');
 }
 
 export function isUsbConnected(): boolean {
-  return dev !== null;
+  return isBound('receipt');
 }
 
 export function getReceiptPrinterName(): string {
-  return dev?.productName || '';
+  return boundName('receipt');
 }
 
 /** Returns the underlying USB device — used to detect same-device conflicts. */
 export function getUsbDevice(): unknown {
-  return dev;
+  return boundDevice('receipt');
 }
 
-export async function usbPrint(receipt: ThermalReceiptData, shop: ShopInfo): Promise<void> {
-  if (!dev) throw new Error('No USB printer connected');
-  const data = buildESCPOS(receipt, shop);
-
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('USB printer timed out')), 5000);
-  });
-
-  try {
-    await Promise.race([dev.transferOut(outEp, data), timeout]);
-  } catch (err) {
-    // Device is stuck/unresponsive — drop it so the next print attempt
-    // doesn't hang again and instead falls back to window.print().
-    try { await dev.close(); } catch { /* already gone */ }
-    dev = null;
-    throw err;
-  } finally {
-    clearTimeout(timer!);
-  }
+/**
+ * Sends the receipt as ESC/POS. Always settles — on an unresponsive printer it
+ * rejects within a few seconds so the caller can fall back to window.print().
+ */
+export function usbPrint(receipt: ThermalReceiptData, shop: ShopInfo): Promise<void> {
+  return transfer('receipt', buildESCPOS(receipt, shop));
 }
 
 // ─── ESC/POS builder ─────────────────────────────────────────────────────────
