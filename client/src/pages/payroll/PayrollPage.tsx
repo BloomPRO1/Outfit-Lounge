@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Banknote, RefreshCw, CheckCircle, Users, TrendingUp, Clock,
-  Edit2, X, Plus, Trash2,
+  Edit2, X, Plus, Trash2, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { hrService } from '@/services/hrService';
@@ -12,6 +12,10 @@ import Button from '@/components/common/Button';
 import StatCard from '@/components/common/StatCard';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { cn } from '@/utils/cn';
+import {
+  createDoc, loadLogo, addHeader, addFooter,
+  addSectionTitle, addStatCards, addTable,
+} from '@/utils/reportPDF';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:     'bg-charcoal-500/40 text-charcoal-300 border-charcoal-400',
@@ -27,6 +31,14 @@ function currentPeriod() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
+
+function periodLabel(period: string) {
+  const [y, m] = period.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+// Amounts inside PDF tables — the currency is already stated in the column header
+const amt = (v: any) => formatCurrency(v, '').trim();
 
 // ─── Edit Drawer ──────────────────────────────────────────────────────────────
 
@@ -280,6 +292,7 @@ export default function PayrollPage() {
   const qc = useQueryClient();
   const [period, setPeriod] = useState(currentPeriod());
   const [editEmployeeId, setEditEmployeeId] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const { data: payrollData, isLoading } = useQuery({
     queryKey: ['payroll', period],
@@ -310,6 +323,86 @@ export default function PayrollPage() {
   const allPaid = hasRecords && rows.filter((r: any) => r.payroll_id).every((r: any) => r.status === 'paid');
   const outstanding = (summary.totalPayroll || 0) - (summary.totalPaid || 0);
 
+  const downloadPDF = async () => {
+    const records = rows.filter((r: any) => r.payroll_id);
+    if (!records.length) {
+      toast.error(`No payroll generated for ${periodLabel(period)} yet.`);
+      return;
+    }
+
+    setPdfLoading(true);
+    try {
+      const doc  = createDoc();
+      const logo = await loadLogo();
+      let y = await addHeader(doc, logo, 'Monthly Payroll', periodLabel(period));
+
+      const totals = records.reduce((t: any, r: any) => ({
+        base:       t.base       + parseFloat(r.base_salary || 0),
+        allowances: t.allowances + parseFloat(r.allowances  || 0),
+        deductions: t.deductions + parseFloat(r.deductions  || 0),
+        net:        t.net        + parseFloat(r.net_pay     || 0),
+      }), { base: 0, allowances: 0, deductions: 0, net: 0 });
+
+      const paidTotal = records
+        .filter((r: any) => r.status === 'paid')
+        .reduce((s: number, r: any) => s + parseFloat(r.net_pay || 0), 0);
+
+      y = addSectionTitle(doc, 'Summary', y);
+      y = addStatCards(doc, [
+        { label: 'Total Payroll', value: formatCurrency(totals.net) },
+        { label: 'Total Paid',    value: formatCurrency(paidTotal) },
+        { label: 'Outstanding',   value: formatCurrency(totals.net - paidTotal) },
+        { label: 'Employees',     value: String(records.length) },
+      ], y);
+
+      y = addSectionTitle(doc, 'Payroll Sheet', y);
+      y = addTable(doc,
+        ['Employee', 'Role / Dept', 'Base (LKR)', 'Allowances', 'Deductions', 'Net Pay (LKR)', 'Status', 'Paid On'],
+        [
+          ...records.map((r: any) => [
+            r.name,
+            [ROLE_LABELS[r.role] || r.role, r.department].filter(Boolean).join(' · '),
+            amt(r.base_salary),
+            amt(r.allowances),
+            amt(r.deductions),
+            amt(r.net_pay),
+            r.status,
+            r.paid_at ? formatDate(r.paid_at) : '—',
+          ]),
+          [
+            'TOTAL', '',
+            amt(totals.base),
+            amt(totals.allowances),
+            amt(totals.deductions),
+            amt(totals.net),
+            '', '',
+          ],
+        ], y);
+
+      // Allowance breakdown — only for employees who actually have line items
+      const withAllowances = records.filter((r: any) => r.allowances_list?.length);
+      if (withAllowances.length) {
+        y = addSectionTitle(doc, 'Allowance Breakdown', y);
+        addTable(doc,
+          ['Employee', 'Allowance', 'Amount (LKR)'],
+          withAllowances.flatMap((r: any) =>
+            r.allowances_list.map((a: any, i: number) => [
+              i === 0 ? r.name : '',
+              a.label,
+              amt(a.amount),
+            ])
+          ), y);
+      }
+
+      addFooter(doc);
+      doc.save(`payroll_${period}.pdf`);
+    } catch (err: any) {
+      toast.error('Failed to generate PDF: ' + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -328,6 +421,15 @@ export default function PayrollPage() {
             onChange={e => setPeriod(e.target.value)}
             className="bg-charcoal-700 border border-charcoal-500 rounded-xl px-3 py-2 text-sm text-charcoal-100 focus:ring-2 focus:ring-gold-600 outline-none"
           />
+          <Button
+            variant="secondary"
+            icon={<FileDown size={15} />}
+            loading={pdfLoading}
+            disabled={!hasRecords}
+            onClick={downloadPDF}
+          >
+            PDF
+          </Button>
           {!hasRecords ? (
             <Button
               variant="primary"
