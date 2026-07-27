@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, Users, Store, Bell, DollarSign, Shield, Plus, Pencil, Trash2, RefreshCw, Check, Minus, MessageCircle, Zap, Cloud, Smartphone, Printer, Usb, AlertTriangle, XCircle } from 'lucide-react';
 import { connectUsbPrinter, disconnectUsbPrinter, isUsbConnected, getReceiptPrinterName } from '@/services/usbPrinterService';
 import { connectLabelPrinter, disconnectLabelPrinter, isLabelConnected, getLabelPrinterName } from '@/services/labelPrinterService';
-import { hasDeviceConflict } from '@/services/usbPrinterCore';
+import { hasDeviceConflict, PrinterError } from '@/services/usbPrinterCore';
 import { toast } from 'sonner';
 import { settingsService } from '@/services/settingsService';
 import { permissionsService } from '@/services/permissionsService';
@@ -60,7 +60,7 @@ function PrinterSettings() {
       if (err?.name === 'NotFoundError') return;
       setReceiptConnected(isUsbConnected());
       setReceiptName(getReceiptPrinterName());
-      toast.error(err?.message || 'Could not connect receipt printer');
+      toast.error(err instanceof PrinterError ? err.message : 'Could not connect receipt printer');
     }
   };
 
@@ -81,7 +81,7 @@ function PrinterSettings() {
       if (err?.name === 'NotFoundError') return;
       setLabelConnected(isLabelConnected());
       setLabelName(getLabelPrinterName());
-      toast.error(err?.message || 'Could not connect label printer');
+      toast.error(err instanceof PrinterError ? err.message : 'Could not connect label printer');
     }
   };
 

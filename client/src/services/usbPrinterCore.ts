@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shared WebUSB plumbing for the receipt (ESC/POS) and label (TSPL) printers.
  *
  * Both services used to keep their own copy of this logic, which is how the
@@ -14,6 +14,20 @@
  */
 
 export type PrinterRole = 'receipt' | 'label';
+
+/**
+ * An error whose message is written for shop staff and is safe to show as-is.
+ *
+ * Everything else that escapes this module is a raw browser DOMException
+ * ("Unable to claim interface.", "Access denied.") — accurate but meaningless
+ * at the till, so the UI keeps its own wording for those.
+ */
+export class PrinterError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PrinterError';
+  }
+}
 
 interface Slot {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,7 +66,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
   return Promise.race([
     p,
     new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(message)), ms);
+      timer = setTimeout(() => reject(new PrinterError(message)), ms);
     }),
   ]).finally(() => clearTimeout(timer!));
 }
@@ -156,7 +170,7 @@ async function openAndBind(role: PrinterRole, d: any): Promise<void> {
   }
 
   void closeQuietly(d);
-  throw new Error(
+  throw new PrinterError(
     'Could not claim this printer — Windows still has a driver attached to it. ' +
     'Uninstall the driver in Device Manager, or use the print-dialog option instead.',
   );
@@ -166,7 +180,7 @@ async function openAndBind(role: PrinterRole, d: any): Promise<void> {
 export async function requestAndBind(role: PrinterRole): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const usb = (navigator as any).usb;
-  if (!usb) throw new Error('This browser has no WebUSB support — use Chrome or Edge.');
+  if (!usb) throw new PrinterError('This browser has no WebUSB support — use Chrome or Edge.');
 
   // Pick first, release afterwards: cancelling the picker must not disconnect
   // the printer that is already working.
@@ -177,7 +191,7 @@ export async function requestAndBind(role: PrinterRole): Promise<string> {
   // the duplicate interface claim wedges the pipe.
   const rival = slots[other(role)];
   if (rival && isSameDevice(rival.device, d)) {
-    throw new Error(
+    throw new PrinterError(
       `That device is already assigned as the ${ROLE_LABEL[other(role)]}. ` +
       `Pick the other printer, or disconnect the ${ROLE_LABEL[other(role)]} first.`,
     );
@@ -220,14 +234,14 @@ export function boundDevice(role: PrinterRole): unknown {
 
 async function doTransfer(role: PrinterRole, data: Uint8Array): Promise<void> {
   const slot = slots[role];
-  if (!slot) throw new Error(`No ${ROLE_LABEL[role]} connected`);
+  if (!slot) throw new PrinterError(`No ${ROLE_LABEL[role]} connected`);
 
   // A power-cycled printer, or one the OS put into USB selective suspend,
   // leaves a handle that still looks connected. `opened` catches that before
   // we write into a dead pipe.
   if (slot.device.opened === false) {
     slots[role] = null;
-    throw new Error(`The ${ROLE_LABEL[role]} connection was lost — reconnect it in Settings.`);
+    throw new PrinterError(`The ${ROLE_LABEL[role]} connection was lost — reconnect it in Settings.`);
   }
 
   try {
@@ -238,7 +252,7 @@ async function doTransfer(role: PrinterRole, data: Uint8Array): Promise<void> {
     );
     // A stalled endpoint resolves rather than rejecting, but nothing printed.
     if (result && result.status && result.status !== 'ok') {
-      throw new Error(`The ${ROLE_LABEL[role]} rejected the job (${result.status}).`);
+      throw new PrinterError(`The ${ROLE_LABEL[role]} rejected the job (${result.status}).`);
     }
   } catch (err) {
     // Drop the slot straight away so the next attempt takes the print-dialog

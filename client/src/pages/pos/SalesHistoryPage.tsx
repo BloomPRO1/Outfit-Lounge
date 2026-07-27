@@ -111,9 +111,7 @@ export default function SalesHistoryPage() {
           return;
         } catch (err: any) {
           console.error('USB receipt print failed:', err);
-          toast.error(
-            `${err?.message || 'Receipt printer failed'} — opening the print dialog instead.`,
-          );
+          toast.warning('Printer did not respond — opening the print dialog.');
         }
       }
       printViaIframe(buildReceiptHTML(receipt, shopInfo));

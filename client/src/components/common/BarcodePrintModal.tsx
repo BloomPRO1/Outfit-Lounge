@@ -6,6 +6,7 @@ import Button from './Button';
 import Drawer from './Drawer';
 import { connectLabelPrinter, isLabelConnected, getLabelPrinterName, tsplPrint } from '@/services/labelPrinterService';
 import { printHTMLInIframe } from '@/utils/thermalPrint';
+import { PrinterError } from '@/services/usbPrinterCore';
 
 export interface BarcodeItem {
   sku: string;
@@ -42,8 +43,9 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       // went wrong there, so stay quiet.
       if (err?.name === 'NotFoundError') return;
       toast.error(
-        err?.message ||
-        'Could not connect — printer may have a Windows driver installed (see tip below)',
+        err instanceof PrinterError
+          ? err.message
+          : 'Could not connect — printer may have a Windows driver installed (see tip below)',
       );
     }
   };
@@ -85,7 +87,7 @@ export default function BarcodePrintModal({ open, onClose, item }: Props) {
       setLabelConnected(isLabelConnected());
       setLabelPrinterName(getLabelPrinterName());
       toast.error(
-        `${err?.message || 'Direct print failed'} — try the Windows Dialog option instead.`,
+        `${err instanceof PrinterError ? err.message : 'Direct print failed'} — try the Windows Dialog option instead.`,
       );
     } finally {
       setPrinting(false);
